@@ -16,6 +16,7 @@
 package git4idea.log;
 
 import com.intellij.openapi.components.ServiceManager;
+import com.intellij.openapi.diagnostic.Attachment;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
@@ -24,6 +25,7 @@ import com.intellij.openapi.vcs.VcsKey;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.Consumer;
+import com.intellij.util.ExceptionUtil;
 import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.vcs.log.*;
@@ -36,6 +38,7 @@ import com.intellij.vcs.log.ui.filter.VcsLogTextFilter;
 import git4idea.GitLocalBranch;
 import git4idea.GitRemoteBranch;
 import git4idea.GitVcs;
+import git4idea.branch.GitBranchUtil;
 import git4idea.commands.GitCommand;
 import git4idea.commands.GitSimpleHandler;
 import git4idea.config.GitConfigUtil;
@@ -138,10 +141,16 @@ public class GitLogProvider implements VcsLogProvider {
     tagHandler.addParameters("--tags", "--no-walk", "--format=%H%d" + GitLogParser.RECORD_START_GIT, "--decorate=full");
     String out = tagHandler.run();
     Collection<VcsRef> refs = new ArrayList<VcsRef>();
-    for (String record : out.split(GitLogParser.RECORD_START)) {
-      if (!StringUtil.isEmptyOrSpaces(record)) {
-        refs.addAll(new RefParser(myVcsObjectsFactory).parseCommitRefs(record.trim(), root));
+    try {
+      for (String record : out.split(GitLogParser.RECORD_START)) {
+        if (!StringUtil.isEmptyOrSpaces(record)) {
+          refs.addAll(new RefParser(myVcsObjectsFactory).parseCommitRefs(record.trim(), root));
+        }
       }
+    }
+    catch (Exception e) {
+      LOG.error("Error during tags parsing", new Attachment("stack_trace.txt", ExceptionUtil.getThrowableText(e)),
+                new Attachment("git_output.txt", out));
     }
     return refs;
   }
@@ -179,13 +188,13 @@ public class GitLogProvider implements VcsLogProvider {
 
     List<VcsLogBranchFilter> branchFilters = ContainerUtil.findAll(filters, VcsLogBranchFilter.class);
     if (!branchFilters.isEmpty()) {
-      String branchFilter = joinFilters(branchFilters, new Function<VcsLogBranchFilter, String>() {
-        @Override
-        public String fun(VcsLogBranchFilter filter) {
-          return filter.getBranchName();
-        }
-      });
-      filterParameters.add(prepareParameter("branches", branchFilter));
+      // git doesn't support filtering by several branches very well (--branches parameter give a weak pattern capabilities)
+      // => by now assuming there is only one branch filter.
+      if (branchFilters.size() > 1) {
+        LOG.warn("More than one branch filter was passed. Using only the first one.");
+      }
+      VcsLogBranchFilter branchFilter = branchFilters.get(0);
+      filterParameters.add(branchFilter.getBranchName());
     }
     else {
       filterParameters.add("--all");
@@ -245,6 +254,12 @@ public class GitLogProvider implements VcsLogProvider {
     String userName = GitConfigUtil.getValue(myProject, root, GitConfigUtil.USER_NAME);
     String userEmail = StringUtil.notNullize(GitConfigUtil.getValue(myProject, root, GitConfigUtil.USER_EMAIL));
     return userName == null ? null : myVcsObjectsFactory.createUser(userName, userEmail);
+  }
+
+  @NotNull
+  @Override
+  public Collection<String> getContainingBranches(@NotNull VirtualFile root, @NotNull Hash commitHash) throws VcsException {
+    return GitBranchUtil.getBranches(myProject, root, true, true, commitHash.asString());
   }
 
   private static String prepareParameter(String paramName, String value) {

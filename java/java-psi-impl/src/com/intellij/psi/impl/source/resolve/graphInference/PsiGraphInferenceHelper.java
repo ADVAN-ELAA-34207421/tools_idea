@@ -39,7 +39,7 @@ public class PsiGraphInferenceHelper implements PsiInferenceHelper {
                                                  @Nullable PsiElement parent,
                                                  @NotNull ParameterTypeInferencePolicy policy) {
     final InferenceSession inferenceSession = new InferenceSession(new PsiTypeParameter[]{typeParameter}, partialSubstitutor, myManager);
-    inferenceSession.initExpressionConstraints(parameters, arguments, parent);
+    inferenceSession.initExpressionConstraints(parameters, arguments, parent, null);
     return inferenceSession.infer(parameters, arguments, parent, policy).substitute(typeParameter);
   }
 
@@ -54,7 +54,7 @@ public class PsiGraphInferenceHelper implements PsiInferenceHelper {
                                            @NotNull LanguageLevel languageLevel) {
     if (typeParameters.length == 0) return partialSubstitutor;
     final InferenceSession inferenceSession = new InferenceSession(typeParameters, partialSubstitutor, myManager);
-    inferenceSession.initExpressionConstraints(parameters, arguments, parent);
+    inferenceSession.initExpressionConstraints(parameters, arguments, parent, null);
     return inferenceSession.infer(parameters, arguments, parent, policy);
   }
 
@@ -86,6 +86,14 @@ public class PsiGraphInferenceHelper implements PsiInferenceHelper {
                                                  boolean isContraVariantPosition,
                                                  LanguageLevel languageLevel) {
     if (arg == PsiType.VOID || param == PsiType.VOID) return PsiType.NULL;
+    if (param instanceof PsiArrayType && arg instanceof PsiArrayType) {
+      return getSubstitutionForTypeParameter(typeParam, ((PsiArrayType)param).getComponentType(), ((PsiArrayType)arg).getComponentType(), isContraVariantPosition, languageLevel);
+    } 
+
+    if (!(param instanceof PsiClassType)) return PsiType.NULL;
+    if (arg == null) {
+      return PsiType.NULL;
+    }
     final PsiType[] leftTypes;
     final PsiType[] rightTypes;
     if (isContraVariantPosition) {

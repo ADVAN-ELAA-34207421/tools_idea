@@ -79,7 +79,8 @@ public class PathManager {
     else {
       ourHomePath = getHomePathFor(PathManager.class);
       if (ourHomePath == null) {
-        String advice = SystemInfo.isMac ? "reinstall the software." : "make sure bin/idea.properties is present in the installation directory.";
+        String advice = SystemInfo.isMac ? "reinstall the software."
+                                         : "make sure bin/idea.properties is present in the installation directory.";
         throw new RuntimeException("Could not find installation home path. Please " + advice);
       }
     }
@@ -186,8 +187,8 @@ public class PathManager {
     if (System.getProperty(PROPERTY_PLUGINS_PATH) != null) {
       ourPluginsPath = getAbsolutePath(trimPathQuotes(System.getProperty(PROPERTY_PLUGINS_PATH)));
     }
-    else if (PATHS_SELECTOR != null) {
-      ourPluginsPath = platformPath(PATHS_SELECTOR, "Library/Application Support", CONFIG_FOLDER + File.separatorChar + PLUGINS_FOLDER);
+    else if (SystemInfo.isMac && PATHS_SELECTOR != null) {
+      ourPluginsPath = getUserHome() + File.separator + "Library/Application Support" + File.separator + PATHS_SELECTOR;
     }
     else {
       ourPluginsPath = getConfigPath() + File.separatorChar + PLUGINS_FOLDER;
@@ -235,8 +236,8 @@ public class PathManager {
     if (System.getProperty(PROPERTY_LOG_PATH) != null) {
       ourLogPath = getAbsolutePath(trimPathQuotes(System.getProperty(PROPERTY_LOG_PATH)));
     }
-    else if (PATHS_SELECTOR != null) {
-      ourLogPath = platformPath(PATHS_SELECTOR, "Library/Logs", SYSTEM_FOLDER + File.separatorChar + LOG_DIRECTORY);
+    else if (SystemInfo.isMac && PATHS_SELECTOR != null) {
+      ourLogPath = getUserHome() + File.separator + "Library/Logs" + File.separator + PATHS_SELECTOR;
     }
     else {
       ourLogPath = getSystemPath() + File.separatorChar + LOG_DIRECTORY;
@@ -319,19 +320,19 @@ public class PathManager {
 
     if (propFile != null) {
       try {
-        InputStream fis = new BufferedInputStream(new FileInputStream(propFile));
+        Reader fis = new BufferedReader(new FileReader(propFile));
         try {
-          final PropertyResourceBundle bundle = new PropertyResourceBundle(fis);
-          final Enumeration keys = bundle.getKeys();
-          String home = (String)bundle.handleGetObject("idea.home");
+          Map<String, String> properties = FileUtil.loadProperties(fis);
+
+          String home = properties.get("idea.home");
           if (home != null && ourHomePath == null) {
             ourHomePath = getAbsolutePath(substituteVars(home));
           }
-          final Properties sysProperties = System.getProperties();
-          while (keys.hasMoreElements()) {
-            String key = (String)keys.nextElement();
+
+          Properties sysProperties = System.getProperties();
+          for (String key : properties.keySet()) {
             if (sysProperties.getProperty(key, null) == null) { // load the property from the property file only if it is not defined yet
-              final String value = substituteVars(bundle.getString(key));
+              String value = substituteVars(properties.get(key));
               sysProperties.setProperty(key, value);
             }
           }

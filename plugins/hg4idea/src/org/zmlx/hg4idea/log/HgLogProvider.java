@@ -123,7 +123,7 @@ public class HgLogProvider implements VcsLogProvider {
     }
     String currentRevision = repository.getCurrentRevision();
     if (currentRevision != null) { // null => fresh repository
-      refs.add(myVcsObjectsFactory.createRef(myVcsObjectsFactory.createHash(currentRevision), "HEAD", HgRefManager.HEAD, root));
+      refs.add(myVcsObjectsFactory.createRef(myVcsObjectsFactory.createHash(currentRevision), "tip", HgRefManager.HEAD, root));
     }
     for (HgNameWithHashInfo tagInfo : tags) {
       refs.add(myVcsObjectsFactory.createRef(myVcsObjectsFactory.createHash(tagInfo.getHash()), tagInfo.getName(), HgRefManager.TAG, root));
@@ -237,6 +237,12 @@ public class HgLogProvider implements VcsLogProvider {
     }
     List<String> userArgs = HgUtil.parseUserNameAndEmail(userName);
     return userName == null ? null : myVcsObjectsFactory.createUser(userArgs.get(0), userArgs.get(1));
+  }
+
+  @NotNull
+  @Override
+  public Collection<String> getContainingBranches(@NotNull VirtualFile root, @NotNull Hash commitHash) throws VcsException {
+    return HgHistoryUtil.getDescendingHeadsOfBranches(myProject, root, commitHash);
   }
 
   private static String prepareParameter(String paramName, String value) {

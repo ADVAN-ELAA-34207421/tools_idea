@@ -90,9 +90,7 @@ public class VcsLogUI {
     UIUtil.invokeLaterIfNeeded(new Runnable() {
       @Override
       public void run() {
-        myMainFrame.getGraphTable().setPreferredColumnWidths();
         myMainFrame.getGraphTable().repaint();
-        myMainFrame.refresh();
       }
     });
   }
@@ -273,5 +271,10 @@ public class VcsLogUI {
 
   public Component getToolbar() {
     return myMainFrame.getToolbar();
+  }
+
+  @NotNull
+  public VcsLog getVcsLog() {
+    return myLog;
   }
 }

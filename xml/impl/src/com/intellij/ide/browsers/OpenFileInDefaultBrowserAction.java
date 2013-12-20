@@ -32,6 +32,7 @@ import com.intellij.testFramework.LightVirtualFile;
 import com.intellij.ui.ColoredListCellRenderer;
 import com.intellij.ui.components.JBList;
 import com.intellij.util.Consumer;
+import com.intellij.util.Url;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.xml.XmlBundle;
 import com.intellij.xml.util.HtmlUtil;
@@ -39,7 +40,7 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.event.InputEvent;
-import java.util.Set;
+import java.util.Collection;
 
 public class OpenFileInDefaultBrowserAction extends DumbAwareAction {
   private static final Logger LOG = Logger.getInstance(OpenFileInDefaultBrowserAction.class);
@@ -56,7 +57,7 @@ public class OpenFileInDefaultBrowserAction extends DumbAwareAction {
       return;
     }
 
-    Pair<WebBrowserUrlProvider, Set<Url>> browserUrlProvider = WebBrowserServiceImpl.getProvider(file);
+    Pair<WebBrowserUrlProvider, Collection<Url>> browserUrlProvider = WebBrowserServiceImpl.getProvider(file);
     final boolean isHtmlFile = HtmlUtil.isHtmlFile(file);
     if (browserUrlProvider == null) {
       if (file.getVirtualFile() instanceof LightVirtualFile) {
@@ -117,7 +118,7 @@ public class OpenFileInDefaultBrowserAction extends DumbAwareAction {
 
   public static void doOpen(PsiElement psiFile, boolean preferLocalUrl, final WebBrowser browser) {
     try {
-      Set<Url> urls = WebBrowserService.getInstance().getUrlToOpen(psiFile, preferLocalUrl);
+      Collection<Url> urls = WebBrowserService.getInstance().getUrlToOpen(psiFile, preferLocalUrl);
       if (!urls.isEmpty()) {
         chooseUrl(urls).doWhenDone(new Consumer<Url>() {
           @Override
@@ -137,7 +138,7 @@ public class OpenFileInDefaultBrowserAction extends DumbAwareAction {
   }
 
   @NotNull
-  private static AsyncResult<Url> chooseUrl(Set<Url> urls) {
+  private static AsyncResult<Url> chooseUrl(Collection<Url> urls) {
     if (urls.size() == 1) {
       return new AsyncResult.Done<Url>(ContainerUtil.getFirstItem(urls));
     }
@@ -148,7 +149,7 @@ public class OpenFileInDefaultBrowserAction extends DumbAwareAction {
       protected void customizeCellRenderer(JList list, Object value, int index, boolean selected, boolean hasFocus) {
         // todo icons looks good, but is it really suitable for all URLs providers?
         setIcon(AllIcons.Nodes.Servlet);
-        append(((Url)value).getPath());
+        append(((Url)value).toDecodedForm());
       }
     });
 

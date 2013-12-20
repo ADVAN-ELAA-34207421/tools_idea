@@ -9,6 +9,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.*;
 import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.roots.libraries.LibraryTable;
+import com.intellij.openapi.util.io.FileUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,7 +29,7 @@ public class ProjectStructureHelper {
 
   @Nullable
   public Module findIdeModule(@NotNull ModuleData module, @NotNull Project ideProject) {
-    return findIdeModule(module.getName(), ideProject);
+    return findIdeModule(module.getInternalName(), ideProject);
   }
 
   @Nullable
@@ -72,7 +73,7 @@ public class ProjectStructureHelper {
     for (OrderEntry entry : model.getOrderEntries()) {
       if (entry instanceof ModuleOrderEntry) {
         ModuleOrderEntry candidate = (ModuleOrderEntry)entry;
-        if (dependency.getName().equals(candidate.getModuleName()) &&
+        if (dependency.getInternalName().equals(candidate.getModuleName()) &&
             dependency.getScope().equals(candidate.getScope())) {
           return candidate;
         }

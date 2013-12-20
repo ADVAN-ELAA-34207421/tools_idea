@@ -24,6 +24,7 @@ import com.intellij.vcs.log.VcsLogObjectsFactory;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.zmlx.hg4idea.HgNameWithHashInfo;
+import org.zmlx.hg4idea.HgVcs;
 
 import java.io.File;
 import java.util.*;
@@ -42,7 +43,8 @@ public class HgRepositoryReader {
   private static Pattern HASH_NAME = Pattern.compile("\\s*([0-9a-fA-F]+)\\s+(.+)");
 
   @NotNull private final File myHgDir;            // .hg
-  @NotNull private final File myBranchHeadsFile;  // .hg/cache/branchheads (does not exist before first commit)
+  @NotNull private final File myBranchHeadsFile;  // .hg/cache/branchheads
+  @NotNull private final File myCacheDir; // .hg/cache (does not exist before first commit)
   @NotNull private final File myCurrentBranch;    // .hg/branch
   @NotNull private final File myBookmarksFile; //.hg/bookmarks
   @NotNull private final File myCurrentBookmark; //.hg/bookmarks.current
@@ -53,9 +55,8 @@ public class HgRepositoryReader {
   public HgRepositoryReader(@NotNull Project project, @NotNull File hgDir) {
     myHgDir = hgDir;
     RepositoryUtil.assertFileExists(myHgDir, ".hg directory not found in " + myHgDir);
-    File branchesFile = new File(new File(myHgDir, "cache"), "branchheads-served");  //branchheads-served exist after mercurial 2.5,
-    //before 2.5 only branchheads exist
-    myBranchHeadsFile = branchesFile.exists() ? branchesFile : new File(new File(myHgDir, "cache"), "branchheads");
+    myCacheDir = new File(myHgDir, "cache");
+    myBranchHeadsFile = identifyBranchHeadFile(project, myCacheDir);
     myCurrentBranch = new File(myHgDir, "branch");
     myBookmarksFile = new File(myHgDir, "bookmarks");
     myCurrentBookmark = new File(myHgDir, "bookmarks.current");
@@ -65,13 +66,28 @@ public class HgRepositoryReader {
   }
 
   /**
+   * Identify file with branches and heads information depends on hg version;
+   *
+   * @param project
+   * @param parentCacheFile
+   * @return
+   */
+  @NotNull
+  private static File identifyBranchHeadFile(@NotNull Project project, @NotNull File parentCacheFile) {
+    File branchesFile = new File(parentCacheFile, "branchheads-served");  //branchheads-served exist after mercurial 2.5,
+    //before 2.5 only branchheads exist
+    HgVcs vcs = HgVcs.getInstance(project);
+    return vcs != null && vcs.getVersion().hasBranchHeadsServed() ? branchesFile : new File(parentCacheFile, "branchheads");
+  }
+
+  /**
    * Finds current revision value.
    *
    * @return The current revision hash, or <b>{@code null}</b> if current revision is unknown - it is the initial repository state.
    */
   @Nullable
   public String readCurrentRevision() {
-    if (checkIsFresh()) return null;
+    if (!isBranchInfoAvailable()) return null;
     String[] branchesWithHeads = RepositoryUtil.tryLoadFile(myBranchHeadsFile).split("\n");
     String head = branchesWithHeads[0];
     Matcher matcher = HASH_NAME.matcher(head);
@@ -79,6 +95,10 @@ public class HgRepositoryReader {
       return (matcher.group(1));
     }
     return null;
+  }
+
+  private boolean isBranchInfoAvailable() {
+    return !isFresh() && myBranchHeadsFile.exists();
   }
 
   /**
@@ -93,7 +113,7 @@ public class HgRepositoryReader {
   public Collection<HgNameWithHashInfo> readBranches() {
     List<HgNameWithHashInfo> branches = new ArrayList<HgNameWithHashInfo>();
     // Set<String> branchNames = new HashSet<String>();
-    if (!checkIsFresh()) {
+    if (isBranchInfoAvailable()) {
       String[] branchesWithHeads = RepositoryUtil.tryLoadFile(myBranchHeadsFile).split("\n");
       // first one - is a head revision: head hash + head number;
       for (int i = 1; i < branchesWithHeads.length; ++i) {
@@ -118,8 +138,8 @@ public class HgRepositoryReader {
     return isMergeInProgress() ? Repository.State.MERGING : Repository.State.NORMAL;
   }
 
-  public boolean checkIsFresh() {
-    return !myBranchHeadsFile.exists();
+  public boolean isFresh() {
+    return !myCacheDir.exists();
   }
 
   public boolean branchExist() {

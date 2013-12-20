@@ -530,6 +530,8 @@ class OptimizedFileManager extends DefaultFileManager {
   private final ByteBufferCache myByteBufferCache = new ByteBufferCache();
 
 
+  private static volatile boolean ourPathCacheClearProblem = false;
+
   public void close() {
     try {
       super.close();
@@ -542,6 +544,14 @@ class OptimizedFileManager extends DefaultFileManager {
       myDirectoryCache.clear();
       myByteBufferCache.clear();
       myIsFile.clear();
+      if (!ourPathCacheClearProblem) {
+        try {
+          Paths.clearPathExistanceCache();
+        }
+        catch (Throwable ignored) {
+          ourPathCacheClearProblem = true;
+        }
+      }
     }
   }
 }

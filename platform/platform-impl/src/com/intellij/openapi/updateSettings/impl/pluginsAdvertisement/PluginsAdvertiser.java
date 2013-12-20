@@ -105,9 +105,9 @@ public class PluginsAdvertiser implements StartupActivity {
   }
 
   private static Map<String, Set<Plugin>> loadSupportedExtensions(@NotNull List<IdeaPluginDescriptor> allPlugins) {
-    final Set<String> availableIds = new HashSet<String>();
+    final Map<String, IdeaPluginDescriptor> availableIds = new HashMap<String, IdeaPluginDescriptor>();
     for (IdeaPluginDescriptor plugin : allPlugins) {
-      availableIds.add(plugin.getPluginId().getIdString());
+      availableIds.put(plugin.getPluginId().getIdString(), plugin);
     }
     final String pluginRepositoryUrl = FEATURE_IMPLEMENTATIONS_URL + "featureType=" + FileTypeFactory.FILE_TYPE_FACTORY_EP.getName();
     try {
@@ -125,10 +125,14 @@ public class PluginsAdvertiser implements StartupActivity {
           final String pluginId = StringUtil.unquoteString(jsonObject.get("pluginId").toString());
           final JsonElement bundledExt = jsonObject.get("bundled");
           boolean isBundled = Boolean.parseBoolean(bundledExt.toString());
-          if (!availableIds.contains(pluginId) && !isBundled) continue;
+          final IdeaPluginDescriptor fromServerPluginDescription = availableIds.get(pluginId);
+          if (fromServerPluginDescription == null && !isBundled) continue;
 
-          final IdeaPluginDescriptor plugin = PluginManager.getPlugin(PluginId.getId(pluginId));
-          if (plugin != null && plugin.isEnabled()) continue;
+          final IdeaPluginDescriptor loadedPlugin = PluginManager.getPlugin(PluginId.getId(pluginId));
+          if (loadedPlugin != null && loadedPlugin.isEnabled()) continue;
+
+          if (loadedPlugin != null && fromServerPluginDescription != null && 
+              StringUtil.compareVersionNumbers(loadedPlugin.getVersion(), fromServerPluginDescription.getVersion()) >= 0) continue;
 
           final JsonElement ext = jsonObject.get("implementationName");
           final String extension = StringUtil.unquoteString(ext.toString());
@@ -210,6 +214,15 @@ public class PluginsAdvertiser implements StartupActivity {
     return null;
   }
 
+  static boolean hasBundledNotInstalledPlugin(Collection<Plugin> plugins) {
+    for (Plugin plugin : plugins) {
+      if (plugin.myBundled && PluginManager.getPlugin(PluginId.getId(plugin.myPluginId)) == null) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   @Override
   public void runActivity(@NotNull final Project project) {
     if (!UpdateSettings.getInstance().CHECK_NEEDED) return;
@@ -258,12 +271,10 @@ public class PluginsAdvertiser implements StartupActivity {
                   if (pluginDescriptor != null) {
                     myDisabledPlugins.put(plugin, pluginDescriptor);
                   }
-                } else {
-                  if (plugin.myBundled) {
-                    myBundledPlugins = true;
-                  }
-                }
+                } 
               }
+
+              myBundledPlugins = hasBundledNotInstalledPlugin(ids.values());
 
               for (IdeaPluginDescriptor loadedPlugin : myAllPlugins) {
                 final PluginId pluginId = loadedPlugin.getPluginId();

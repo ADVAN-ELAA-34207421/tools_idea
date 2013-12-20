@@ -29,6 +29,7 @@ import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotifica
 import com.intellij.openapi.externalSystem.model.task.TaskData;
 import com.intellij.openapi.externalSystem.service.project.ExternalSystemProjectResolver;
 import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil;
+import com.intellij.openapi.externalSystem.util.ExternalSystemDebugEnvironment;
 import com.intellij.openapi.util.KeyValue;
 import com.intellij.openapi.util.Pair;
 import com.intellij.util.Function;
@@ -124,6 +125,12 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
     });
   }
 
+  @Override
+  public boolean cancelTask(@NotNull ExternalSystemTaskId id, @NotNull ExternalSystemTaskNotificationListener listener) {
+    // TODO implement cancellation using gradle API invocation when it will be ready, see http://issues.gradle.org/browse/GRADLE-1539
+    return false;
+  }
+
   @NotNull
   private DataNode<ProjectData> doResolveProjectInfo(@NotNull final ProjectResolverContext resolverCtx,
                                                      @NotNull final GradleProjectResolverExtension projectResolverChain)
@@ -204,6 +211,11 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
       if (gradleModule == null) {
         continue;
       }
+
+      if (ExternalSystemDebugEnvironment.DEBUG_ORPHAN_MODULES_PROCESSING) {
+        LOG.info(String.format("Importing module data: %s", gradleModule));
+      }
+
       final String moduleName = gradleModule.getName();
       if (moduleName == null) {
         throw new IllegalStateException("Module with undefined name detected: " + gradleModule);
