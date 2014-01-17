@@ -21,17 +21,15 @@ import com.intellij.diagnostic.PerformanceWatcher;
 import com.intellij.diagnostic.PluginException;
 import com.intellij.ide.*;
 import com.intellij.ide.plugins.IdeaPluginDescriptor;
-import com.intellij.ide.plugins.PluginManager;
 import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.idea.StartupUtil;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.*;
 import com.intellij.openapi.application.ex.ApplicationEx;
 import com.intellij.openapi.command.CommandProcessor;
-import com.intellij.openapi.components.ComponentConfig;
 import com.intellij.openapi.components.StateStorageException;
 import com.intellij.openapi.components.impl.ApplicationPathMacroManager;
-import com.intellij.openapi.components.impl.ComponentManagerImpl;
+import com.intellij.openapi.components.impl.PlatformComponentManagerImpl;
 import com.intellij.openapi.components.impl.stores.IApplicationStore;
 import com.intellij.openapi.components.impl.stores.IComponentStore;
 import com.intellij.openapi.components.impl.stores.StoreUtil;
@@ -39,6 +37,7 @@ import com.intellij.openapi.components.impl.stores.StoresFactory;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.openapi.extensions.Extensions;
+import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.progress.EmptyProgressIndicator;
 import com.intellij.openapi.progress.ProcessCanceledException;
@@ -83,7 +82,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @SuppressWarnings({"AssignmentToStaticFieldFromInstanceMethod"})
-public class ApplicationImpl extends ComponentManagerImpl implements ApplicationEx {
+public class ApplicationImpl extends PlatformComponentManagerImpl implements ApplicationEx {
   private static final Logger LOG = Logger.getInstance("#com.intellij.application.impl.ApplicationImpl");
   private final ModalityState MODALITY_STATE_NONE = ModalityState.NON_MODAL;
 
@@ -117,8 +116,6 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
   private volatile boolean myDisposeInProgress = false;
 
   private final Disposable myLastDisposable = Disposer.newDisposable(); // will be disposed last
-
-  private boolean myHandlingInitComponentError;
 
   private final AtomicBoolean mySaveSettingsIsInProgress = new AtomicBoolean(false);
   @SuppressWarnings({"UseOfArchaicSystemPropertyAccessors"})
@@ -358,19 +355,6 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
   @Override
   public boolean holdsReadLock() {
     return myLock.getReadHoldCount() != 0;
-  }
-
-  @Override
-  protected void handleInitComponentError(Throwable t, String componentClassName, ComponentConfig config) {
-    if (!myHandlingInitComponentError) {
-      myHandlingInitComponentError = true;
-      try {
-        PluginManager.handleComponentError(t, componentClassName, config);
-      }
-      finally {
-        myHandlingInitComponentError = false;
-      }
-    }
   }
 
   private void loadApplicationComponents() {
@@ -1171,6 +1155,12 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
       }
     }
     return true;
+  }
+
+  @Nullable
+  @Override
+  public PluginId getPluginByClassName(@NotNull String className) {
+    return PluginManagerCore.getPluginByClassName(className);
   }
 
   public boolean tryToApplyActivationState(boolean active, Window window) {

@@ -246,7 +246,7 @@ public class FindUsagesManager implements JDOMExternalizable {
   }
 
   public void findUsages(@NotNull PsiElement psiElement, final PsiFile scopeFile, final FileEditor editor, boolean showDialog) {
-    doShowDialogAndStartFind(psiElement, scopeFile, editor, showDialog, true);
+    doShowDialogAndStartFind(psiElement, scopeFile, editor, showDialog, false);
   }
 
   private void doShowDialogAndStartFind(@NotNull PsiElement psiElement,
@@ -293,11 +293,10 @@ public class FindUsagesManager implements JDOMExternalizable {
   }
 
   public void showSettingsAndFindUsages(@NotNull NavigationItem[] targets) {
-    UsageTarget[] usageTargets = (UsageTarget[])targets;
-    PsiElement[] elements = getPsiElements(usageTargets);
-    if (elements.length == 0) return;
-    PsiElement psiElement = elements[0];
-    doShowDialogAndStartFind(psiElement, null, null, true, false);
+    if (targets.length == 0) return;
+    NavigationItem target = targets[0];
+    if (!(target instanceof ConfigurableUsageTarget)) return;
+    ((ConfigurableUsageTarget)target).showSettings();
   }
 
   private static void checkNotNull(@NotNull PsiElement[] primaryElements,

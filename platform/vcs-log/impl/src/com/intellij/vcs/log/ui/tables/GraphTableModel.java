@@ -3,7 +3,6 @@ package com.intellij.vcs.log.ui.tables;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.EmptyRunnable;
 import com.intellij.openapi.vcs.changes.Change;
-import com.intellij.openapi.vcs.changes.committed.CommittedChangesTreeBrowser;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.vcs.log.Hash;
 import com.intellij.vcs.log.VcsFullCommitDetails;
@@ -14,21 +13,19 @@ import com.intellij.vcs.log.data.LoadingDetails;
 import com.intellij.vcs.log.data.VcsLogDataHolder;
 import com.intellij.vcs.log.graph.elements.Node;
 import com.intellij.vcs.log.graph.render.GraphCommitCell;
-import com.intellij.vcs.log.graph.render.PositionUtil;
 import com.intellij.vcs.log.printmodel.GraphPrintCell;
 import com.intellij.vcs.log.ui.VcsLogUI;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 /**
  * @author Kirill Likhodedov
  */
-public class GraphTableModel extends AbstractVcsLogTableModel<GraphCommitCell> {
+public class GraphTableModel extends AbstractVcsLogTableModel<GraphCommitCell, Node> {
 
   private static final Logger LOG = Logger.getInstance(GraphTableModel.class);
 
@@ -50,15 +47,13 @@ public class GraphTableModel extends AbstractVcsLogTableModel<GraphCommitCell> {
   @Nullable
   @Override
   protected VcsShortCommitDetails getShortDetails(int rowIndex) {
-    Node commitNode = myDataPack.getGraphModel().getGraph().getCommitNodeInRow(rowIndex);
-    return commitNode == null ? null : myDataHolder.getMiniDetailsGetter().getCommitData(commitNode);
+    return myDataHolder.getMiniDetailsGetter().getCommitData(rowIndex, this);
   }
 
   @Nullable
   @Override
   public VcsFullCommitDetails getFullCommitDetails(int row) {
-    Node node = myDataPack.getGraphModel().getGraph().getCommitNodeInRow(row);
-    return node == null ? null : myDataHolder.getCommitDetailsGetter().getCommitData(node);
+    return myDataHolder.getCommitDetailsGetter().getCommitData(row, this);
   }
 
   @Override
@@ -68,29 +63,16 @@ public class GraphTableModel extends AbstractVcsLogTableModel<GraphCommitCell> {
 
   @Nullable
   @Override
-  public List<Change> getSelectedChanges(int[] selectedRows) {
+  public List<Change> getSelectedChanges(@NotNull List<Integer> selectedRows) {
     List<Change> changes = new ArrayList<Change>();
-    for (Node node : nodes(selectedRows)) {
-      VcsFullCommitDetails commitData = myDataHolder.getCommitDetailsGetter().getCommitData(node);
-      if (commitData instanceof LoadingDetails) {
+    for (int row : selectedRows) {
+      VcsFullCommitDetails commitData = myDataHolder.getCommitDetailsGetter().getCommitData(row, this);
+      if (commitData == null || commitData instanceof LoadingDetails) {
         return null;
       }
       changes.addAll(commitData.getChanges());
     }
-    return CommittedChangesTreeBrowser.zipChanges(changes);
-  }
-
-  @NotNull
-  private List<Node> nodes(int[] selectedRows) {
-    List<Node> result = new ArrayList<Node>();
-    Arrays.sort(selectedRows);
-    for (int rowIndex : selectedRows) {
-      Node node = PositionUtil.getNode(getGraphPrintCellForRow(rowIndex));
-      if (node != null) {
-        result.add(node);
-      }
-    }
-    return result;
+    return changes;
   }
 
   @Nullable
@@ -105,7 +87,7 @@ public class GraphTableModel extends AbstractVcsLogTableModel<GraphCommitCell> {
 
   @NotNull
   @Override
-  protected VirtualFile getRoot(int rowIndex) {
+  public VirtualFile getRoot(int rowIndex) {
     Node commitNode = myDataPack.getGraphModel().getGraph().getCommitNodeInRow(rowIndex);
     return commitNode != null ? commitNode.getBranch().getRepositoryRoot() : FAKE_ROOT;
   }
@@ -136,6 +118,6 @@ public class GraphTableModel extends AbstractVcsLogTableModel<GraphCommitCell> {
   public Hash getHashAtRow(int row) {
     Node node = myDataPack.getGraphModel().getGraph().getCommitNodeInRow(row);
     return node == null ? null : myDataHolder.getHash(node.getCommitIndex());
-    
   }
+
 }

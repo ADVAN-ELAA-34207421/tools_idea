@@ -82,8 +82,8 @@ public class GitLogProvider implements VcsLogProvider {
       return Collections.emptyList();
     }
 
-    String[] params = {"HEAD", "--branches", "--remotes", "--tags", "--encoding=UTF-8", "--full-history", "--sparse",
-      "--max-count=" + commitCount};
+    String[] params = ArrayUtil.mergeArrays(ArrayUtil.toStringArray(GitHistoryUtils.LOG_ALL),
+                                            "--encoding=UTF-8", "--full-history", "--sparse", "--max-count=" + commitCount);
     if (ordered) {
       params = ArrayUtil.append(params, "--date-order");
     }
@@ -189,7 +189,8 @@ public class GitLogProvider implements VcsLogProvider {
   @NotNull
   @Override
   public List<? extends VcsFullCommitDetails> getFilteredDetails(@NotNull final VirtualFile root,
-                                                                 @NotNull Collection<VcsLogFilter> filters) throws VcsException {
+                                                                 @NotNull Collection<VcsLogFilter> filters,
+                                                                 int maxCount) throws VcsException {
     if (!isRepositoryReady(root)) {
       return Collections.emptyList();
     }
@@ -207,7 +208,7 @@ public class GitLogProvider implements VcsLogProvider {
       filterParameters.add(branchFilter.getBranchName());
     }
     else {
-      filterParameters.add("--all");
+      filterParameters.addAll(GitHistoryUtils.LOG_ALL);
     }
 
     List<VcsLogUserFilter> userFilters = ContainerUtil.findAll(filters, VcsLogUserFilter.class);
@@ -243,6 +244,10 @@ public class GitLogProvider implements VcsLogProvider {
     }
 
     filterParameters.add("--regexp-ignore-case"); // affects case sensitivity of any filter (except file filter)
+    if (maxCount > 0) {
+      filterParameters.add("--max-count=" + maxCount);
+    }
+    filterParameters.add("--date-order");
 
     // note: this filter must be the last parameter, because it uses "--" which separates parameters from paths
     List<VcsLogStructureFilter> structureFilters = ContainerUtil.findAll(filters, VcsLogStructureFilter.class);

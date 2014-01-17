@@ -1210,6 +1210,11 @@ public class ContainerUtil extends ContainerUtilRt {
     return getFirstItem(items, null);
   }
 
+  @Nullable
+  public static <T> T getFirstItem(@Nullable List<T> items) {
+    return items == null || items.isEmpty() ? null : items.get(0);
+  }
+
   public static <T> T getFirstItem(@Nullable final Collection<T> items, @Nullable final T def) {
     return items == null || items.isEmpty() ? def : items.iterator().next();
   }
@@ -2005,7 +2010,7 @@ public class ContainerUtil extends ContainerUtilRt {
     return result;
   }
 
-  @Contract("null -> null")
+  @Contract("null -> true")
   public static <T> boolean isEmpty(List<T> list) {
     return list == null || list.isEmpty();
   }

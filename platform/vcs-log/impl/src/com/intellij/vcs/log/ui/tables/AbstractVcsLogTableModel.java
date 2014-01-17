@@ -7,6 +7,7 @@ import com.intellij.util.text.DateFormatUtil;
 import com.intellij.vcs.log.Hash;
 import com.intellij.vcs.log.VcsFullCommitDetails;
 import com.intellij.vcs.log.VcsShortCommitDetails;
+import com.intellij.vcs.log.graph.elements.Node;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,8 +16,10 @@ import java.util.List;
 
 /**
  * @param <CommitColumnClass> commit column class
+ * @param <CommitId>          Commit identifier, which can be different depending on the model nature,
+ *                            for example, a {@link Hash} or an {@link Integer} or a {@link Node}.
  */
-public abstract class AbstractVcsLogTableModel<CommitColumnClass> extends AbstractTableModel {
+public abstract class AbstractVcsLogTableModel<CommitColumnClass, CommitId> extends AbstractTableModel {
 
   public static final VirtualFile FAKE_ROOT = NullVirtualFile.INSTANCE;
 
@@ -73,11 +76,17 @@ public abstract class AbstractVcsLogTableModel<CommitColumnClass> extends Abstra
 
   public abstract void requestToLoadMore();
 
+  /**
+   * Returns Changes for commits at selected rows.<br/>
+   * Rows are given in the order as they appear in the table, i. e. in reverse chronological order. <br/>
+   * Changes can be returned as-is, i.e. with duplicate changes for a single file.
+   * @return Changes selected in all rows, or null if this data is not ready yet.
+   */
   @Nullable
-  public abstract List<Change> getSelectedChanges(int[] selectedRows);
+  public abstract List<Change> getSelectedChanges(@NotNull List<Integer> selectedRows);
 
   @NotNull
-  protected abstract VirtualFile getRoot(int rowIndex);
+  public abstract VirtualFile getRoot(int rowIndex);
 
   @NotNull
   protected abstract CommitColumnClass getCommitColumnCell(int index, @Nullable VcsShortCommitDetails details);

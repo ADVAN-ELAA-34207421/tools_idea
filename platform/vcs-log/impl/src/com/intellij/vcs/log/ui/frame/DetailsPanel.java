@@ -91,13 +91,13 @@ class DetailsPanel extends JPanel implements ListSelectionListener {
     else {
       ((CardLayout)getLayout()).show(this, STANDARD_LAYER);
       int row = rows[0];
-      Hash hash = ((AbstractVcsLogTableModel)myGraphTable.getModel()).getHashAtRow(row);
-      if (hash == null) {
+      AbstractVcsLogTableModel<?,?> tableModel = (AbstractVcsLogTableModel)myGraphTable.getModel();
+      Hash hash = tableModel.getHashAtRow(row);
+      VcsFullCommitDetails commitData = myLogDataHolder.getCommitDetailsGetter().getCommitData(row, tableModel);
+      if (commitData == null || hash == null) {
         showMessage("No commits selected");
         return;
       }
-
-      VcsFullCommitDetails commitData = myLogDataHolder.getCommitDetailsGetter().getCommitData(hash);
       if (commitData instanceof LoadingDetails) {
         myLoadingPanel.startLoading();
         myDataPanel.setData(null);

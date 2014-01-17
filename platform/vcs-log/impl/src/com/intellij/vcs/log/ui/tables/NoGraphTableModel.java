@@ -8,29 +8,35 @@ import com.intellij.vcs.log.Hash;
 import com.intellij.vcs.log.VcsFullCommitDetails;
 import com.intellij.vcs.log.VcsRef;
 import com.intellij.vcs.log.VcsShortCommitDetails;
+import com.intellij.vcs.log.data.LoadMoreStage;
 import com.intellij.vcs.log.data.RefsModel;
 import com.intellij.vcs.log.graph.render.CommitCell;
 import com.intellij.vcs.log.ui.VcsLogUI;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class NoGraphTableModel extends AbstractVcsLogTableModel<CommitCell> {
+public class NoGraphTableModel extends AbstractVcsLogTableModel<CommitCell, Hash> {
 
   private static final Logger LOG = Logger.getInstance(NoGraphTableModel.class);
 
   @NotNull private final VcsLogUI myUi;
   @NotNull private final List<VcsFullCommitDetails> myCommits;
   @NotNull private final RefsModel myRefsModel;
-  private boolean myAllowLoadingMoreRequest;
+  @NotNull private final LoadMoreStage myLoadMoreStage;
+  @NotNull private final AtomicBoolean myLoadMoreWasRequested = new AtomicBoolean();
 
   public NoGraphTableModel(@NotNull VcsLogUI UI, @NotNull List<VcsFullCommitDetails> commits, @NotNull RefsModel refsModel,
-                           boolean allowLoadingMoreRequest) {
+                           @NotNull LoadMoreStage loadMoreStage) {
     myUi = UI;
     myCommits = commits;
     myRefsModel = refsModel;
-    myAllowLoadingMoreRequest = allowLoadingMoreRequest;
+    myLoadMoreStage = loadMoreStage;
   }
 
   @Override
@@ -56,24 +62,16 @@ public class NoGraphTableModel extends AbstractVcsLogTableModel<CommitCell> {
 
   @Override
   public void requestToLoadMore() {
-    if (!myAllowLoadingMoreRequest) {
-      return;
+    if (myLoadMoreWasRequested.compareAndSet(false, true)     // Don't send the request to VCS twice
+        && myLoadMoreStage != LoadMoreStage.ALL_REQUESTED) {  // or when everything possible is loaded
+      myUi.getTable().setPaintBusy(true);
+      myUi.getFilterer().requestVcs(myUi.collectFilters(), myLoadMoreStage);
     }
-
-    myUi.getTable().setPaintBusy(true);
-    myUi.getFilterer().requestVcs(myUi.collectFilters(), new Runnable() {
-      @Override
-      public void run() {
-        myUi.getTable().setPaintBusy(false);
-      }
-    });
-    myAllowLoadingMoreRequest = false; // Don't send the request to VCS twice
   }
 
   @Nullable
   @Override
-  public List<Change> getSelectedChanges(int[] selectedRows) {
-    Arrays.sort(selectedRows);
+  public List<Change> getSelectedChanges(@NotNull List<Integer> selectedRows) {
     List<Change> changes = new ArrayList<Change>();
     for (int selectedRow : selectedRows) {
       changes.addAll(myCommits.get(selectedRow).getChanges());
@@ -83,7 +81,7 @@ public class NoGraphTableModel extends AbstractVcsLogTableModel<CommitCell> {
 
   @NotNull
   @Override
-  protected VirtualFile getRoot(int rowIndex) {
+  public VirtualFile getRoot(int rowIndex) {
     VcsFullCommitDetails commit = myCommits.get(rowIndex);
     if (commit != null) {
       return commit.getRoot();
@@ -117,5 +115,4 @@ public class NoGraphTableModel extends AbstractVcsLogTableModel<CommitCell> {
   public Hash getHashAtRow(int row) {
     return myCommits.get(row).getHash();
   }
-
 }
