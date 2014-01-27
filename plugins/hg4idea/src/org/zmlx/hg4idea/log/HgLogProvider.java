@@ -19,20 +19,14 @@ package org.zmlx.hg4idea.log;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vcs.VcsKey;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.Consumer;
-import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.vcs.log.*;
-import com.intellij.vcs.log.data.VcsLogBranchFilter;
-import com.intellij.vcs.log.data.VcsLogDateFilter;
-import com.intellij.vcs.log.data.VcsLogStructureFilter;
-import com.intellij.vcs.log.data.VcsLogUserFilter;
-import com.intellij.vcs.log.ui.filter.VcsLogTextFilter;
+import com.intellij.vcs.log.VcsLogTextFilter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.zmlx.hg4idea.HgNameWithHashInfo;
@@ -162,33 +156,28 @@ public class HgLogProvider implements VcsLogProvider {
   @NotNull
   @Override
   public List<? extends VcsFullCommitDetails> getFilteredDetails(@NotNull final VirtualFile root,
-                                                                 @NotNull Collection<VcsLogFilter> filters,
+                                                                 @NotNull Collection<VcsLogBranchFilter> branchFilters,
+                                                                 @NotNull Collection<VcsLogUserFilter> userFilters,
+                                                                 @NotNull Collection<VcsLogDateFilter> dateFilters,
+                                                                 @NotNull Collection<VcsLogTextFilter> textFilters,
+                                                                 @NotNull Collection<VcsLogStructureFilter> structureFilters,
                                                                  int maxCount) throws VcsException {
     List<String> filterParameters = ContainerUtil.newArrayList();
 
-    List<VcsLogBranchFilter> branchFilters = ContainerUtil.findAll(filters, VcsLogBranchFilter.class);
+    // branch filter and user filter may be used several times without delimiter
+    // or -r options with appropriate revset arguments delimited by '|' or 'and'.
     if (!branchFilters.isEmpty()) {
-      String branchFilter = joinFilters(branchFilters, new Function<VcsLogBranchFilter, String>() {
-        @Override
-        public String fun(VcsLogBranchFilter filter) {
-          return filter.getBranchName();
-        }
-      });
-      filterParameters.add(prepareParameter("branch", branchFilter));
+      for (VcsLogBranchFilter branchFilter : branchFilters) {
+        filterParameters.add(prepareParameter("branch", branchFilter.getBranchName()));
+      }
     }
 
-    List<VcsLogUserFilter> userFilters = ContainerUtil.findAll(filters, VcsLogUserFilter.class);
     if (!userFilters.isEmpty()) {
-      String authorFilter = joinFilters(userFilters, new Function<VcsLogUserFilter, String>() {
-        @Override
-        public String fun(VcsLogUserFilter filter) {
-          return filter.getUserName(root);
-        }
-      });
-      filterParameters.add(prepareParameter("user", authorFilter));
+      for (VcsLogUserFilter authorFilter : userFilters) {
+        filterParameters.add(prepareParameter("user", authorFilter.getUserName(root)));
+      }
     }
 
-    List<VcsLogDateFilter> dateFilters = ContainerUtil.findAll(filters, VcsLogDateFilter.class);
     if (!dateFilters.isEmpty()) {
       StringBuilder args = new StringBuilder();
       final SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd HH:mm");
@@ -208,7 +197,6 @@ public class HgLogProvider implements VcsLogProvider {
       filterParameters.add(args.toString());
     }
 
-    List<VcsLogTextFilter> textFilters = ContainerUtil.findAll(filters, VcsLogTextFilter.class);
     if (textFilters.size() > 1) {
       LOG.warn("Expected only one text filter: " + textFilters);
     }
@@ -217,7 +205,6 @@ public class HgLogProvider implements VcsLogProvider {
       filterParameters.add(prepareParameter("keyword", textFilter));
     }
 
-    List<VcsLogStructureFilter> structureFilters = ContainerUtil.findAll(filters, VcsLogStructureFilter.class);
     if (!structureFilters.isEmpty()) {
       for (VcsLogStructureFilter filter : structureFilters) {
         for (VirtualFile file : filter.getFiles(root)) {
@@ -248,9 +235,5 @@ public class HgLogProvider implements VcsLogProvider {
 
   private static String prepareParameter(String paramName, String value) {
     return "--" + paramName + "=" + value; // no value escaping needed, because the parameter itself will be quoted by GeneralCommandLine
-  }
-
-  private static <T> String joinFilters(List<T> filters, Function<T, String> toString) {
-    return StringUtil.join(filters, toString, "\\|");
   }
 }

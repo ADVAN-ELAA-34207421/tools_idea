@@ -35,8 +35,10 @@ import com.intellij.openapi.module.StdModuleTypes;
 import com.intellij.openapi.roots.DependencyScope;
 import com.intellij.openapi.util.KeyValue;
 import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.pom.java.LanguageLevel;
 import com.intellij.util.BooleanFunction;
+import com.intellij.util.Function;
 import com.intellij.util.PathUtil;
 import com.intellij.util.PathsList;
 import com.intellij.util.containers.ContainerUtil;
@@ -51,9 +53,9 @@ import org.gradle.tooling.model.idea.*;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.plugins.gradle.model.ExtIdeaContentRoot;
-import org.jetbrains.plugins.gradle.model.ModuleExtendedModel;
-import org.jetbrains.plugins.gradle.model.ProjectDependenciesModel;
+import org.jetbrains.plugins.gradle.model.*;
+import org.jetbrains.plugins.gradle.model.data.BuildScriptClasspathData;
+import org.jetbrains.plugins.gradle.model.data.ClasspathEntry;
 import org.jetbrains.plugins.gradle.util.GradleBundle;
 import org.jetbrains.plugins.gradle.util.GradleConstants;
 import org.jetbrains.plugins.gradle.util.GradleUtil;
@@ -132,14 +134,16 @@ public class BaseGradleProjectResolverExtension implements GradleProjectResolver
         "Creating module data ('%s') with the external config path: '%s'", gradleModule.getGradleProject().getPath(), moduleConfigPath
       ));
     }
-    ModuleData moduleData = new ModuleData(gradleModule.getGradleProject().getPath(),
+
+    final String path = gradleModule.getGradleProject().getPath();
+    final ModuleData moduleData = new ModuleData(StringUtil.isEmpty(path) || ":".equals(path) ? moduleName : path,
                                            GradleConstants.SYSTEM_ID,
                                            StdModuleTypes.JAVA.getId(),
                                            moduleName,
                                            moduleConfigPath,
                                            moduleConfigPath);
 
-    ModuleExtendedModel moduleExtendedModel = resolverCtx.getExtraProject(gradleModule, ModuleExtendedModel.class);
+    final ModuleExtendedModel moduleExtendedModel = resolverCtx.getExtraProject(gradleModule, ModuleExtendedModel.class);
     if (moduleExtendedModel != null) {
       moduleData.setGroup(moduleExtendedModel.getGroup());
       moduleData.setVersion(moduleExtendedModel.getVersion());
@@ -150,6 +154,19 @@ public class BaseGradleProjectResolverExtension implements GradleProjectResolver
 
   @Override
   public void populateModuleExtraModels(@NotNull IdeaModule gradleModule, @NotNull DataNode<ModuleData> ideModule) {
+    BuildScriptClasspathModel buildScriptClasspathModel = resolverCtx.getExtraProject(gradleModule, BuildScriptClasspathModel.class);
+    if (buildScriptClasspathModel != null) {
+      List<ClasspathEntry> classpathEntries =
+        ContainerUtil.map(buildScriptClasspathModel.getClasspath(), new Function<ClasspathEntryModel, ClasspathEntry>() {
+          @Override
+          public ClasspathEntry fun(ClasspathEntryModel model) {
+            return new ClasspathEntry(model.getClassesFile(), model.getSourcesFile(), model.getJavadocFile());
+          }
+        });
+      BuildScriptClasspathData buildScriptClasspathData =
+        new BuildScriptClasspathData(GradleConstants.SYSTEM_ID, classpathEntries);
+      ideModule.createChild(BuildScriptClasspathData.KEY, buildScriptClasspathData);
+    }
   }
 
   @Override
@@ -289,7 +306,7 @@ public class BaseGradleProjectResolverExtension implements GradleProjectResolver
   @NotNull
   @Override
   public Set<Class> getExtraProjectModelClasses() {
-    return ContainerUtil.<Class>set(ModuleExtendedModel.class, ProjectDependenciesModel.class);
+    return ContainerUtil.<Class>set(ModuleExtendedModel.class, ProjectDependenciesModel.class, BuildScriptClasspathModel.class);
   }
 
   @NotNull

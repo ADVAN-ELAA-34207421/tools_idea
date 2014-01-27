@@ -133,6 +133,10 @@ public class PyUnresolvedReferencesInspectionTest extends PyTestCase {
     doTest();
   }
 
+  public void testIvarInDocstring() {
+    doTest();
+  }
+
   // PY-6634
   public void testModuleAttribute() {
     doTest();
@@ -319,6 +323,16 @@ public class PyUnresolvedReferencesInspectionTest extends PyTestCase {
   }
 
   public void testBytesIORead() {
+    doTest();
+  }
+
+  // PY-10977
+  public void testContextManagerSubclass() {
+    doTest();
+  }
+
+  // PY-11413
+  public void testReturnSelfInSuperClass() {
     doTest();
   }
 
