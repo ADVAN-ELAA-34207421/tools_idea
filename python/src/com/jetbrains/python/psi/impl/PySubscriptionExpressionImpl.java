@@ -19,6 +19,7 @@ import com.intellij.lang.ASTNode;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiPolyVariantReference;
 import com.intellij.psi.PsiReference;
+import com.intellij.psi.util.QualifiedName;
 import com.jetbrains.python.PyNames;
 import com.jetbrains.python.PyTokenTypes;
 import com.jetbrains.python.PythonDialectsTokenSetProvider;
@@ -37,8 +38,19 @@ public class PySubscriptionExpressionImpl extends PyElementImpl implements PySub
     super(astNode);
   }
 
+  @NotNull
   public PyExpression getOperand() {
     return childToPsiNotNull(PythonDialectsTokenSetProvider.INSTANCE.getExpressionTokens(), 0);
+  }
+
+  @NotNull
+  @Override
+  public PyExpression getRootOperand() {
+    PyExpression operand = getOperand();
+    while (operand instanceof PySubscriptionExpression) {
+      operand = ((PySubscriptionExpression)operand).getOperand();
+    }
+    return operand;
   }
 
   @Nullable
@@ -74,7 +86,7 @@ public class PySubscriptionExpressionImpl extends PyElementImpl implements PySub
           res = ((PySubscriptableType)type).getElementType(indexExpression, context);
         }
         else if (type instanceof PyCollectionType) {
-          res = ((PyCollectionType) type).getElementType(context);
+          res = ((PyCollectionType)type).getElementType(context);
         }
       }
     }
@@ -94,6 +106,17 @@ public class PySubscriptionExpressionImpl extends PyElementImpl implements PySub
   @Override
   public PyExpression getQualifier() {
     return getOperand();
+  }
+
+  @Nullable
+  @Override
+  public QualifiedName asQualifiedName() {
+    return PyPsiUtils.asQualifiedName(this);
+  }
+
+  @Override
+  public boolean isQualified() {
+    return getQualifier() != null;
   }
 
   @Override
