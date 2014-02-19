@@ -63,7 +63,7 @@ public class HgRepositoryReaderTest extends HgPlatformTest {
     FileUtil.copy(testTagFile, new File(myHgDir.getParentFile(), ".hgtags"));
     FileUtil.copy(testLocalTagFile, new File(myHgDir, "localtags"));
 
-    myRepositoryReader = new HgRepositoryReader(myProject, myHgDir);
+    myRepositoryReader = new HgRepositoryReader(myVcs, myHgDir);
     myBranches = readBranches();
     myBookmarks = readRefs(testBookmarkFile);
     myTags = readRefs(testTagFile);
@@ -80,7 +80,7 @@ public class HgRepositoryReaderTest extends HgPlatformTest {
   }
 
   public void testBranches() {
-    Collection<String> branches = HgUtil.getNamesWithoutHashes(myRepositoryReader.readBranches());
+    Collection<String> branches = myRepositoryReader.readBranches().keySet();
     VcsTestUtil.assertEqualCollections(branches, myBranches);
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,8 +62,14 @@ public class GenericsHighlightUtil {
   public static HighlightInfo checkInferredTypeArguments(PsiTypeParameterListOwner listOwner,
                                                          PsiElement call,
                                                          PsiSubstitutor substitutor) {
-    final Pair<PsiTypeParameter, PsiType> inferredTypeArgument =
-      GenericsUtil.findTypeParameterWithBoundError(listOwner.getTypeParameters(), substitutor, call, false);
+    return checkInferredTypeArguments(listOwner.getTypeParameters(), call, substitutor);
+  }
+
+  @Nullable
+  public static HighlightInfo checkInferredTypeArguments(PsiTypeParameter[] typeParameters,
+                                                         PsiElement call,
+                                                         PsiSubstitutor substitutor) {
+    final Pair<PsiTypeParameter, PsiType> inferredTypeArgument = GenericsUtil.findTypeParameterWithBoundError(typeParameters, substitutor, call, false);
     if (inferredTypeArgument != null) {
       final PsiType extendsType = inferredTypeArgument.second;
       final PsiTypeParameter typeParameter = inferredTypeArgument.first;
@@ -234,7 +240,7 @@ public class GenericsHighlightUtil {
     final PsiClass referenceClass = type instanceof PsiClassType ? ((PsiClassType)type).resolve() : null;
     final PsiType psiType = substitutor.substitute(classParameter);
     if (psiType instanceof PsiClassType && !(PsiUtil.resolveClassInType(psiType) instanceof PsiTypeParameter)) {
-      if (checkNotInBounds(type, psiType, referenceParameterList)) {
+      if (GenericsUtil.checkNotInBounds(type, psiType, referenceParameterList)) {
         final String description = "Actual type argument and inferred type contradict each other";
         return HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(typeElement2Highlight).descriptionAndTooltip(description).create();
       }
@@ -243,7 +249,7 @@ public class GenericsHighlightUtil {
     final PsiClassType[] bounds = classParameter.getSuperTypes();
     for (PsiClassType type1 : bounds) {
       PsiType bound = substitutor.substitute(type1);
-      if (!bound.equalsToText(CommonClassNames.JAVA_LANG_OBJECT) && checkNotInBounds(type, bound, referenceParameterList)) {
+      if (!bound.equalsToText(CommonClassNames.JAVA_LANG_OBJECT) && GenericsUtil.checkNotInBounds(type, bound, referenceParameterList)) {
         PsiClass boundClass = bound instanceof PsiClassType ? ((PsiClassType)bound).resolve() : null;
 
         @NonNls final String messageKey = boundClass == null || referenceClass == null || referenceClass.isInterface() == boundClass.isInterface()
@@ -265,79 +271,6 @@ public class GenericsHighlightUtil {
       }
     }
     return null;
-  }
-
-  private static boolean checkNotInBounds(PsiType type, PsiType bound, PsiReferenceParameterList referenceParameterList) {
-    if (type instanceof PsiClassType) {
-      return checkNotAssignable(bound, type, allowUncheckedConversions((PsiClassType)type, referenceParameterList));
-    }
-    if (type instanceof PsiWildcardType) {
-      if (((PsiWildcardType)type).isExtends()) {
-        return checkExtendsWildcardCaptureFailure((PsiWildcardType)type, bound);
-      }
-      else if (((PsiWildcardType)type).isSuper()) {
-        final PsiType superBound = ((PsiWildcardType)type).getSuperBound();
-        if (PsiUtil.resolveClassInType(superBound) instanceof PsiTypeParameter) return TypesDistinctProver.provablyDistinct(type, bound);
-        return checkNotAssignable(bound, superBound, false);
-      }
-    }
-    else if (type instanceof PsiArrayType) {
-      return checkNotAssignable(bound, type, true);
-    }
-    return false;
-  }
-
-  //JLS 5.1.10
-  private static boolean checkExtendsWildcardCaptureFailure(PsiWildcardType type, PsiType bound) {
-    LOG.assertTrue(type.isExtends());
-    final PsiType extendsBound = type.getExtendsBound();
-    PsiType boundBound = bound;
-    if (bound instanceof PsiWildcardType) {
-      if (((PsiWildcardType)bound).isBounded()) {
-        boundBound = ((PsiWildcardType)bound).isSuper()
-                     ? ((PsiWildcardType)bound).getSuperBound()
-                     : ((PsiWildcardType)bound).getExtendsBound();
-      }
-      else {
-        return false;
-      }
-    }
-    return !TypeConversionUtil.areTypesConvertible(boundBound, extendsBound) &&
-           !TypeConversionUtil.areTypesConvertible(extendsBound, boundBound);
-  }
-
-  private static boolean checkNotAssignable(final PsiType bound,
-                                            final PsiType type,
-                                            final boolean allowUncheckedConversion) {
-    if (bound instanceof PsiWildcardType) {
-      if (((PsiWildcardType)bound).isBounded()) {
-        final PsiType boundBound = ((PsiWildcardType)bound).isExtends()
-                                   ? ((PsiWildcardType)bound).getExtendsBound()
-                                   : ((PsiWildcardType)bound).getSuperBound();
-        return !TypeConversionUtil.isAssignable(boundBound, type, allowUncheckedConversion);
-      }
-      else {
-        return true;
-      }
-    }
-    else {
-      return !TypeConversionUtil.isAssignable(bound, type, allowUncheckedConversion);
-    }
-  }
-
-  private static boolean allowUncheckedConversions(PsiClassType type, PsiReferenceParameterList referenceParameterList) {
-    final PsiClass psiClass = type.resolve();
-    if (psiClass != null) {
-      for (PsiTypeParameter parameter : PsiUtil.typeParametersIterable(psiClass)) {
-        if (parameter.getExtendsListTypes().length != 0) {
-          return false;
-        }
-      }
-      if (psiClass instanceof PsiTypeParameter && psiClass.getExtendsListTypes().length != 0) return false;
-    }
-    if (!type.isRaw()) return true;
-    //allow unchecked conversions in method calls but not in type declaration
-    return referenceParameterList.getParent() instanceof PsiReferenceExpression;
   }
 
   private static String typeParameterListOwnerDescription(final PsiTypeParameterListOwner typeParameterListOwner) {
@@ -393,7 +326,7 @@ public class GenericsHighlightUtil {
     if (errorResult == null && languageLevel.isAtLeast(LanguageLevel.JDK_1_7) &&
         referenceElements.length > 1) {
       //todo suppress erased methods which come from the same class
-      return checkOverrideEquivalentMethods(aClass);
+      return checkOverrideEquivalentMethods(languageLevel, aClass);
     }
     return errorResult;
   }
@@ -447,7 +380,8 @@ public class GenericsHighlightUtil {
     return null;
   }
 
-  public static HighlightInfo checkOverrideEquivalentMethods(@NotNull PsiClass aClass) {
+  public static HighlightInfo checkOverrideEquivalentMethods(@NotNull LanguageLevel languageLevel,
+                                                             @NotNull PsiClass aClass) {
     final Collection<HierarchicalMethodSignature> signaturesWithSupers = aClass.getVisibleSignatures();
     PsiManager manager = aClass.getManager();
     Map<MethodSignature, MethodSignatureBackedByPsiMethod> sameErasureMethods =
@@ -462,43 +396,31 @@ public class GenericsHighlightUtil {
       }
     }
 
-    final PsiIdentifier classIdentifier = aClass.getNameIdentifier();
-    if (PsiUtil.isLanguageLevel8OrHigher(aClass) && classIdentifier != null) {
-      HighlightInfo info = checkUnrelatedDefaultMethods(aClass, signaturesWithSupers, classIdentifier);
-      if (info != null) return info;
-      info = checkDefaultMethodOverrideEquivalentToObjectNonPrivate(aClass, signaturesWithSupers);
-      if (info != null) return info;
-    }
-
     return null;
   }
 
-  private static HighlightInfo checkDefaultMethodOverrideEquivalentToObjectNonPrivate(PsiClass aClass,
-                                                                                      Collection<HierarchicalMethodSignature> withSupers) {
-    if (aClass.isInterface()) {
-      for (HierarchicalMethodSignature sig : withSupers) {
-        final PsiMethod method = sig.getMethod();
-        if (method.hasModifierProperty(PsiModifier.DEFAULT)) {
-          for (HierarchicalMethodSignature methodSignature : sig.getSuperSignatures()) {
-            final PsiClass containingClass = methodSignature.getMethod().getContainingClass();
-            if (containingClass != null && CommonClassNames.JAVA_LANG_OBJECT.equals(containingClass.getQualifiedName())) {
-              final PsiIdentifier identifier = method.getNameIdentifier();
-              LOG.assertTrue(identifier != null);
-              return HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR)
-                .descriptionAndTooltip("Default method " + sig.getName() + " overrides a member of java.lang.Object")
-                .range(identifier)
-                .create();
-            }
-          }
+  static HighlightInfo checkDefaultMethodOverrideEquivalentToObjectNonPrivate(@NotNull LanguageLevel languageLevel,
+                                                                              @NotNull PsiClass aClass,
+                                                                              @NotNull PsiMethod method,
+                                                                              @NotNull PsiElement methodIdentifier) {
+    if (languageLevel.isAtLeast(LanguageLevel.JDK_1_8) && aClass.isInterface() && method.hasModifierProperty(PsiModifier.DEFAULT)) {
+      HierarchicalMethodSignature sig = method.getHierarchicalMethodSignature();
+      for (HierarchicalMethodSignature methodSignature : sig.getSuperSignatures()) {
+        final PsiClass containingClass = methodSignature.getMethod().getContainingClass();
+        if (containingClass != null && CommonClassNames.JAVA_LANG_OBJECT.equals(containingClass.getQualifiedName())) {
+          return HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR)
+            .descriptionAndTooltip("Default method '" + sig.getName() + "' overrides a member of 'java.lang.Object'")
+            .range(methodIdentifier)
+            .create();
         }
       }
     }
     return null;
   }
 
-  private static HighlightInfo checkUnrelatedDefaultMethods(PsiClass aClass,
-                                                            Collection<HierarchicalMethodSignature> signaturesWithSupers,
-                                                            PsiIdentifier classIdentifier) {
+  static HighlightInfo checkUnrelatedDefaultMethods(@NotNull PsiClass aClass,
+                                                            @NotNull Collection<HierarchicalMethodSignature> signaturesWithSupers,
+                                                            @NotNull PsiIdentifier classIdentifier) {
     for (HierarchicalMethodSignature methodSignature : signaturesWithSupers) {
       final PsiMethod method = methodSignature.getMethod();
       if (method.hasModifierProperty(PsiModifier.DEFAULT)) {
@@ -792,14 +714,10 @@ public class GenericsHighlightUtil {
   }
 
   @Nullable
-  public static HighlightInfo checkEnumInstantiation(PsiNewExpression expression) {
-    final PsiType type = expression.getType();
-    if (type instanceof PsiClassType) {
-      final PsiClass aClass = ((PsiClassType)type).resolve();
-      if (aClass != null && aClass.isEnum()) {
-        String description = JavaErrorMessages.message("enum.types.cannot.be.instantiated");
-        return HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(expression).descriptionAndTooltip(description).create();
-      }
+  public static HighlightInfo checkEnumInstantiation(PsiNewExpression expression, PsiClass aClass) {
+    if (aClass != null && aClass.isEnum() && expression.getArrayDimensions().length == 0 && expression.getArrayInitializer() == null) {
+      String description = JavaErrorMessages.message("enum.types.cannot.be.instantiated");
+      return HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(expression).descriptionAndTooltip(description).create();
     }
     return null;
   }
@@ -1046,8 +964,8 @@ public class GenericsHighlightUtil {
     }
   }
 
-  static void checkEnumConstantForConstructorProblems(PsiEnumConstant enumConstant,
-                                                      final HighlightInfoHolder holder,
+  static void checkEnumConstantForConstructorProblems(@NotNull PsiEnumConstant enumConstant,
+                                                      @NotNull HighlightInfoHolder holder,
                                                       @NotNull JavaSdkVersion javaSdkVersion) {
     PsiClass containingClass = enumConstant.getContainingClass();
     if (enumConstant.getInitializingClass() == null) {
@@ -1275,23 +1193,17 @@ public class GenericsHighlightUtil {
   /**
    * http://docs.oracle.com/javase/specs/jls/se7/html/jls-4.html#jls-4.8
    */
-  @Nullable
-  public static HighlightInfo checkRawOnParameterizedType(PsiReferenceParameterList list) {
-    if (list.getTypeArguments().length > 0) return null;
-    final PsiElement parent = list.getParent();
-    if (parent instanceof PsiJavaCodeReferenceElement) {
-      final PsiElement qualifier = ((PsiJavaCodeReferenceElement)parent).getQualifier();
-      if (qualifier instanceof PsiJavaCodeReferenceElement) {
-        if (((PsiJavaCodeReferenceElement)qualifier).getTypeParameters().length > 0) {
-          final PsiElement resolve = ((PsiJavaCodeReferenceElement)parent).resolve();
-          if (resolve instanceof PsiTypeParameterListOwner
-              && ((PsiTypeParameterListOwner)resolve).hasTypeParameters()
-              && !((PsiTypeParameterListOwner)resolve).hasModifierProperty(PsiModifier.STATIC)) {
-            return HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(parent).descriptionAndTooltip(
-              "Improper formed type; some type parameters are missing").create();
-          }
-        }
-      }
+  static HighlightInfo checkRawOnParameterizedType(@NotNull PsiJavaCodeReferenceElement parent, PsiElement resolved) {
+    PsiReferenceParameterList list = parent.getParameterList();
+    if (list == null || list.getTypeArguments().length > 0) return null;
+    final PsiElement qualifier = parent.getQualifier();
+    if (qualifier instanceof PsiJavaCodeReferenceElement &&
+        ((PsiJavaCodeReferenceElement)qualifier).getTypeParameters().length > 0 &&
+        resolved instanceof PsiTypeParameterListOwner &&
+        ((PsiTypeParameterListOwner)resolved).hasTypeParameters() &&
+        !((PsiTypeParameterListOwner)resolved).hasModifierProperty(PsiModifier.STATIC)) {
+      return HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(parent).descriptionAndTooltip(
+        "Improper formed type; some type parameters are missing").create();
     }
     return null;
   }

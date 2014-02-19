@@ -25,9 +25,10 @@ import com.intellij.openapi.progress.EmptyProgressIndicator;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VfsBundle;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.util.PathUtil;
+import com.intellij.util.PathUtilRt;
+import com.intellij.util.Url;
 import com.intellij.util.io.UrlConnectionUtil;
-import com.intellij.util.net.CertificatesManager;
+import com.intellij.util.net.ssl.CertificatesManager;
 import org.jetbrains.annotations.NotNull;
 
 import javax.net.ssl.HostnameVerifier;
@@ -46,12 +47,12 @@ public class DefaultRemoteContentProvider extends RemoteContentProvider {
   private static final int READ_TIMEOUT = 60 * 1000;
 
   @Override
-  public boolean canProvideContent(@NotNull final String url) {
+  public boolean canProvideContent(@NotNull Url url) {
     return true;
   }
 
   @Override
-  public void saveContent(final String url, @NotNull final File file, @NotNull final DownloadingCallback callback) {
+  public void saveContent(@NotNull final Url url, @NotNull final File file, @NotNull final DownloadingCallback callback) {
     ApplicationManager.getApplication().executeOnPooledThread(new Runnable() {
       @Override
       public void run() {
@@ -60,14 +61,14 @@ public class DefaultRemoteContentProvider extends RemoteContentProvider {
     });
   }
 
-  private static void downloadContent(final String url, final File file, final DownloadingCallback callback) {
+  private static void downloadContent(@NotNull final Url url, final File file, final DownloadingCallback callback) {
     LOG.debug("Downloading started: " + url);
     InputStream input = null;
     OutputStream output = null;
     try {
-      String presentableUrl = StringUtil.first(url, 40, true);
+      String presentableUrl = StringUtil.trimMiddle(url.trimParameters().toDecodedForm(), 40);
       callback.setProgressText(VfsBundle.message("download.progress.connecting", presentableUrl), true);
-      HttpURLConnection connection = (HttpURLConnection)new URL(url).openConnection();
+      HttpURLConnection connection = (HttpURLConnection)new URL(url.toExternalForm()).openConnection();
       connection.setConnectTimeout(CONNECT_TIMEOUT);
       connection.setReadTimeout(READ_TIMEOUT);
       if (connection instanceof HttpsURLConnection) {
@@ -79,7 +80,7 @@ public class DefaultRemoteContentProvider extends RemoteContentProvider {
               return true;
             }
           });
-          httpsConnection.setSSLSocketFactory(CertificatesManager.createDefault().createSslContext().getSocketFactory());
+          httpsConnection.setSSLSocketFactory(CertificatesManager.getInstance().createSslContext().getSocketFactory());
         }
         catch (Exception e) {
           LOG.warn(e);
@@ -93,14 +94,16 @@ public class DefaultRemoteContentProvider extends RemoteContentProvider {
       }
 
       final int size = connection.getContentLength();
+      //noinspection IOResourceOpenedButNotSafelyClosed
       output = new BufferedOutputStream(new FileOutputStream(file));
       callback.setProgressText(VfsBundle.message("download.progress.downloading", presentableUrl), size == -1);
       if (size != -1) {
         callback.setProgressFraction(0);
       }
+
       FileType fileType = RemoteFileUtil.getFileType(connection.getContentType());
       if (fileType == FileTypes.PLAIN_TEXT) {
-        FileType fileTypeByFileName = FileTypeRegistry.getInstance().getFileTypeByFileName(PathUtil.getFileName(url));
+        FileType fileTypeByFileName = FileTypeRegistry.getInstance().getFileTypeByFileName(PathUtilRt.getFileName(url.getPath()));
         if (fileTypeByFileName != FileTypes.UNKNOWN) {
           fileType = fileTypeByFileName;
         }
@@ -149,7 +152,7 @@ public class DefaultRemoteContentProvider extends RemoteContentProvider {
   }
 
   @Override
-  public boolean isUpToDate(@NotNull final String url, @NotNull final VirtualFile local) {
+  public boolean isUpToDate(@NotNull final Url url, @NotNull final VirtualFile local) {
     return false;
   }
 }

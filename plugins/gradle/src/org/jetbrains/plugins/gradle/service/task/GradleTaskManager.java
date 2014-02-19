@@ -27,6 +27,7 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.Function;
 import com.intellij.util.SystemProperties;
+import com.intellij.util.containers.ContainerUtil;
 import org.gradle.tooling.BuildLauncher;
 import org.gradle.tooling.ProjectConnection;
 import org.jetbrains.annotations.NotNull;
@@ -89,7 +90,6 @@ public class GradleTaskManager extends AbstractExternalSystemTaskManager<GradleE
     Function<ProjectConnection, Void> f = new Function<ProjectConnection, Void>() {
       @Override
       public Void fun(ProjectConnection connection) {
-        BuildLauncher launcher = myHelper.getBuildLauncher(id, connection, settings, listener, vmOptions);
         if (!StringUtil.isEmpty(debuggerSetup)) {
           try {
             final File tempFile = FileUtil.createTempFile("init", ".gradle");
@@ -102,17 +102,14 @@ public class GradleTaskManager extends AbstractExternalSystemTaskManager<GradleE
             };
             FileUtil.writeToFile(tempFile, StringUtil.join(lines, SystemProperties.getLineSeparator()));
 
-            scriptParameters.add("--init-script");
-            scriptParameters.add(tempFile.getAbsolutePath());
+            ContainerUtil.addAll(scriptParameters, GradleConstants.INIT_SCRIPT_CMD_OPTION, tempFile.getAbsolutePath());
           }
           catch (IOException e) {
             throw new ExternalSystemException(e);
           }
         }
 
-        if (!scriptParameters.isEmpty()) {
-          launcher.withArguments(ArrayUtil.toStringArray(scriptParameters));
-        }
+        BuildLauncher launcher = myHelper.getBuildLauncher(id, connection, settings, listener, vmOptions, scriptParameters);
         launcher.forTasks(ArrayUtil.toStringArray(taskNames));
         launcher.run();
         return null;

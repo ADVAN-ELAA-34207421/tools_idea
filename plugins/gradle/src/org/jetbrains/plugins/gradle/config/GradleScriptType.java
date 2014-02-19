@@ -58,7 +58,6 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrExpres
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrReferenceExpression;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.GrLiteral;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.path.GrMethodCallExpression;
-import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.arithmetic.GrShiftExpressionImpl;
 import org.jetbrains.plugins.groovy.lang.psi.util.PsiUtil;
 import org.jetbrains.plugins.groovy.runner.GroovyScriptRunConfiguration;
 import org.jetbrains.plugins.groovy.runner.GroovyScriptRunner;
@@ -137,7 +136,7 @@ public class GradleScriptType extends GroovyScriptType {
     }
     else if (parent instanceof GrApplicationStatement) {
       PsiElement shiftExpression = parent.getChildren()[1].getChildren()[0];
-      if (shiftExpression instanceof GrShiftExpressionImpl) {
+      if (GradleResolverUtil.isLShiftElement(shiftExpression)) {
         PsiElement shiftiesChild = shiftExpression.getChildren()[0];
         if (shiftiesChild instanceof GrReferenceExpression) {
           return Collections.singletonList(shiftiesChild.getText());
@@ -314,6 +313,9 @@ public class GradleScriptType extends GroovyScriptType {
     GlobalSearchScope result = GlobalSearchScope.EMPTY_SCOPE;
     final Module module = ModuleUtilCore.findModuleForPsiElement(file);
     if (module != null) {
+      String externalSystemId = module.getOptionValue(ExternalSystemConstants.EXTERNAL_SYSTEM_ID_KEY);
+      if(!GradleConstants.SYSTEM_ID.toString().equals(externalSystemId)) return baseScope;
+
       for (OrderEntry entry : ModuleRootManager.getInstance(module).getOrderEntries()) {
         if (entry instanceof JdkOrderEntry) {
           GlobalSearchScope scopeForSdk = LibraryScopeCache.getInstance(module.getProject()).getScopeForSdk((JdkOrderEntry)entry);

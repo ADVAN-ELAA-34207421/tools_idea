@@ -108,7 +108,7 @@ public class AddSupportForFrameworksPanel implements Disposable {
         ((DefaultTreeModel)myFrameworksTree.getModel()).nodeChanged(getSelectedNode());
       }
     }, this);
-    setProviders(providers, Collections.<String>emptySet(), Collections.<String>emptySet());
+    setProviders(providers);
 
     myFrameworksTree.addTreeSelectionListener(new TreeSelectionListener() {
       public void valueChanged(TreeSelectionEvent e) {
@@ -129,10 +129,14 @@ public class AddSupportForFrameworksPanel implements Disposable {
 
   }
 
+  public void setProviders(List<FrameworkSupportInModuleProvider> providers) {
+    setProviders(providers, Collections.<String>emptySet(), Collections.<String>emptySet());
+  }
+
   public void setProviders(List<FrameworkSupportInModuleProvider> providers, Set<String> associated, Set<String> preselected) {
     myProviders = providers;
 
-    myAssociatedFrameworks = createNodes(myProviders, associated);
+    myAssociatedFrameworks = createNodes(myProviders, associated, preselected);
     for (FrameworkSupportNodeBase node : myRoots) {
       if (preselected.contains(node.getId())) {
         node.setChecked(true);
@@ -280,7 +284,9 @@ public class AddSupportForFrameworksPanel implements Disposable {
     return true;
   }
 
-  private Collection<FrameworkSupportNodeBase> createNodes(List<FrameworkSupportInModuleProvider> providers, Set<String> associated) {
+  private Collection<FrameworkSupportNodeBase> createNodes(List<FrameworkSupportInModuleProvider> providers,
+                                                           Set<String> associated,
+                                                           final Set<String> preselected) {
     Map<String, FrameworkSupportNode> nodes = new HashMap<String, FrameworkSupportNode>();
     Map<FrameworkGroup<?>, FrameworkGroupNode> groups = new HashMap<FrameworkGroup<?>, FrameworkGroupNode>();
     List<FrameworkSupportNodeBase> roots = new ArrayList<FrameworkSupportNodeBase>();
@@ -289,7 +295,12 @@ public class AddSupportForFrameworksPanel implements Disposable {
       createNode(provider, nodes, groups, roots, providers, associated, associatedNodes);
     }
 
-    FrameworkSupportNodeBase.sortByName(roots);
+    FrameworkSupportNodeBase.sortByName(roots, new Comparator<FrameworkSupportNodeBase>() {
+      @Override
+      public int compare(FrameworkSupportNodeBase o1, FrameworkSupportNodeBase o2) {
+        return Comparing.compare(preselected.contains(o2.getId()), preselected.contains(o1.getId()));
+      }
+    });
     myRoots = roots;
     return associatedNodes.values();
   }

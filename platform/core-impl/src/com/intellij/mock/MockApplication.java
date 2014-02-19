@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2011 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,8 @@
  */
 package com.intellij.mock;
 
-import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.*;
-import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.ThrowableComputable;
@@ -197,6 +195,11 @@ public class MockApplication extends MockComponentManager implements Application
         public boolean dominates(@NotNull ModalityState anotherState) {
           return false;
         }
+
+        @Override
+        public String toString() {
+          return "NONE";
+        }
       };
     }
     return MODALITY_STATE_NONE;
@@ -269,11 +272,5 @@ public class MockApplication extends MockComponentManager implements Application
     private static ThreadPoolExecutor createServiceImpl() {
       return new ThreadPoolExecutor(10, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), ConcurrencyUtil.newNamedThreadFactory("MockApplication pooled thread"));
     }
-  }
-
-  @Nullable
-  @Override
-  public PluginId getPluginByClassName(@NotNull String className) {
-    return PluginManagerCore.getPluginByClassName(className);
   }
 }

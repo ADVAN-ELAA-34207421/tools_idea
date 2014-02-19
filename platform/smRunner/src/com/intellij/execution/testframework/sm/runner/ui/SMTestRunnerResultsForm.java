@@ -19,10 +19,7 @@ import com.intellij.execution.configurations.RunConfiguration;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.testframework.*;
 import com.intellij.execution.testframework.sm.SMRunnerUtil;
-import com.intellij.execution.testframework.sm.runner.SMTRunnerEventsListener;
-import com.intellij.execution.testframework.sm.runner.SMTRunnerTreeBuilder;
-import com.intellij.execution.testframework.sm.runner.SMTRunnerTreeStructure;
-import com.intellij.execution.testframework.sm.runner.SMTestProxy;
+import com.intellij.execution.testframework.sm.runner.*;
 import com.intellij.execution.testframework.sm.runner.ui.statistics.StatisticsPanel;
 import com.intellij.execution.testframework.ui.AbstractTestTreeBuilder;
 import com.intellij.execution.testframework.ui.TestResultsPanel;
@@ -89,6 +86,7 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
   // custom progress
   private String myCurrentCustomProgressCategory;
   private final Set<String> myMentionedCategories = new LinkedHashSet<String>();
+  private boolean myTestsRunning = true;
 
   public SMTestRunnerResultsForm(final RunConfiguration runConfiguration,
                                  @NotNull final JComponent console,
@@ -217,9 +215,15 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
     selectAndNotify(myTestsRootNode);
 
     myStartTime = System.currentTimeMillis();
-    myTestsRootNode.addSystemOutput("Testing started at "
-                                    + DateFormatUtil.formatTime(myStartTime)
-                                    + " ...\n");
+    boolean printTestingStartedTime = true;
+    if (myConsoleProperties instanceof SMTRunnerConsoleProperties) {
+      printTestingStartedTime = ((SMTRunnerConsoleProperties) myConsoleProperties).isPrintTestingStartedTime();
+    }
+    if (printTestingStartedTime) {
+      myTestsRootNode.addSystemOutput("Testing started at "
+                                      + DateFormatUtil.formatTime(myStartTime)
+                                      + " ...\n");
+    }
 
     updateStatusLabel(false);
 
@@ -244,10 +248,12 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
 
     LvcsHelper.addLabel(this);
 
-    SMTestProxy root = getTestsRootNode();
-    if (root != null) {
-      selectAndNotify(root);
-    }
+    selectAndNotify(myTestsRootNode, new Runnable() {
+      @Override
+      public void run() {
+        myTestsRunning = false;
+      }
+    });
 
     fireOnTestingFinished();
   }
@@ -331,7 +337,7 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
   }
 
   public boolean isRunning() {
-    return getRoot().isInProgress();
+    return myTestsRunning;
   }
 
   public TestTreeView getTreeView() {
@@ -362,8 +368,13 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
    *
    * @param testProxy Test or suite
    */
-  public void selectAndNotify(@Nullable final AbstractTestProxy testProxy) {
-    selectWithoutNotify(testProxy);
+  @Override
+  public void selectAndNotify(AbstractTestProxy testProxy) {
+    selectAndNotify(testProxy, null);
+  }
+
+  private void selectAndNotify(@Nullable final AbstractTestProxy testProxy, @Nullable Runnable onDone) {
+    selectWithoutNotify(testProxy, onDone);
 
     // Is used by Statistic tab to differ use selection in tree
     // from manual selection from API (e.g. test runner events)
@@ -471,7 +482,7 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
     }
   }
 
-  private void selectWithoutNotify(final AbstractTestProxy testProxy) {
+  private void selectWithoutNotify(final AbstractTestProxy testProxy, @Nullable final Runnable onDone) {
     if (testProxy == null) {
       return;
     }
@@ -481,7 +492,7 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
         if (myTreeBuilder.isDisposed()) {
           return;
         }
-        myTreeBuilder.select(testProxy, null);
+        myTreeBuilder.select(testProxy, onDone);
       }
     }, ModalityState.NON_MODAL);
   }
@@ -544,7 +555,7 @@ public class SMTestRunnerResultsForm extends TestResultsPanel
                                                   final boolean requestFocus) {
         SMRunnerUtil.addToInvokeLater(new Runnable() {
           public void run() {
-            selectWithoutNotify(selectedTestProxy);
+            selectWithoutNotify(selectedTestProxy, null);
 
             // Request focus if necessary
             if (requestFocus) {

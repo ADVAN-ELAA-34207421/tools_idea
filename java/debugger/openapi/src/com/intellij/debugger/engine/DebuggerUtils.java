@@ -274,13 +274,17 @@ public abstract class DebuggerUtils {
     return getSuperTypeInt(subType, superType);
   }
 
+  private static boolean typeEquals(Type type, String typeName) {
+    return type.name().replace('$', '.').equals(typeName.replace('$', '.'));
+  }
+
   private static Type getSuperTypeInt(Type subType, String superType) {
     Type result;
     if (subType == null) {
       return null;
     }
 
-    if (subType.name().equals(superType)) {
+    if (typeEquals(subType, superType)) {
       return subType;
     }
 
@@ -293,7 +297,7 @@ public abstract class DebuggerUtils {
       List ifaces = ((ClassType)subType).allInterfaces();
       for (Object iface : ifaces) {
         InterfaceType interfaceType = (InterfaceType)iface;
-        if (interfaceType.name().equals(superType)) {
+        if (typeEquals(interfaceType, superType)) {
           return interfaceType;
         }
       }
@@ -390,7 +394,9 @@ public abstract class DebuggerUtils {
       }
       final PsiClass aClass =
         JavaPsiFacade.getInstance(psiManager.getProject()).findClass(className.replace('$', '.'), GlobalSearchScope.allScope(project));
-      return JavaPsiFacade.getInstance(psiManager.getProject()).getElementFactory().createType(aClass);
+      if (aClass != null) {
+        return JavaPsiFacade.getInstance(psiManager.getProject()).getElementFactory().createType(aClass);
+      }
     }
     catch (IncorrectOperationException e) {
       LOG.error(e);

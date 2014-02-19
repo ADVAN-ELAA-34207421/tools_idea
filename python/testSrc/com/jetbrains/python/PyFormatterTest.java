@@ -15,7 +15,7 @@
  */
 package com.jetbrains.python;
 
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.codeStyle.CodeStyleManager;
@@ -251,7 +251,7 @@ public class PyFormatterTest extends PyTestCase {
       " desired_response_parameters,\n" +
       " inverse_filter_length, \n" +
       " observed_impulse_response):\n" +
-      " #  Extract from here to ...\n" +
+      " # Extract from here to ...\n" +
       "   desired_impulse_response = {'dirac, 'gaussian', logistic_derivative'}\n" +
       "return desired,                o";
 
@@ -264,7 +264,7 @@ public class PyFormatterTest extends PyTestCase {
       "        desired_response_parameters,\n" +
       "        inverse_filter_length,\n" +
       "        observed_impulse_response):\n" +
-      "    #  Extract from here to ...\n" +
+      "    # Extract from here to ...\n" +
       "    desired_impulse_response = {'dirac, '\n" +
       "    gaussian\n" +
       "    ', logistic_derivative'}\n" +
@@ -394,13 +394,17 @@ public class PyFormatterTest extends PyTestCase {
     doTest();
   }
 
+  public void testAlignListComprehensionInDict() { //PY-10076
+    doTest();
+  }
+
   private void doTest() {
     doTest(false);
   }
 
   private void doTest(final boolean reformatText) {
     myFixture.configureByFile("formatter/" + getTestName(true) + ".py");
-    ApplicationManager.getApplication().runWriteAction(new Runnable() {
+    WriteCommandAction.runWriteCommandAction(null, new Runnable() {
       @Override
       public void run() {
         CodeStyleManager codeStyleManager = CodeStyleManager.getInstance(myFixture.getProject());

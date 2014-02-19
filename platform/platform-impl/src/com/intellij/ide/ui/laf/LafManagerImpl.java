@@ -135,12 +135,11 @@ public final class LafManagerImpl extends LafManager implements ApplicationCompo
       }
       for (UIManager.LookAndFeelInfo laf : UIManager.getInstalledLookAndFeels()) {
         String name = laf.getName();
-        if (Registry.is("show.all.look.and.feels") ||
-            (   !"Metal".equalsIgnoreCase(name)
-             && !"CDE/Motif".equalsIgnoreCase(name)
-             && !"Nimbus".equalsIgnoreCase(name)
-             && !"Windows Classic".equalsIgnoreCase(name)
-             && !name.startsWith("JGoodies"))) {
+        if ( !"Metal".equalsIgnoreCase(name)
+          && !"CDE/Motif".equalsIgnoreCase(name)
+          && !"Nimbus".equalsIgnoreCase(name)
+          && !"Windows Classic".equalsIgnoreCase(name)
+          && !name.startsWith("JGoodies")) {
           lafList.add(laf);
         }
       }
@@ -155,6 +154,7 @@ public final class LafManagerImpl extends LafManager implements ApplicationCompo
     if (!SystemInfo.isMac) {
       // do not sort LaFs on mac - the order is determined as Default, Darcula.
       // when we leave only system LaFs on other OSes, the order also should be determined as Default, Darcula
+      
       Arrays.sort(myLaFs, new Comparator<UIManager.LookAndFeelInfo>() {
         @Override
         public int compare(UIManager.LookAndFeelInfo obj1, UIManager.LookAndFeelInfo obj2) {
@@ -460,7 +460,7 @@ public final class LafManagerImpl extends LafManager implements ApplicationCompo
       if (confirm) {
         final String[] options = {IdeBundle.message("confirm.set.look.and.feel"), CommonBundle.getCancelButtonText()};
         final int result = Messages.showOkCancelDialog(message, CommonBundle.getWarningTitle(), options[0], options[1], Messages.getWarningIcon());
-        if (result == 0) {
+        if (result == Messages.OK) {
           myLastWarning = message;
           return true;
         }

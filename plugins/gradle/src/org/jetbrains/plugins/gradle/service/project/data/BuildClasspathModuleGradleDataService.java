@@ -37,7 +37,6 @@ import com.intellij.util.containers.FactoryMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.gradle.model.data.BuildScriptClasspathData;
-import org.jetbrains.plugins.gradle.model.data.ClasspathEntry;
 import org.jetbrains.plugins.gradle.service.GradleBuildClasspathManager;
 import org.jetbrains.plugins.gradle.service.GradleInstallationManager;
 import org.jetbrains.plugins.gradle.settings.GradleProjectSettings;
@@ -88,7 +87,7 @@ public class BuildClasspathModuleGradleDataService implements ProjectDataService
         GradleProjectSettings settings = GradleSettings.getInstance(project).getLinkedProjectSettings(externalProjectPath);
         if (settings == null || settings.getDistributionType() == null) return null;
 
-        final Set<String> gradleSdkLibraries = ContainerUtil.newHashSet();
+        final Set<String> gradleSdkLibraries = ContainerUtil.newLinkedHashSet();
         File gradleHome =
           gradleInstallationManager.getGradleHome(settings.getDistributionType(), externalProjectPath, settings.getGradleHome());
         if (gradleHome != null && gradleHome.isDirectory()) {
@@ -119,15 +118,13 @@ public class BuildClasspathModuleGradleDataService implements ProjectDataService
         GradleProjectSettings settings = GradleSettings.getInstance(project).getLinkedProjectSettings(linkedExternalProjectPath);
         if (settings == null || settings.getDistributionType() == null) continue;
 
-        final Set<String> buildClasspath = ContainerUtil.newHashSet();
+        final Set<String> buildClasspath = ContainerUtil.newLinkedHashSet();
         BuildScriptClasspathData buildScriptClasspathData = node.getData();
-        for (ClasspathEntry classpathEntry : buildScriptClasspathData.getClasspathEntries()) {
+        for (BuildScriptClasspathData.ClasspathEntry classpathEntry : buildScriptClasspathData.getClasspathEntries()) {
           if (classpathEntry.getSourcesFile() != null) {
             buildClasspath.add(FileUtil.toCanonicalPath(classpathEntry.getSourcesFile().getPath()));
           }
-          else {
-            buildClasspath.add(FileUtil.toCanonicalPath(classpathEntry.getClassesFile().getPath()));
-          }
+          buildClasspath.add(FileUtil.toCanonicalPath(classpathEntry.getClassesFile().getPath()));
         }
 
         ExternalProjectBuildClasspathPojo projectBuildClasspathPojo =

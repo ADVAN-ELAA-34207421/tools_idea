@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ public class ContainerUtil extends ContainerUtilRt {
   }
 
   @NotNull
-  public static <K, V> Map<K, V> newHashMap(Pair<K, V> first, Pair<K, V>... entries) {
+  public static <K, V> Map<K, V> newHashMap(@NotNull Pair<K, V> first, Pair<K, V>... entries) {
     return ContainerUtilRt.newHashMap(first, entries);
   }
 
@@ -81,6 +81,11 @@ public class ContainerUtil extends ContainerUtilRt {
   @NotNull
   public static <K, V> LinkedHashMap<K, V> newLinkedHashMap(@NotNull Map<K, V> map) {
     return ContainerUtilRt.newLinkedHashMap(map);
+  }
+
+  @NotNull
+  public static <K, V> LinkedHashMap<K, V> newLinkedHashMap(@NotNull Pair<K, V> first, Pair<K, V>... entries) {
+    return ContainerUtilRt.newLinkedHashMap(first, entries);
   }
 
   @NotNull
@@ -145,9 +150,10 @@ public class ContainerUtil extends ContainerUtilRt {
     return ContainerUtilRt.newArrayList(iterable);
   }
 
-  @NotNull
+  /** @deprecated Use {@link #newArrayListWithCapacity(int)} (to remove in IDEA 15) */
+  @SuppressWarnings("deprecation")
   public static <T> ArrayList<T> newArrayListWithExpectedSize(int size) {
-    return ContainerUtilRt.newArrayListWithExpectedSize(size);
+    return ContainerUtilRt.newArrayListWithCapacity(size);
   }
 
   @NotNull
@@ -193,6 +199,11 @@ public class ContainerUtil extends ContainerUtilRt {
   }
 
   @NotNull
+  public static <T> HashSet<T> newHashSet(int initialCapacity) {
+    return ContainerUtilRt.newHashSet(initialCapacity);
+  }
+
+  @NotNull
   public static <T> HashSet<T> newHashSet(@NotNull T... elements) {
     return ContainerUtilRt.newHashSet(elements);
   }
@@ -205,6 +216,12 @@ public class ContainerUtil extends ContainerUtilRt {
   @NotNull
   public static <T> HashSet<T> newHashSet(@NotNull Iterator<? extends T> iterator) {
     return ContainerUtilRt.newHashSet(iterator);
+  }
+
+  @NotNull
+  public static <T> Set<T> newHashOrEmptySet(@Nullable Iterable<? extends T> iterable) {
+    boolean empty = iterable == null || iterable instanceof Collection && ((Collection)iterable).isEmpty();
+    return empty ? Collections.<T>emptySet() : ContainerUtilRt.newHashSet(iterable);
   }
 
   @NotNull
@@ -314,6 +331,10 @@ public class ContainerUtil extends ContainerUtilRt {
 
   @NotNull
   public static <E> List<E> reverse(@NotNull final List<E> elements) {
+    if (elements.isEmpty()) {
+      return ContainerUtilRt.emptyList();
+    }
+
     return new AbstractList<E>() {
       @Override
       public E get(int index) {
@@ -1019,6 +1040,21 @@ public class ContainerUtil extends ContainerUtilRt {
     for (T element : elements) {
       modified |= collection.remove(element);
     }
+    return modified;
+  }
+
+  // returns true if the collection was modified
+  public static <T> boolean retainAll(@NotNull Collection<T> collection, @NotNull Condition<? super T> condition) {
+    boolean modified = false;
+
+    for (Iterator<T> iterator = collection.iterator(); iterator.hasNext(); ) {
+      T next = iterator.next();
+      if (!condition.value(next)) {
+        iterator.remove();
+        modified = true;
+      }
+    }
+
     return modified;
   }
 
@@ -1935,12 +1971,17 @@ public class ContainerUtil extends ContainerUtilRt {
    */
   @NotNull
   public static <T> List<T> createLockFreeCopyOnWriteList() {
-    return new LockFreeCopyOnWriteArrayList<T>();
+    return createConcurrentList();
   }
 
   @NotNull
   public static <T> List<T> createLockFreeCopyOnWriteList(@NotNull Collection<? extends T> c) {
     return new LockFreeCopyOnWriteArrayList<T>(c);
+  }
+
+  @NotNull
+  public static <T> ConcurrentList<T> createConcurrentList() {
+    return new LockFreeCopyOnWriteArrayList<T>();
   }
 
   public static <T> void addIfNotNull(@Nullable T element, @NotNull Collection<T> result) {
@@ -2054,7 +2095,10 @@ public class ContainerUtil extends ContainerUtilRt {
       return new java.util.concurrent.ConcurrentHashMap<T,V>(initialCapacity);
     }
 
-    public <T, V> ConcurrentMap<T, V> createMap(TObjectHashingStrategy<T> hashStrategy) {
+    public <T, V> ConcurrentMap<T, V> createMap(TObjectHashingStrategy<T> hashingStrategy) {
+      if (hashingStrategy != canonicalStrategy()) {
+        throw new UnsupportedOperationException("Custom hashStrategy is not supported in java.util.concurrent.ConcurrentHashMap");
+      }
       // ignoring strategy parameter, because it is not supported by this implementation
       return createMap();
     }
@@ -2064,6 +2108,9 @@ public class ContainerUtil extends ContainerUtilRt {
     }
 
     public <T, V> ConcurrentMap<T, V> createMap(int initialCapacity, float loadFactor, int concurrencyLevel, @NotNull TObjectHashingStrategy<T> hashingStrategy) {
+      if (hashingStrategy != canonicalStrategy()) {
+        throw new UnsupportedOperationException("Custom hashStrategy is not supported in java.util.concurrent.ConcurrentHashMap");
+      }
       // ignoring strategy parameter, because it is not supported by this implementation
       return createMap(initialCapacity, loadFactor, concurrencyLevel);
     }

@@ -24,6 +24,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
 import com.intellij.vcs.log.VcsFullCommitDetails;
+import com.intellij.vcs.log.VcsLogDetailsFilter;
 import com.intellij.vcs.log.VcsLogStructureFilter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -35,12 +36,14 @@ public class VcsLogStructureFilterImpl implements VcsLogDetailsFilter, VcsLogStr
   @NotNull private final Collection<VirtualFile> myFiles;
   @NotNull private final MultiMap<VirtualFile, VirtualFile> myFilesByRoots;
 
-  public VcsLogStructureFilterImpl(@NotNull Collection<VirtualFile> files, Collection<VirtualFile> roots) {
+  public VcsLogStructureFilterImpl(@NotNull Collection<VirtualFile> files, @NotNull Collection<VirtualFile> roots) {
     myFiles = files;
     myFilesByRoots = groupFilesByVcsRoots(files, roots);
   }
 
-  private static MultiMap<VirtualFile, VirtualFile> groupFilesByVcsRoots(Collection<VirtualFile> files, Collection<VirtualFile> roots) {
+  @NotNull
+  private static MultiMap<VirtualFile, VirtualFile> groupFilesByVcsRoots(@NotNull Collection<VirtualFile> files,
+                                                                         @NotNull Collection<VirtualFile> roots) {
     MultiMap<VirtualFile, VirtualFile> grouped = MultiMap.create();
     for (VirtualFile file : files) {
       VirtualFile root = findBestRoot(file, roots);
@@ -79,7 +82,7 @@ public class VcsLogStructureFilterImpl implements VcsLogDetailsFilter, VcsLogStr
     return false;
   }
 
-  private boolean matches(final String path) {
+  private boolean matches(@NotNull final String path) {
     return ContainerUtil.find(myFiles, new Condition<VirtualFile>() {
       @Override
       public boolean value(VirtualFile file) {

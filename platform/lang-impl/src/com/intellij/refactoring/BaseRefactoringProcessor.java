@@ -373,7 +373,10 @@ public abstract class BaseRefactoringProcessor implements Runnable {
 
     String codeReferencesText = descriptor.getCodeReferencesText(codeUsageCount, codeFiles.size());
     presentation.setCodeUsagesString(codeReferencesText);
-    presentation.setNonCodeUsagesString(descriptor.getCommentReferencesText(nonCodeUsageCount, nonCodeFiles.size()));
+    final String commentReferencesText = descriptor.getCommentReferencesText(nonCodeUsageCount, nonCodeFiles.size());
+    if (commentReferencesText != null) {
+      presentation.setNonCodeUsagesString(commentReferencesText);
+    }
     presentation.setDynamicUsagesString("Dynamic " + StringUtil.decapitalize(descriptor.getCodeReferencesText(dynamicUsagesCount, dynamicUsagesCodeFiles.size())));
     String generatedCodeString;
     if (codeReferencesText.contains("in code")) {
@@ -446,7 +449,7 @@ public abstract class BaseRefactoringProcessor implements Runnable {
     return usageInfos;
   }
 
-  private void doRefactoring(@NotNull Collection<UsageInfo> usageInfoSet) {
+  private void doRefactoring(@NotNull final Collection<UsageInfo> usageInfoSet) {
    for (Iterator<UsageInfo> iterator = usageInfoSet.iterator(); iterator.hasNext();) {
       UsageInfo usageInfo = iterator.next();
       final PsiElement element = usageInfo.getElement();
@@ -479,7 +482,11 @@ public abstract class BaseRefactoringProcessor implements Runnable {
         public void run() {
           final String refactoringId = getRefactoringId();
           if (refactoringId != null) {
-            myProject.getMessageBus().syncPublisher(RefactoringEventListener.REFACTORING_EVENT_TOPIC).refactoringStarted(refactoringId, getBeforeData());
+            RefactoringEventData data = getBeforeData();
+            if (data != null) {
+              data.addUsages(usageInfoSet);
+            }
+            myProject.getMessageBus().syncPublisher(RefactoringEventListener.REFACTORING_EVENT_TOPIC).refactoringStarted(refactoringId, data);
           }
 
           try {

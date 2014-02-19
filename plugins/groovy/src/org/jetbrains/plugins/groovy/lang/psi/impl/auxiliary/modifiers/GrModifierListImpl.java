@@ -297,7 +297,7 @@ public class GrModifierListImpl extends GrStubElementBase<GrModifierListStub> im
     if (doSet) {
       if (isEmptyModifierList()) {
         final PsiElement nextSibling = getNextSibling();
-        if (nextSibling != null && !TokenSets.WHITE_SPACES_SET.contains(nextSibling.getNode().getElementType())) {
+        if (nextSibling != null && !PsiImplUtil.isWhiteSpaceOrNls(nextSibling)) {
           getNode().getTreeParent().addLeaf(TokenType.WHITE_SPACE, " ", nextSibling.getNode());
         }
       }
@@ -317,7 +317,7 @@ public class GrModifierListImpl extends GrStubElementBase<GrModifierListStub> im
 
       if (isEmptyModifierList()) {
         final PsiElement nextSibling = getNextSibling();
-        if (nextSibling != null && TokenSets.WHITE_SPACES_SET.contains(nextSibling.getNode().getElementType())) {
+        if (nextSibling != null && PsiImplUtil.isWhiteSpaceOrNls(nextSibling)) {
           nextSibling.delete();
         }
       }
@@ -360,13 +360,13 @@ public class GrModifierListImpl extends GrStubElementBase<GrModifierListStub> im
 
   @NotNull
   public GrAnnotation[] getAnnotations() {
-    return CachedValuesManager.getManager(getProject()).createCachedValue(new CachedValueProvider<GrAnnotation[]>() {
+    return CachedValuesManager.getCachedValue(this, new CachedValueProvider<GrAnnotation[]>() {
       @Nullable
       @Override
       public Result<GrAnnotation[]> compute() {
         return Result.create(GrAnnotationCollector.getResolvedAnnotations(GrModifierListImpl.this), PsiModificationTracker.JAVA_STRUCTURE_MODIFICATION_COUNT);
       }
-    }).getValue();
+    });
   }
 
   @NotNull

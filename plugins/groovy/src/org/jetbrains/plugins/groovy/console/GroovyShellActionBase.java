@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,8 +45,10 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.PopupStep;
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep;
+import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.Key;
 import com.intellij.util.PlatformIcons;
+import com.intellij.util.containers.ContainerUtil;
 import icons.JetgroovyIcons;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.groovy.lang.psi.impl.GroovyFileImpl;
@@ -64,10 +66,10 @@ public abstract class GroovyShellActionBase extends DumbAwareAction {
   public static final Key<Boolean> GROOVY_SHELL_FILE = Key.create("GROOVY_SHELL_FILE");
   private static final String GROOVY_SHELL_LAST_MODULE = "Groovy.Shell.LastModule";
 
-  private static List<Module> getGroovyCompatibleModules(Project project) {
+  private List<Module> getGroovyCompatibleModules(Project project) {
     ArrayList<Module> result = new ArrayList<Module>();
     for (Module module : ModuleManager.getInstance(project).getModules()) {
-      if (GroovyUtils.isSuitableModule(module)) {
+      if (isSuitableModule(module)) {
         Sdk sdk = ModuleRootManager.getInstance(module).getSdk();
         if (sdk != null && sdk.getSdkType() instanceof JavaSdkType) {
           result.add(module);
@@ -75,6 +77,10 @@ public abstract class GroovyShellActionBase extends DumbAwareAction {
       }
     }
     return result;
+  }
+
+  protected boolean isSuitableModule(Module module) {
+    return GroovyUtils.isSuitableModule(module);
   }
 
   @Override
@@ -153,13 +159,19 @@ public abstract class GroovyShellActionBase extends DumbAwareAction {
         }
       };
 
-    for (int i = 0; i < modules.size(); i++) {
-      Module module = modules.get(i);
-      if (module.getName().equals(PropertiesComponent.getInstance(project).getValue(GROOVY_SHELL_LAST_MODULE))) {
-        step.setDefaultOptionIndex(i);
-        break;
+    final String lastModuleName = PropertiesComponent.getInstance(project).getValue(GROOVY_SHELL_LAST_MODULE);
+    if (lastModuleName != null) {
+      int defaultOption = ContainerUtil.indexOf(modules, new Condition<Module>() {
+        @Override
+        public boolean value(Module module) {
+          return module.getName().equals(lastModuleName);
+        }
+      });
+      if (defaultOption >= 0) {
+        step.setDefaultOptionIndex(defaultOption);
       }
     }
+
     JBPopupFactory.getInstance().createListPopup(step).showCenteredInCurrentWindow(project);
   }
 
@@ -231,7 +243,7 @@ public abstract class GroovyShellActionBase extends DumbAwareAction {
     protected ConsoleExecuteActionHandler createConsoleExecuteActionHandler() {
       ConsoleExecuteActionHandler handler = new ConsoleExecuteActionHandler(getProcessHandler(), false) {
         @Override
-        public void processLine(String line) {
+        public void processLine(@NotNull String line) {
           super.processLine(myShellRunner.transformUserInput(line));
         }
 

@@ -525,7 +525,7 @@ public class InjectionsSettingsUI implements SearchableConfigurable.Parent, Conf
       setShowGrid(false);
       setShowVerticalLines(false);
       setGridColor(getForeground());
-      getColumnModel().getColumn(0).setMaxWidth(new JCheckBox().getPreferredSize().width);
+      TableUtil.setupCheckboxColumn(getColumnModel().getColumn(0));
 
       new DoubleClickListener() {
         @Override

@@ -42,7 +42,7 @@ import java.util.concurrent.Callable;
 /*
  * @author max
  */
-public class StubUpdatingIndex extends CustomImplementationFileBasedIndexExtension<Integer, SerializedStubTree, FileContent> {
+public class StubUpdatingIndex extends CustomImplementationFileBasedIndexExtension<Integer, SerializedStubTree, FileContent> implements PsiDependentIndex {
   private static final Logger LOG = Logger.getInstance("#com.intellij.psi.stubs.StubUpdatingIndex");
 
   // todo remove once we don't need this for stub-ast mismatch debug info
@@ -215,7 +215,8 @@ public class StubUpdatingIndex extends CustomImplementationFileBasedIndexExtensi
           }
         }
       }
-      final BinaryFileStubBuilder builder = BinaryFileStubBuilders.INSTANCE.forFileType(fileType);
+
+      BinaryFileStubBuilder builder = BinaryFileStubBuilders.INSTANCE.forFileType(fileType);
       if (builder != null) {
         version += builder.getStubVersion();
       }
@@ -291,7 +292,9 @@ public class StubUpdatingIndex extends CustomImplementationFileBasedIndexExtensi
     }
 
     @Override
-    protected void updateWithMap(final int inputId, @NotNull final Map<Integer, SerializedStubTree> newData, @NotNull Callable<Collection<Integer>> oldKeysGetter)
+    protected void updateWithMap(final int inputId,
+                                 @NotNull final Map<Integer, SerializedStubTree> newData,
+                                 @NotNull Callable<Collection<Integer>> oldKeysGetter)
       throws StorageException {
 
       checkNameStorage();
@@ -315,6 +318,7 @@ public class StubUpdatingIndex extends CustomImplementationFileBasedIndexExtensi
           getWriteLock().lock();
 
           final Map<Integer, SerializedStubTree> oldData = readOldData(inputId);
+
           final Map<StubIndexKey, Map<Object, StubIdList>> oldStubTree;
           try {
             oldStubTree = getStubTree(oldData);

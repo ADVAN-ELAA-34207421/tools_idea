@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -239,8 +239,11 @@ public class GroovyCompletionData {
       elem = PsiUtil.skipWhitespacesAndComments(context.getPrevSibling(), false);
     }
     else {
-      if (elem.getParent() != null) {
-        elem = elem.getParent().getPrevSibling();
+      if (elem instanceof GrReferenceExpression && PsiUtil.skipWhitespacesAndComments(elem.getPrevSibling(), false) instanceof GrTypeDefinition) {
+        elem = PsiUtil.skipWhitespacesAndComments(elem.getPrevSibling(), false);
+      }
+      else if (elem.getParent() != null) {
+        elem = PsiUtil.skipWhitespacesAndComments(elem.getParent().getPrevSibling(), false);
       }
     }
 
@@ -591,7 +594,7 @@ public class GroovyCompletionData {
       candidate = PsiUtil.skipWhitespacesAndComments(run.getPrevSibling(), false, skipNLs);
     }
     else {
-     candidate = PsiTreeUtil.prevLeaf(context);
+     candidate = PsiUtil.skipWhitespacesAndComments(PsiTreeUtil.prevLeaf(context), false);
     }
     if (candidate instanceof PsiErrorElement) candidate = candidate.getPrevSibling();
 

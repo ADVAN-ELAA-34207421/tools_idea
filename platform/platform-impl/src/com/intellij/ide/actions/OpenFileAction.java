@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -118,13 +118,12 @@ public class OpenFileAction extends AnAction implements DumbAware {
         return;
       }
 
-      if (OpenProjectFileChooserDescriptor.isProjectFile(file)) {
-        int answer = Messages.showYesNoDialog(project,
-                                              IdeBundle.message("message.open.file.is.project", file.getName()),
-                                              IdeBundle.message("title.open.project"),
-                                              Messages.getQuestionIcon());
-        if (answer == 0) {
-          FileChooserUtil.setLastOpenedFile(ProjectUtil.openOrImport(file.getPath(), project, false), file);
+      if (OpenProjectFileChooserDescriptor.isProjectFile(file) &&
+          // if the ipr-based project is already open, just open the ipr file
+          (project == null || !file.equals(project.getProjectFile()))) {
+        Project openedProject = ProjectUtil.openOrImport(file.getPath(), project, false);
+        if (openedProject != null) {
+          FileChooserUtil.setLastOpenedFile(openedProject, file);
           return;
         }
       }

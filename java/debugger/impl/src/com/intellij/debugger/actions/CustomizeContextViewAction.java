@@ -20,12 +20,12 @@ import com.intellij.debugger.settings.DebuggerDataViewsConfigurable;
 import com.intellij.debugger.settings.NodeRendererSettings;
 import com.intellij.debugger.settings.UserRenderersConfigurable;
 import com.intellij.debugger.ui.impl.FrameVariablesTree;
+import com.intellij.debugger.ui.impl.WatchDebuggerTree;
 import com.intellij.debugger.ui.impl.watch.DebuggerTree;
 import com.intellij.idea.ActionsBundle;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
-import com.intellij.openapi.actionSystem.PlatformDataKeys;
 import com.intellij.openapi.options.CompositeConfigurable;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
@@ -34,6 +34,8 @@ import com.intellij.openapi.options.ex.SingleConfigurableEditor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
 
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -67,6 +69,15 @@ public class CustomizeContextViewAction extends DebuggerAction{
       public String getHelpTopic() {
         return null;
       }
+
+      @Override
+      protected void createConfigurableTabs() {
+        for (Configurable configurable : getConfigurables()) {
+          JComponent component = configurable.createComponent();
+          component.setBorder(new EmptyBorder(8,8,8,8));
+          myTabbedPane.addTab(configurable.getDisplayName(), component);
+        }
+      }
     };
 
     SingleConfigurableEditor editor = new SingleConfigurableEditor(project, configurable);
@@ -76,7 +87,7 @@ public class CustomizeContextViewAction extends DebuggerAction{
 
   public void update(AnActionEvent e) {
     DebuggerTree tree = getTree(e.getDataContext());
-    e.getPresentation().setVisible(tree instanceof FrameVariablesTree);
+    e.getPresentation().setVisible(tree instanceof FrameVariablesTree || tree instanceof WatchDebuggerTree);
     e.getPresentation().setText(ActionsBundle.actionText(DebuggerActions.CUSTOMIZE_VIEWS));
   }
 }

@@ -31,7 +31,7 @@ import org.jetbrains.annotations.Nullable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ArrayBlockingQueue;
 
@@ -50,6 +50,10 @@ public class IndexingStamp {
     private static final FileAttribute PERSISTENCE = new FileAttribute("__index_stamps__", 1, false);
     private TObjectLongHashMap<ID<?, ?>> myIndexStamps;
     private boolean myIsDirty = false;
+
+    private Timestamps() {
+      myIsDirty = true;
+    }
 
     private Timestamps(@Nullable DataInputStream stream) throws IOException {
       if (stream != null) {
@@ -181,7 +185,15 @@ public class IndexingStamp {
     }
   }
 
-  public static List<ID<?,?>> getIndexedIds(final VirtualFile file) {
+  public static void removeAllIndexedState(VirtualFile file) {
+    synchronized (getStripedLock(file)) {
+      if (file instanceof NewVirtualFile && file.isValid()) {
+        myTimestampsCache.put(file, new Timestamps());
+      }
+    }
+  }
+
+  public static Collection<ID<?,?>> getIndexedIds(final VirtualFile file) {
     synchronized (getStripedLock(file)) {
       try {
         Timestamps stamp = createOrGetTimeStamp(file);
@@ -205,7 +217,6 @@ public class IndexingStamp {
 
   public static void flushCaches() {
     flushCache(null);
-    myTimestampsCache.clear();
   }
 
   public static void flushCache(@Nullable VirtualFile finishedFile) {

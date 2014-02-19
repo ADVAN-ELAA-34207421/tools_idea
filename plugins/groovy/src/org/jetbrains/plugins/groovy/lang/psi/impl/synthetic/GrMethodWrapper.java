@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,63 @@
 package org.jetbrains.plugins.groovy.lang.psi.impl.synthetic;
 
 import com.intellij.codeInsight.completion.originInfo.OriginInfoAwareElement;
-import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
+import com.intellij.psi.search.GlobalSearchScope;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.plugins.groovy.lang.psi.api.statements.params.GrParameter;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * @author Sergey Evdokimov
  */
 public class GrMethodWrapper extends GrLightMethodBuilder {
 
-  private static PsiType TYPE_MARKER = new PsiPrimitiveType("xxx", PsiAnnotation.EMPTY_ARRAY);
+  private static final PsiType TYPE_MARKER = new PsiType(PsiAnnotation.EMPTY_ARRAY) {
+    @NotNull
+    @Override
+    public String getPresentableText() {
+      return "?";
+    }
+
+    @NotNull
+    @Override
+    public String getCanonicalText() {
+      return "?";
+    }
+
+    @NotNull
+    @Override
+    public String getInternalCanonicalText() {
+      return "?";
+    }
+
+    @Override
+    public boolean isValid() {
+      return false;
+    }
+
+    @Override
+    public boolean equalsToText(@NotNull @NonNls String text) {
+      return false;
+    }
+
+    @Override
+    public <A> A accept(@NotNull PsiTypeVisitor<A> visitor) {
+      return null;
+    }
+
+    @Nullable
+    @Override
+    public GlobalSearchScope getResolveScope() {
+      return null;
+    }
+
+    @NotNull
+    @Override
+    public PsiType[] getSuperTypes() {
+      return EMPTY_ARRAY;
+    }
+  };
 
   private volatile boolean myNavigationElementInit;
 
@@ -41,15 +87,7 @@ public class GrMethodWrapper extends GrLightMethodBuilder {
 
     getModifierList().copyModifiers(method);
 
-    for (PsiParameter parameter : method.getParameterList().getParameters()) {
-      GrLightParameter p = new GrLightParameter(StringUtil.notNullize(parameter.getName()), parameter.getType(), this);
-
-      if (parameter instanceof GrParameter) {
-        p.setOptional(((GrParameter)parameter).isOptional());
-      }
-
-      addParameter(p);
-    }
+    getParameterList().copyParameters(method);
 
     if (method instanceof OriginInfoAwareElement) {
       setOriginInfo(((OriginInfoAwareElement)method).getOriginInfo());

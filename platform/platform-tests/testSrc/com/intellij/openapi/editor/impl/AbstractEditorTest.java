@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import com.intellij.openapi.util.Trinity;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.testFramework.LightPlatformCodeInsightTestCase;
 import com.intellij.testFramework.TestFileType;
+import com.intellij.testFramework.fixtures.EditorMouseFixture;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
@@ -203,5 +204,20 @@ public abstract class AbstractEditorTest extends LightPlatformCodeInsightTestCas
       
       mapper.rawAdd(visualLine, startOffset, endOffset, startLogicalLine, startLogicalColumn, endLogicalLine, endLogicalColumn, endVisualColumn, foldRegions, tabData);
     }
+  }
+
+  public void assertSelectionRanges(int[][] ranges) {
+    int[] selectionStarts = myEditor.getSelectionModel().getBlockSelectionStarts();
+    int[] selectionEnds = myEditor.getSelectionModel().getBlockSelectionEnds();
+    int actualRangeCount = selectionStarts.length;
+    int[][] actualRanges = new int[actualRangeCount][];
+    for (int i = 0; i < actualRangeCount; i++) {
+      actualRanges[i] = new int[] {selectionStarts[i], selectionEnds[i]};
+    }
+    assertEquals("Wrong selected ranges", Arrays.deepToString(ranges), Arrays.deepToString(actualRanges));
+  }
+
+  public EditorMouseFixture mouse() {
+    return new EditorMouseFixture((EditorImpl)myEditor);
   }
 }

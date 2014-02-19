@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,17 +46,19 @@ import java.util.regex.Pattern;
  * @author ilyas
  */
 public abstract class GroovyConfigUtils extends AbstractConfigUtils {
-  @NonNls private static final Pattern GROOVY_ALL_JAR_PATTERN = Pattern.compile("groovy-all-(.*)\\.jar");
-  private static GroovyConfigUtils myGroovyConfigUtils;
+  @NonNls public static final Pattern GROOVY_ALL_JAR_PATTERN = Pattern.compile("groovy-all(-(.*))?\\.jar");
+  @NonNls public static final Pattern GROOVY_JAR_PATTERN = Pattern.compile("groovy(-(\\d.*))?\\.jar");
 
-  @NonNls public static final String GROOVY_JAR_PATTERN_NOVERSION = "groovy\\.jar";
-  @NonNls public static final String GROOVY_JAR_PATTERN = "groovy-(\\d.*)\\.jar";
   public static final String NO_VERSION = "<no version>";
   public static final String GROOVY1_7 = "1.7";
   public static final String GROOVY1_8 = "1.8";
   public static final String GROOVY2_0 = "2.0";
   public static final String GROOVY2_1 = "2.1";
   public static final String GROOVY2_2 = "2.2";
+  public static final String GROOVY2_2_2 = "2.2.2";
+  public static final String GROOVY2_3 = "2.3";
+
+  private static GroovyConfigUtils myGroovyConfigUtils;
 
   private GroovyConfigUtils() {
   }
@@ -83,9 +85,6 @@ public abstract class GroovyConfigUtils extends AbstractConfigUtils {
   @NotNull
   public String getSDKVersion(@NotNull final String path) {
     String groovyJarVersion = getSDKJarVersion(path + "/lib", GROOVY_JAR_PATTERN, MANIFEST_PATH);
-    if (groovyJarVersion == null) {
-      groovyJarVersion = getSDKJarVersion(path + "/lib", GROOVY_JAR_PATTERN_NOVERSION, MANIFEST_PATH);
-    }
     if (groovyJarVersion == null) {
       groovyJarVersion = getSDKJarVersion(path + "/lib", GROOVY_ALL_JAR_PATTERN, MANIFEST_PATH);
     }
@@ -143,7 +142,6 @@ public abstract class GroovyConfigUtils extends AbstractConfigUtils {
     if (file != null && file.isDirectory()) {
       final String path = file.getPath();
       if (GroovyUtils.getFilesInDirectoryByPattern(path + "/lib", GROOVY_JAR_PATTERN).length > 0 ||
-          GroovyUtils.getFilesInDirectoryByPattern(path + "/lib", GROOVY_JAR_PATTERN_NOVERSION).length > 0 ||
           GroovyUtils.getFilesInDirectoryByPattern(path + "/embeddable", GROOVY_ALL_JAR_PATTERN).length > 0 ||
           GroovyUtils.getFilesInDirectoryByPattern(path, GROOVY_JAR_PATTERN).length > 0) {
         return true;
@@ -160,7 +158,7 @@ public abstract class GroovyConfigUtils extends AbstractConfigUtils {
       int result = Messages
         .showOkCancelDialog(GroovyBundle.message("groovy.like.library.found.text", module.getName(), library.getName(), getSDKLibVersion(library)),
                             GroovyBundle.message("groovy.like.library.found"), JetgroovyIcons.Groovy.Groovy_32x32);
-      if (result == 0) {
+      if (result == Messages.OK) {
         AccessToken accessToken = WriteAction.start();
 
         try {

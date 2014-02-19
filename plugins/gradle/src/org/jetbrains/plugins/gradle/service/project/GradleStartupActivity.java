@@ -64,7 +64,8 @@ public class GradleStartupActivity implements StartupActivity {
   private static void showNotificationForUnlinkedGradleProject(@NotNull final Project project) {
     if (!PropertiesComponent.getInstance(project).getBoolean(SHOW_UNLINKED_GRADLE_POPUP, true)
         || !GradleSettings.getInstance(project).getLinkedProjectsSettings().isEmpty()
-        || project.getUserData(ExternalSystemDataKeys.NEWLY_IMPORTED_PROJECT) == Boolean.TRUE) {
+        || project.getUserData(ExternalSystemDataKeys.NEWLY_IMPORTED_PROJECT) == Boolean.TRUE
+        || project.getBaseDir() == null) {
       return;
     }
 
@@ -79,13 +80,14 @@ public class GradleStartupActivity implements StartupActivity {
     if (files != null && files.length != 0) {
       String message = String.format("%s<br>\n%s",
                                      GradleBundle.message("gradle.notifications.unlinked.project.found.msg", IMPORT_EVENT_DESCRIPTION),
-                                     GradleBundle.message("gradle.notifications.do.not.show", DO_NOT_SHOW_EVENT_DESCRIPTION));
+                                     GradleBundle.message("gradle.notifications.do.not.show"));
 
       GradleNotification.getInstance(project).showBalloon(
         GradleBundle.message("gradle.notifications.unlinked.project.found.title"),
         message, NotificationType.INFORMATION, new NotificationListener.Adapter() {
           @Override
           protected void hyperlinkActivated(@NotNull Notification notification, @NotNull HyperlinkEvent e) {
+            notification.expire();
             if (IMPORT_EVENT_DESCRIPTION.equals(e.getDescription())) {
               final ProjectDataManager projectDataManager = ServiceManager.getService(ProjectDataManager.class);
               GradleProjectImportBuilder gradleProjectImportBuilder = new GradleProjectImportBuilder(projectDataManager);

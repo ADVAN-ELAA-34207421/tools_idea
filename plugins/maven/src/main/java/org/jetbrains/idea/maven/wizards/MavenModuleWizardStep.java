@@ -23,6 +23,8 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.IconLoader;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.idea.maven.model.MavenArchetype;
@@ -35,6 +37,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
 
 public class MavenModuleWizardStep extends ModuleWizardStep {
   private static final Icon WIZARD_ICON = IconLoader.getIcon("/addmodulewizard.png");
@@ -71,14 +74,14 @@ public class MavenModuleWizardStep extends ModuleWizardStep {
   private JPanel myAddToPanel;
 
   @Nullable
-  private final MavenArchetypesPanel myArchetypes;
+  private final MavenArchetypesStep myArchetypes;
 
   public MavenModuleWizardStep(MavenModuleBuilder builder, WizardContext context, boolean includeArtifacts) {
     myProjectOrNull = context.getProject();
     myBuilder = builder;
     myContext = context;
     if (includeArtifacts) {
-      myArchetypes = new MavenArchetypesPanel(builder, this);
+      myArchetypes = new MavenArchetypesStep(builder, this);
       myArchetypesPanel.add(myArchetypes.getMainPanel(), BorderLayout.CENTER);
     }
     else {
@@ -198,18 +201,27 @@ public class MavenModuleWizardStep extends ModuleWizardStep {
     return true;
   }
 
+  public MavenProject findPotentialParentProject(Project project) {
+    if (!MavenProjectsManager.getInstance(project).isMavenizedProject()) return null;
+
+    VirtualFile parentPom = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(new File(myContext.getProjectFileDirectory(), "pom.xml"));
+    if (parentPom == null) return null;
+
+    return MavenProjectsManager.getInstance(project).findProject(parentPom);
+  }
+
   private static void setTestIfEmpty(@NotNull JTextField artifactIdField, @Nullable String text) {
     if (StringUtil.isEmpty(artifactIdField.getText())) {
       artifactIdField.setText(StringUtil.notNullize(text));
     }
   }
-  
+
   @Override
   public void updateStep() {
     if (myArchetypes != null && myArchetypes.isSkipUpdateUI()) return;
 
     if (isMavenizedProject()) {
-      MavenProject parent = myBuilder.findPotentialParentProject(myProjectOrNull);
+      MavenProject parent = findPotentialParentProject(myProjectOrNull);
       myAggregator = parent;
       myParent = parent;
     }
@@ -287,6 +299,10 @@ public class MavenModuleWizardStep extends ModuleWizardStep {
                                        myVersionField.getText()));
     myBuilder.setInheritedOptions(myInheritGroupIdCheckBox.isSelected(),
                                   myInheritVersionCheckBox.isSelected());
+
+    if (myContext.getProjectName() == null) {
+      myContext.setProjectName(myBuilder.getProjectId().getArtifactId());
+    }
 
     if (myArchetypes != null) {
       myBuilder.setArchetype(myArchetypes.getSelectedArchetype());

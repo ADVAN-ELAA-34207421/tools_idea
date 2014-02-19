@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,23 +37,27 @@ public class ClassFileViewProvider extends SingleRootFileViewProvider {
 
   @Override
   protected PsiFile createFile(@NotNull final Project project, @NotNull final VirtualFile vFile, @NotNull final FileType fileType) {
-    final FileIndexFacade fileIndex = ServiceManager.getService(project, FileIndexFacade.class);
-    if (fileIndex.isInLibraryClasses(vFile) || !fileIndex.isInSource(vFile)) {
-      if (!isInnerOrAnonymousClass(vFile)) {
-        return new ClsFileImpl(PsiManager.getInstance(project), this);
-      }
+    FileIndexFacade fileIndex = ServiceManager.getService(project, FileIndexFacade.class);
+    if (!fileIndex.isInLibraryClasses(vFile) && fileIndex.isInSource(vFile)) {
+      return null;
     }
 
-    return null;
+    // skip inners & anonymous
+    if (isInnerClass(vFile)) return null;
+
+    return new ClsFileImpl(this);
   }
 
-  public static boolean isInnerOrAnonymousClass(VirtualFile file) {
-    // todo: read actual class name from file
-    String name = file.getName();
-    int dotIndex = name.lastIndexOf('.');
-    if (dotIndex < 0) dotIndex = name.length();
-    int index = name.lastIndexOf('$', dotIndex);
-    return index > 0 && index != dotIndex - 1;
+  public static boolean isInnerClass(VirtualFile vFile) {
+    String name = vFile.getNameWithoutExtension();
+    int index = name.lastIndexOf('$', name.length());
+    if (index > 0 && index < name.length() - 1) {
+      String supposedParentName = name.substring(0, index) + ".class";
+      if (vFile.getParent().findChild(supposedParentName) != null) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @NotNull

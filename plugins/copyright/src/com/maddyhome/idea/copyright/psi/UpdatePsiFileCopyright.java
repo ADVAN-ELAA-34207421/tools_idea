@@ -18,8 +18,7 @@ package com.maddyhome.idea.copyright.psi;
 
 import com.intellij.lang.Commenter;
 import com.intellij.lang.LanguageCommenters;
-import com.intellij.openapi.application.Application;
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
@@ -317,10 +316,9 @@ public abstract class UpdatePsiFileCopyright extends AbstractUpdateCopyright {
   }
 
   protected void processActions() throws IncorrectOperationException {
-    Application app = ApplicationManager.getApplication();
-    app.runWriteAction(new Runnable() {
+    new WriteCommandAction.Simple(file.getProject(), "Update copyright") {
       @Override
-      public void run() {
+      protected void run() throws Throwable {
         Document doc = FileDocumentManager.getInstance().getDocument(getRoot());
         if (doc != null) {
           PsiDocumentManager.getInstance(file.getProject()).doPostponedOperationsAndUnblockDocument(doc);
@@ -343,10 +341,10 @@ public abstract class UpdatePsiFileCopyright extends AbstractUpdateCopyright {
                 break;
             }
           }
-          PsiDocumentManager.getInstance(file.getProject()).commitDocument(doc);
+          PsiDocumentManager.getInstance(getProject()).commitDocument(doc);
         }
       }
-    });
+    }.execute();
   }
 
   private static class CommentRange {

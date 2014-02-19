@@ -17,11 +17,11 @@ package org.zmlx.hg4idea.util;
 
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.FileStatus;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vcs.changes.Change;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.util.ArrayUtil;
 import com.intellij.util.Consumer;
 import com.intellij.util.Function;
 import com.intellij.util.SmartList;
@@ -58,7 +58,7 @@ public class HgHistoryUtil {
   @NotNull
   public static List<VcsFullCommitDetails> history(@NotNull final Project project,
                                                    @NotNull final VirtualFile root, int limit,
-                                                   String... parameters)
+                                                   List<String> parameters)
     throws VcsException {
     List<HgCommittedChangeList> result = getCommittedChangeList(project, root, limit, true, parameters);
     return ContainerUtil.mapNotNull(result, new Function<HgCommittedChangeList, VcsFullCommitDetails>() {
@@ -72,18 +72,19 @@ public class HgHistoryUtil {
   @NotNull
   private static List<HgCommittedChangeList> getCommittedChangeList(@NotNull final Project project,
                                                                     @NotNull final VirtualFile root, int limit, boolean withFiles,
-                                                                    String... parameters) {
+                                                                    List<String> parameters) {
     HgFile hgFile = new HgFile(root, VcsUtil.getFilePath(root.getPath()));
-    List<String> args = ContainerUtil.newArrayList(parameters);
-    args.add("--debug");
     List<HgCommittedChangeList> result = new LinkedList<HgCommittedChangeList>();
     final List<HgFileRevision> localRevisions;
     HgLogCommand hgLogCommand = new HgLogCommand(project);
-
+    List<String> args = new ArrayList<String>(parameters);
     hgLogCommand.setLogFile(false);
     HgVcs hgvcs = HgVcs.getInstance(project);
     assert hgvcs != null;
     try {
+      if (!hgvcs.getVersion().isParentRevisionTemplateSupported()) {
+        args.add("--debug");
+      }
       localRevisions = hgLogCommand.execute(hgFile, limit, withFiles, args);
     }
     catch (HgCommandException e) {
@@ -144,7 +145,7 @@ public class HgHistoryUtil {
                                                    @NotNull final Consumer<VcsUser> userRegistry) throws VcsException {
 
     final VcsLogObjectsFactory factory = ServiceManager.getService(project, VcsLogObjectsFactory.class);
-    return ContainerUtil.map(getCommittedChangeList(project, root, -1, false, ""), new Function<HgCommittedChangeList, TimedVcsCommit>() {
+    return ContainerUtil.map(getCommittedChangeList(project, root, -1, false, Collections.<String>emptyList()), new Function<HgCommittedChangeList, TimedVcsCommit>() {
       @Override
       public TimedVcsCommit fun(HgCommittedChangeList record) {
         HgRevisionNumber revNumber = (HgRevisionNumber)record.getRevisionNumber();
@@ -195,40 +196,35 @@ public class HgHistoryUtil {
   }
 
   @Nullable
-  public static String[] prepareHashes(@NotNull List<String> hashes) {
-    if (hashes.isEmpty()) {
-      return ArrayUtil.EMPTY_STRING_ARRAY;
-    }
-    StringBuilder builder = new StringBuilder();
+  public static List<String> prepareHashes(@NotNull List<String> hashes) {
+    List<String> hashArgs = new ArrayList<String>();
     for (String hash : hashes) {
-      builder.append(hash).append('+');
+      hashArgs.add("-r");
+      hashArgs.add(hash);
     }
-    builder.deleteCharAt(builder.length() - 1);
-    //todo change ugly style
-    return new String[]{"--rev", builder.toString()};
+    return hashArgs;
   }
 
   @NotNull
   public static Collection<String> getDescendingHeadsOfBranches(@NotNull Project project, @NotNull VirtualFile root, @NotNull Hash hash)
     throws VcsException {
-    //hg log -r "descendants(659db54c1b6865c97c4497fa867194bcd759ca76) and head() " --template "{branch} {bookmarks}\n"
+    //hg log -r "descendants(659db54c1b6865c97c4497fa867194bcd759ca76) and head()" --template "{branch}{bookmarks}"
     Set<String> branchHeads = new HashSet<String>();
     List<String> params = new ArrayList<String>();
     params.add("-r");
     params.add("descendants(" + hash.asString() + ") and head()");
-    HgFile hgFile = new HgFile(root, VcsUtil.getFilePath(root.getPath()));
     HgLogCommand hgLogCommand = new HgLogCommand(project);
     hgLogCommand.setLogFile(false);
     String template = HgChangesetUtil.makeTemplate("{branch}", "{bookmarks}");
-    HgCommandResult logResult = hgLogCommand.execute(root, template, -1, hgFile, params);
+    HgCommandResult logResult = hgLogCommand.execute(root, template, -1, null, params);
     if (logResult == null || logResult.getExitValue() != 0) {
       throw new VcsException("Couldn't get commit details: log command execution error.");
     }
     String output = logResult.getRawOutput();
-    String[] changeSets = output.split(HgChangesetUtil.CHANGESET_SEPARATOR);
+    List<String> changeSets = StringUtil.split(output, HgChangesetUtil.CHANGESET_SEPARATOR);
     for (String line : changeSets) {
-      String[] attributes = line.split(HgChangesetUtil.ITEM_SEPARATOR);
-      branchHeads.addAll(Arrays.asList(attributes));
+      List<String> attributes = StringUtil.split(line, HgChangesetUtil.ITEM_SEPARATOR);
+      branchHeads.addAll(attributes);
     }
     return branchHeads;
   }

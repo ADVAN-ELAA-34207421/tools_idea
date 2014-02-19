@@ -12,6 +12,7 @@
 // limitations under the License.
 package org.zmlx.hg4idea.util;
 
+import com.intellij.dvcs.DvcsUtil;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.diagnostic.Logger;
@@ -23,6 +24,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.TextEditor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.ShutDownTracker;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
@@ -38,8 +40,6 @@ import com.intellij.openapi.wm.StatusBar;
 import com.intellij.openapi.wm.WindowManager;
 import com.intellij.openapi.wm.impl.status.StatusBarUtil;
 import com.intellij.ui.GuiUtils;
-import com.intellij.util.Function;
-import com.intellij.util.containers.ContainerUtil;
 import com.intellij.vcsUtil.VcsUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -551,18 +551,34 @@ public abstract class HgUtil {
     return path;
   }
 
-  public static String getDisplayableBranchText(HgRepository repository) {
+  @NotNull
+  public static String getDisplayableBranchOrBookmarkText(@NotNull HgRepository repository) {
     HgRepository.State state = repository.getState();
     String branchText = "";
     if (state == HgRepository.State.MERGING) {
       branchText += state.toString() + " ";
     }
-    return branchText + repository.getCurrentBranch();
+    String branchOrBookMarkName = repository.getCurrentBookmark();
+    if (StringUtil.isEmptyOrSpaces(branchOrBookMarkName)) {
+      branchOrBookMarkName = repository.getCurrentBranch();
+    }
+    return branchText + branchOrBookMarkName;
   }
 
   @NotNull
   public static HgRepositoryManager getRepositoryManager(@NotNull Project project) {
     return ServiceManager.getService(project, HgRepositoryManager.class);
+  }
+
+  @Nullable
+  public static HgRepository getCurrentRepository(@NotNull Project project) {
+    HgRepositoryManager repositoryManager = getRepositoryManager(project);
+    VirtualFile file = DvcsUtil.getSelectedFile(project);
+    if (file == null) {
+      return null;
+    }
+    VirtualFile root = getHgRootOrNull(project, file);
+    return repositoryManager.getRepositoryForRoot(root);
   }
 
   @Nullable
@@ -603,7 +619,7 @@ public abstract class HgUtil {
         return false;
       }
       HgCommandResult result = getVersionOutput(executable);
-      return result.getRawError().isEmpty();
+      return result.getExitValue() == 0 && !result.getRawOutput().isEmpty();
     }
     catch (Throwable e) {
       LOG.info("Error during hg executable validation: ", e);
@@ -619,7 +635,7 @@ public abstract class HgUtil {
     cmdArgs.add("version");
     cmdArgs.add("-q");
     ShellCommand shellCommand = new ShellCommand(cmdArgs, null, CharsetToolkit.getDefaultSystemCharset());
-    return shellCommand.execute();
+    return shellCommand.execute(false);
   }
 
   public static List<String> getNamesWithoutHashes(Collection<HgNameWithHashInfo> namesWithHashes) {
@@ -634,33 +650,29 @@ public abstract class HgUtil {
   }
 
   @NotNull
-  public static List<String> parseUserNameAndEmail(String authorString) {
-    //maybe return value should be a pair of String not an array
-    List<String> userInfoList = new ArrayList<String>(2);
-    if (authorString == null) {
-      return Arrays.asList("", "");
-    }
-
+  public static Pair<String, String> parseUserNameAndEmail(@NotNull String authorString) {
     // Vasya Pupkin <vasya.pupkin@jetbrains.com> -> Vasya Pupkin , vasya.pupkin@jetbrains.com
-    final int[] ind = {authorString.indexOf('<'), authorString.indexOf('@'), authorString.indexOf('>')};
-    if (0 < ind[0] && ind[0] < ind[1] && ind[1] < ind[2]) {
-      String email = authorString.substring(ind[0] + 1, ind[2]).trim();
-      userInfoList.add(convertUserName(authorString.substring(0, ind[0])));
-      userInfoList.add(email);
+    int startEmailIndex = authorString.indexOf('<');
+    int startDomainIndex = authorString.indexOf('@');
+    int endEmailIndex = authorString.indexOf('>');
+    String userName;
+    String email;
+    if (0 < startEmailIndex && startEmailIndex < startDomainIndex && startDomainIndex < endEmailIndex) {
+      email = authorString.substring(startEmailIndex + 1, endEmailIndex);
+      userName = convertUserName(authorString.substring(0, startEmailIndex));
     }
 
     // vasya.pupkin@email.com --> vasya pupkin, vasya.pupkin@email.com
-    else if (!authorString.contains(" ") && authorString.contains("@")) { //simple e-mail check. john@localhost
-      final String firstPart = convertUserName(authorString.substring(0, authorString.indexOf('@')));
-      userInfoList.add(firstPart); //user name
-      userInfoList.add(authorString);// email
+    else if (!authorString.contains(" ") && startDomainIndex > 0) { //simple e-mail check. john@localhost
+      userName = convertUserName(authorString.substring(0, startDomainIndex));
+      email = authorString;
     }
 
     else {
-      userInfoList.add(convertUserName(authorString));
-      userInfoList.add("");
+      userName = convertUserName(authorString);
+      email = "";
     }
-    return userInfoList;
+    return Pair.create(userName, email);
   }
 
   private static String convertUserName(@NotNull String userNameInfo) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ import org.gradle.tooling.model.idea.IdeaModule;
 import org.gradle.tooling.model.idea.IdeaProject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.gradle.model.ProjectImportAction;
 import org.jetbrains.plugins.gradle.remote.impl.GradleLibraryNamesMixer;
 import org.jetbrains.plugins.gradle.settings.ClassHolder;
 import org.jetbrains.plugins.gradle.settings.GradleExecutionSettings;
@@ -141,32 +142,41 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
 
     final ProjectImportAction projectImportAction = new ProjectImportAction(resolverCtx.isPreviewMode());
 
-    // inject ProjectResolverContext into gradle project resolver extensions
-    // collect extra JVM arguments provided by gradle project resolver extensions
-    // and register classes of extra gradle project models required for extensions (e.g. com.android.builder.model.AndroidProject)
     final List<KeyValue<String, String>> extraJvmArgs = new ArrayList<KeyValue<String, String>>();
     for (GradleProjectResolverExtension resolverExtension = projectResolverChain;
          resolverExtension != null;
          resolverExtension = resolverExtension.getNext()) {
+      // inject ProjectResolverContext into gradle project resolver extensions
       resolverExtension.setProjectResolverContext(resolverCtx);
+      // pre-import checks
+      resolverExtension.preImportCheck();
+      // register classes of extra gradle project models required for extensions (e.g. com.android.builder.model.AndroidProject)
       projectImportAction.addExtraProjectModelClasses(resolverExtension.getExtraProjectModelClasses());
+      // collect extra JVM arguments provided by gradle project resolver extensions
       extraJvmArgs.addAll(resolverExtension.getExtraJvmArgs());
     }
+
     final ParametersList parametersList = new ParametersList();
     for (KeyValue<String, String> jvmArg : extraJvmArgs) {
       parametersList.addProperty(jvmArg.getKey(), jvmArg.getValue());
     }
 
+
     BuildActionExecuter<ProjectImportAction.AllModels> buildActionExecutor = resolverCtx.getConnection().action(projectImportAction);
+
+    final List<String> commandLineArgs = ContainerUtil.newArrayList();
+    // TODO [vlad] remove the check
+    if (!GradleEnvironment.DISABLE_ENHANCED_TOOLING_API) {
+      File initScript = GradleExecutionHelper.generateInitScript(isBuildSrcProject);
+      if (initScript != null) {
+        ContainerUtil.addAll(commandLineArgs, GradleConstants.INIT_SCRIPT_CMD_OPTION, initScript.getAbsolutePath());
+      }
+    }
+
     GradleExecutionHelper.prepare(
       buildActionExecutor, resolverCtx.getExternalSystemTaskId(),
       resolverCtx.getSettings(), resolverCtx.getListener(),
-      parametersList.getParameters(), resolverCtx.getConnection());
-
-    // TODO [vlad] remove the check
-    if (!GradleEnvironment.DISABLE_ENHANCED_TOOLING_API) {
-      GradleExecutionHelper.setInitScript(buildActionExecutor, isBuildSrcProject);
-    }
+      parametersList.getParameters(), commandLineArgs, resolverCtx.getConnection());
 
     ProjectImportAction.AllModels allModels;
     try {
@@ -178,8 +188,9 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
     catch (UnsupportedVersionException unsupportedVersionException) {
       // Old gradle distribution version used (before ver. 1.8)
       // fallback to use ModelBuilder gradle tooling API
+      Class<? extends IdeaProject> aClass = resolverCtx.isPreviewMode() ? BasicIdeaProject.class : IdeaProject.class;
       ModelBuilder<? extends IdeaProject> modelBuilder = myHelper.getModelBuilder(
-        resolverCtx.isPreviewMode() ? BasicIdeaProject.class : IdeaProject.class,
+        aClass,
         resolverCtx.getExternalSystemTaskId(),
         resolverCtx.getSettings(),
         resolverCtx.getConnection(),

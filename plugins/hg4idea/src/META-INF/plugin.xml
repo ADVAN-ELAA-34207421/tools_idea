@@ -17,13 +17,12 @@
 
     <applicationService serviceInterface="org.zmlx.hg4idea.HgGlobalSettings"
                         serviceImplementation="org.zmlx.hg4idea.HgGlobalSettings"/>
+    <applicationService serviceInterface="org.zmlx.hg4idea.HgRememberedInputs"
+                        serviceImplementation="org.zmlx.hg4idea.HgRememberedInputs"/>
     <projectService serviceInterface="org.zmlx.hg4idea.HgProjectSettings"
                     serviceImplementation="org.zmlx.hg4idea.HgProjectSettings"/>
     <projectService serviceInterface="org.zmlx.hg4idea.HgRootsHandler"
                     serviceImplementation="org.zmlx.hg4idea.HgRootsHandler" />
-    <projectService serviceInterface="org.zmlx.hg4idea.HgRememberedInputs"
-                            serviceImplementation="org.zmlx.hg4idea.HgRememberedInputs"/>
-
     <projectService serviceImplementation="org.zmlx.hg4idea.log.HgContentRevisionFactory"/>
   </extensions>
 
@@ -56,7 +55,9 @@
       <separator/>
 
       <action id="hg4idea.pull" class="org.zmlx.hg4idea.action.HgPullAction" />
-      <action id="hg4idea.push" class="org.zmlx.hg4idea.action.HgPushAction" />
+      <action id="hg4idea.push" class="org.zmlx.hg4idea.action.HgPushAction">
+        <keyboard-shortcut first-keystroke="control shift K" keymap="$default"/>
+      </action>
       <separator/>
       <action id="hg4idea.run.conflict.resolver" class="org.zmlx.hg4idea.action.HgRunConflictResolverAction"/>
       <action id="hg4idea.merge.files" class="org.zmlx.hg4idea.action.HgMerge" icon="AllIcons.Vcs.MergeSourcesTree"/>
@@ -73,6 +74,20 @@
 
       <add-to-group group-id="VcsGroup" anchor="last"/>
       <add-to-group group-id="VcsGlobalGroup" anchor="after" relative-to-action="Vcs.Specific"/>
+    </group>
+
+    <group id="Hg.LogContextMenu">
+      <separator/>
+    </group>
+
+    <action class="org.zmlx.hg4idea.action.HgUpdateToFromLogAction" id="hg4idea.UpdateToRevision" text="Update to Revision"/>
+    <action class="org.zmlx.hg4idea.action.HgCreateTagFromLogAction" id="hg4idea.CreateNewTag" text="New Tag"
+            description="Create new tag pointing to this commit"/>
+
+    <group id="Hg.Log.ContextMenu">
+      <reference id="hg4idea.UpdateToRevision"/>
+      <reference id="hg4idea.CreateNewTag"/>
+      <add-to-group group-id="Vcs.Log.ContextMenu"/>
     </group>
 
   </actions>

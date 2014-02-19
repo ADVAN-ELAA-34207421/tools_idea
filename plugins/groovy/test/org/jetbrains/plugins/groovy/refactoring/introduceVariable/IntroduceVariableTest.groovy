@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -119,6 +119,15 @@ def foo() {
 ''')
   }
 
+  void testDollarSlashyString() {
+    doTest('''\
+print($/a<begin>b<end>c/$)
+''', '''\
+def preved = $/b/$
+print($/a/$ + preved + $/c/$)
+''')
+  }
+
   protected static final String ALL_MARKER = "<all>"
 
   private void processFile(String fileText, boolean explicitType) {
@@ -126,8 +135,8 @@ def foo() {
 
     PsiType type = inferType(explicitType)
 
-    final IntroduceLocalVariableTest.MockSettings settings = new IntroduceLocalVariableTest.MockSettings(false, "preved", type, replaceAllOccurrences)
-    final GrIntroduceVariableHandler introduceVariableHandler = new IntroduceLocalVariableTest.MockGrIntroduceVariableHandler(settings)
+    final MockSettings settings = new MockSettings(false, "preved", type, replaceAllOccurrences)
+    final GrIntroduceVariableHandler introduceVariableHandler = new MockGrIntroduceVariableHandler(settings)
 
     introduceVariableHandler.invoke(myFixture.project, myFixture.editor, myFixture.file, null)
   }

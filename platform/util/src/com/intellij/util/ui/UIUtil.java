@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ import java.awt.image.PixelGrabber;
 import java.beans.PropertyChangeListener;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.*;
@@ -68,6 +69,8 @@ import java.util.regex.Pattern;
  */
 @SuppressWarnings("StaticMethodOnlyUsedInOneClass")
 public class UIUtil {
+
+  @NonNls public static final String BORDER_LINE = "<hr size=1 noshade>";
 
   private static final AtomicNotNullLazyValue<Boolean> X_RENDER_ACTIVE = new AtomicNotNullLazyValue<Boolean>() {
     @NotNull
@@ -353,6 +356,11 @@ public class UIUtil {
 
   public static void setEnabled(Component component, boolean enabled, boolean recursively) {
     component.setEnabled(enabled);
+    if (component instanceof JComboBox && isUnderAquaLookAndFeel()) {
+      // On Mac JComboBox instances have children: com.apple.laf.AquaComboBoxButton and javax.swing.CellRendererPane.
+      // Disabling these children results in ugly UI: WEB-10733
+      return;
+    }
     if (component instanceof JLabel) {
       Color color = enabled ? getLabelForeground() : getLabelDisabledForeground();
       if (color != null) {
@@ -430,18 +438,22 @@ public class UIUtil {
     return ArrayUtil.toStringArray(lines);
   }
 
-  public static void setActionNameAndMnemonic(String text, Action action) {
-    int mnemoPos = text.indexOf('&');
-    if (mnemoPos >= 0 && mnemoPos < text.length() - 2) {
-      String mnemoChar = text.substring(mnemoPos + 1, mnemoPos + 2).trim();
-      if (mnemoChar.length() == 1) {
-        action.putValue(Action.MNEMONIC_KEY, Integer.valueOf((int)mnemoChar.charAt(0)));
-      }
-    }
+  public static void setActionNameAndMnemonic(@NotNull String text, @NotNull Action action) {
+    assignMnemonic(text, action);
 
     text = text.replaceAll("&", "");
     action.putValue(Action.NAME, text);
   }
+  public static void assignMnemonic(@NotNull String text, @NotNull Action action) {
+    int mnemoPos = text.indexOf('&');
+    if (mnemoPos >= 0 && mnemoPos < text.length() - 2) {
+      String mnemoChar = text.substring(mnemoPos + 1, mnemoPos + 2).trim();
+      if (mnemoChar.length() == 1) {
+        action.putValue(Action.MNEMONIC_KEY, Integer.valueOf(mnemoChar.charAt(0)));
+      }
+    }
+  }
+
 
   public static Font getLabelFont(@NotNull FontSize size) {
     return getFont(size, null);
@@ -497,13 +509,14 @@ public class UIUtil {
     return UIManager.getColor("Label.disabledText");
   }
 
+  /** @deprecated to remove in IDEA 14 */
+  @SuppressWarnings("UnusedDeclaration")
   public static Icon getOptionPanelWarningIcon() {
-    return UIManager.getIcon("OptionPane.warningIcon");
+    return getWarningIcon();
   }
 
-  /**
-   * @deprecated use com.intellij.util.ui.UIUtil#getQuestionIcon()
-   */
+  /** @deprecated to remove in IDEA 14 */
+  @SuppressWarnings("UnusedDeclaration")
   public static Icon getOptionPanelQuestionIcon() {
     return getQuestionIcon();
   }
@@ -2009,6 +2022,7 @@ public class UIUtil {
    * is event queue thread.
    *
    * @param runnable a runnable to invoke
+   * @see #invokeAndWaitIfNeeded(com.intellij.util.ThrowableRunnable)
    */
   public static void invokeAndWaitIfNeeded(@NotNull Runnable runnable) {
     if (SwingUtilities.isEventDispatchThread()) {
@@ -2021,6 +2035,27 @@ public class UIUtil {
       catch (Exception e) {
         LOG.error(e);
       }
+    }
+  }
+
+  public static void invokeAndWaitIfNeeded(@NotNull final ThrowableRunnable runnable) throws Throwable {
+    if (SwingUtilities.isEventDispatchThread()) {
+      runnable.run();
+    }
+    else {
+      final Ref<Throwable> ref = new Ref<Throwable>();
+      SwingUtilities.invokeAndWait(new Runnable() {
+        @Override
+        public void run() {
+          try {
+            runnable.run();
+          }
+          catch (Throwable throwable) {
+            ref.set(throwable);
+          }
+        }
+      });
+      if (!ref.isNull()) throw ref.get();
     }
   }
 
@@ -2206,6 +2241,24 @@ public class UIUtil {
 
   public static int fixComboBoxHeight(final int height) {
     return SystemInfo.isMac && isUnderAquaLookAndFeel() ? 28 : height;
+  }
+
+
+  /**
+   * The main difference from javax.swing.SwingUtilities#isDescendingFrom(Component, Component) is that this method
+   * uses getInvoker() instead of getParent() when it meets JPopupMenu
+   * @param child child component
+   * @param parent parent component
+   * @return true if parent if a top parent of child, false otherwise
+   *
+   * @see javax.swing.SwingUtilities#isDescendingFrom(java.awt.Component, java.awt.Component)
+   */
+  public static boolean isDescendingFrom(@Nullable Component child, @NotNull Component parent) {
+    while (child != null && child != parent) {
+      child =  child instanceof JPopupMenu  ? ((JPopupMenu)child).getInvoker()
+                                            : child.getParent();
+    }
+    return child == parent;
   }
 
   @Nullable
@@ -2638,7 +2691,7 @@ public class UIUtil {
     }
   }
 
-  private static final Color DECORATED_ROW_BG_COLOR = new JBColor(new Color(242, 245, 249), new Color(79, 83, 84));
+  private static final Color DECORATED_ROW_BG_COLOR = new JBColor(new Color(242, 245, 249), new Color(65, 69, 71));
 
   public static Color getDecoratedRowColor() {
     return DECORATED_ROW_BG_COLOR;
@@ -2675,5 +2728,18 @@ public class UIUtil {
       if (each.isVisible() && each.isActive()) return each;
     }
     return JOptionPane.getRootFrame();
+  }
+
+  public static void setAutoRequestFocus (final Window onWindow, final boolean set){
+    if (SystemInfo.isMac) return;
+    if (SystemInfo.isJavaVersionAtLeast("1.7")) {
+      try {
+        Method setAutoRequestFocusMethod  = onWindow.getClass().getMethod("setAutoRequestFocus",new Class [] {boolean.class});
+        setAutoRequestFocusMethod.invoke(onWindow, set);
+      }
+      catch (NoSuchMethodException e) { LOG.debug(e); }
+      catch (InvocationTargetException e) { LOG.debug(e); }
+      catch (IllegalAccessException e) { LOG.debug(e); }
+    }
   }
 }

@@ -47,7 +47,6 @@ String patchAppDescriptor(String targetDirectory) {
 def layoutFull(String home, String targetDirectory, String patchedDescriptorDir = null) {
   projectBuilder.stage("layout to $targetDirectory")
 
-  //noinspection GroovyAssignabilityCheck
   List<String> openapiModules = [platformApiModules,
     "compiler-openapi",
     "debugger-openapi",
@@ -62,10 +61,8 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
     "remote-servers-api",
     "remote-servers-java-api",
     "testFramework-java",
-    "xml-analysis-api",
   ].flatten()
 
-  //noinspection GroovyAssignabilityCheck
   List<String> implementationModules = [platformImplementationModules,
     "compiler-impl",
     "debugger-impl",
@@ -85,7 +82,6 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
     "remote-servers-java-impl",
     "testFramework",
     "tests_bootstrap",
-    "xml-analysis-impl",
           ].flatten()
 
   ant.patternset(id: "resources.included") {
@@ -112,12 +108,6 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
     dir("lib") {
       dir("rt") {
         fileset(dir: "${home}/lib/rt", includesfile: "${home}/lib/rt/required_for_dist.txt")
-      }
-
-      dir("groovy") {
-        dir("lib") {
-          fileset(dir:"$home/lib/groovy/lib")
-        }
       }
 
       dir("libpty") {
@@ -226,6 +216,8 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
             module("common-javaFX-plugin")
           }
         }
+
+        fileset(dir: "${home}/plugins/javaFX/FxBuilderEmbedder/lib", includes: "embedder.jar");
       }
     }
 
@@ -257,7 +249,7 @@ public def layoutCommunityPlugins(String home) {
   }
 
   dir("plugins") {
-    def simplePlugins = ["commander", "copyright", "properties", "java-i18n", "hg4idea", "github", "ui-designer-core"] //, "tasks-time-tracking"]
+    def simplePlugins = ["commander", "copyright", "java-i18n", "hg4idea", "github", "ui-designer-core"] //, "tasks-time-tracking"]
 
     simplePlugins.each {
       layoutPlugin it
@@ -272,6 +264,16 @@ public def layoutCommunityPlugins(String home) {
       dir("jps") {
         jar("ui-designer-jps-plugin.jar") {
           module("ui-designer-jps-plugin")
+        }
+      }
+    }
+
+    pluginDir("properties") {
+      dir("lib") {
+        jar("properties.jar") {
+          module("properties-psi-api")
+          module("properties-psi-impl")
+          module("properties")
         }
       }
     }
@@ -326,6 +328,15 @@ public def layoutCommunityPlugins(String home) {
     layoutPlugin("gradle") {
       jar("gradle.jar") {
         module("gradle")
+      }
+      jar("gradle-tooling-extension.jar") {
+        module("gradle-tooling-extension")
+      }
+      def gradleToolingVersions = ["1.9", "1.11", "1.12"]
+      gradleToolingVersions.each { ver ->
+        jar("gradle-tooling-extension-v" + ver + ".jar") {
+          module("gradle-tooling-extension-v" + ver)
+        }
       }
       fileset(dir: "$home/plugins/gradle/lib") { include(name: "*.jar") }
     }
@@ -640,7 +651,6 @@ def layoutAndroid(String androidHome) {
         module("ddmlib")
         module("dvlib")
         module("draw9patch")
-        module("lint-cli")
         module("lint-api")
         module("lint-checks")
         module("ninepatch")

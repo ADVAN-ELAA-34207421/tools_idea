@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -361,6 +361,7 @@ public class AllIcons {
     public static final Icon ComboArrowLeftPassive = IconLoader.getIcon("/general/comboArrowLeftPassive.png"); // 5x9
     public static final Icon ComboArrowRight = IconLoader.getIcon("/general/comboArrowRight.png"); // 5x9
     public static final Icon ComboArrowRightPassive = IconLoader.getIcon("/general/comboArrowRightPassive.png"); // 5x9
+    public static final Icon ComboBoxButtonArrow = IconLoader.getIcon("/general/comboBoxButtonArrow.png"); // 16x16
     public static final Icon ComboUpPassive = IconLoader.getIcon("/general/comboUpPassive.png"); // 16x16
     public static final Icon ConfigurableDefault = IconLoader.getIcon("/general/configurableDefault.png"); // 32x32
     public static final Icon Configure = IconLoader.getIcon("/general/Configure.png"); // 32x32
@@ -369,6 +370,7 @@ public class AllIcons {
     public static final Icon Debug = IconLoader.getIcon("/general/debug.png"); // 16x16
     public static final Icon DefaultKeymap = IconLoader.getIcon("/general/defaultKeymap.png"); // 32x32
     public static final Icon Divider = IconLoader.getIcon("/general/divider.png"); // 2x19
+    public static final Icon DownloadPlugin = IconLoader.getIcon("/general/downloadPlugin.png"); // 16x16
     public static final Icon Dropdown = IconLoader.getIcon("/general/dropdown.png"); // 16x16
     public static final Icon EditColors = IconLoader.getIcon("/general/editColors.png"); // 16x16
     public static final Icon EditItemInSection = IconLoader.getIcon("/general/editItemInSection.png"); // 16x16
@@ -479,6 +481,7 @@ public class AllIcons {
     public static final Icon TodoDefault = IconLoader.getIcon("/general/todoDefault.png"); // 12x12
     public static final Icon TodoImportant = IconLoader.getIcon("/general/todoImportant.png"); // 12x12
     public static final Icon TodoQuestion = IconLoader.getIcon("/general/todoQuestion.png"); // 12x12
+    public static final Icon UninstallPlugin = IconLoader.getIcon("/general/uninstallPlugin.png"); // 16x16
     public static final Icon Warning = IconLoader.getIcon("/general/warning.png"); // 16x16
     public static final Icon WarningDecorator = IconLoader.getIcon("/general/warningDecorator.png"); // 16x16
     public static final Icon WarningDialog = IconLoader.getIcon("/general/warningDialog.png"); // 32x32
@@ -682,6 +685,7 @@ public class AllIcons {
   
   public static class Modules {
     public static final Icon AddContentEntry = IconLoader.getIcon("/modules/addContentEntry.png"); // 16x16
+    public static final Icon AddExcludedRoot = IconLoader.getIcon("/modules/addExcludedRoot.png"); // 16x16
     public static final Icon Annotation = IconLoader.getIcon("/modules/annotation.png"); // 16x16
     public static final Icon DeleteContentFolder = IconLoader.getIcon("/modules/deleteContentFolder.png"); // 9x9
     public static final Icon DeleteContentFolderRollover = IconLoader.getIcon("/modules/deleteContentFolderRollover.png"); // 9x9
@@ -712,6 +716,7 @@ public class AllIcons {
       public static final Icon JavaeeAppModule = IconLoader.getIcon("/modules/types/JavaeeAppModule.png"); // 24x24
       public static final Icon JavaModule = IconLoader.getIcon("/modules/types/javaModule.png"); // 24x24
       public static final Icon PluginModule = IconLoader.getIcon("/modules/types/pluginModule.png"); // 24x24
+      public static final Icon UserDefined = IconLoader.getIcon("/modules/types/userDefined.png"); // 24x24
       public static final Icon WebModule = IconLoader.getIcon("/modules/types/webModule.png"); // 24x24
 
     }
@@ -1125,11 +1130,14 @@ public class AllIcons {
   public static class Xml {
     
     public static class Browsers {
+      public static final Icon Canary16 = IconLoader.getIcon("/xml/browsers/canary16.png"); // 16x16
       public static final Icon Chrome16 = IconLoader.getIcon("/xml/browsers/chrome16.png"); // 16x16
+      public static final Icon Chromium16 = IconLoader.getIcon("/xml/browsers/chromium16.png"); // 16x16
       public static final Icon Explorer16 = IconLoader.getIcon("/xml/browsers/explorer16.png"); // 16x16
       public static final Icon Firefox16 = IconLoader.getIcon("/xml/browsers/firefox16.png"); // 16x16
       public static final Icon Opera16 = IconLoader.getIcon("/xml/browsers/opera16.png"); // 16x16
       public static final Icon Safari16 = IconLoader.getIcon("/xml/browsers/safari16.png"); // 16x16
+      public static final Icon Yandex16 = IconLoader.getIcon("/xml/browsers/yandex16.png"); // 16x16
 
     }
     public static final Icon Css_class = IconLoader.getIcon("/xml/css_class.png"); // 16x16

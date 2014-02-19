@@ -205,10 +205,6 @@
     <applicationConfigurable instance="com.intellij.ide.ui.customization.CustomizationConfigurable" id="preferences.customizations"
                              key="title.customizations" bundle="messages.IdeBundle"/>
 
-    <!-- Web Browser -->
-    <applicationConfigurable instance="com.intellij.ide.BrowserSettings" id="reference.settings.ide.settings.web.browsers"
-                             key="browsers.settings" bundle="messages.IdeBundle"/>
-
     <!-- Notifications -->
     <applicationConfigurable instance="com.intellij.notification.impl.NotificationsConfigurable"/>
 
@@ -216,6 +212,7 @@
     <applicationConfigurable instance="com.intellij.ide.plugins.PluginManagerConfigurable" id="preferences.pluginManager"
                              displayName="Plugins"/>
     <applicationConfigurable instance="com.intellij.util.net.HTTPProxySettingsPanel" id="http.proxy" displayName="HTTP Proxy" />
+    <applicationConfigurable instance="com.intellij.util.net.ssl.CertificateConfigurable"/>
     <applicationConfigurable instance="com.intellij.openapi.diff.impl.external.DiffOptionsForm" id="diff" displayName="External Diff Tools" />
     <!--<applicationConfigurable instance="com.intellij.ui.switcher.QuickAccessConfigurable"/>-->
 

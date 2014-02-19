@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2007 Dave Griffith, Bas Leijdekkers
+ * Copyright 2003-2014 Dave Griffith, Bas Leijdekkers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import com.siyeh.InspectionGadgetsBundle;
 import com.siyeh.ig.BaseInspection;
 import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.InspectionGadgetsFix;
-import com.siyeh.ig.psiutils.ClassUtils;
+import com.siyeh.ig.PsiReplacementUtil;
 import org.jetbrains.annotations.NotNull;
 
 public class StaticCallOnSubclassInspection extends BaseInspection {
@@ -98,8 +98,8 @@ public class StaticCallOnSubclassInspection extends BaseInspection {
       final String containingClassName =
         containingClass.getQualifiedName();
       final String argText = argumentList.getText();
-      replaceExpressionAndShorten(call, containingClassName + '.' +
-                                        methodName + argText);
+      PsiReplacementUtil.replaceExpressionAndShorten(call, containingClassName + '.' +
+                                                           methodName + argText);
     }
   }
 
@@ -140,10 +140,8 @@ public class StaticCallOnSubclassInspection extends BaseInspection {
       if (declaringClass.equals(referencedClass)) {
         return;
       }
-      final PsiClass containingClass =
-        ClassUtils.getContainingClass(call);
-      if (!ClassUtils.isClassVisibleFromClass(containingClass,
-                                              declaringClass)) {
+      final PsiResolveHelper resolveHelper = JavaPsiFacade.getInstance(call.getProject()).getResolveHelper();
+      if (!resolveHelper.isAccessible(declaringClass, call, null)) {
         return;
       }
       registerMethodCallError(call, declaringClass, referencedClass);

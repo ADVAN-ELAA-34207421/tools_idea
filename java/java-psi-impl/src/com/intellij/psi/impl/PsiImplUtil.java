@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -275,7 +275,7 @@ public class PsiImplUtil {
 
   @NotNull
   public static PsiType[] typesByTypeElements(@NotNull PsiTypeElement[] typeElements) {
-    PsiType[] types = new PsiType[typeElements.length];
+    PsiType[] types = PsiType.createArray(typeElements.length);
     for (int i = 0; i < types.length; i++) {
       types[i] = typeElements[i].getType();
     }
@@ -370,7 +370,7 @@ public class PsiImplUtil {
 
   // todo[r.sh] cache?
   @Nullable
-  public static Set<TargetType> getAnnotationTargets(PsiClass annotationType) {
+  public static Set<TargetType> getAnnotationTargets(@NotNull PsiClass annotationType) {
     if (!annotationType.isAnnotationType()) return null;
     PsiModifierList modifierList = annotationType.getModifierList();
     if (modifierList == null) return null;

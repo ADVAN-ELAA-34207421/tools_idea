@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,12 @@ package com.intellij.psi.stubs;
 
 import com.intellij.lang.Language;
 import com.intellij.lang.LanguageParserDefinitions;
+import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.LanguageFileType;
 import com.intellij.openapi.util.Key;
+import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.tree.IFileElementType;
 import com.intellij.psi.tree.IStubFileElementType;
@@ -31,8 +34,7 @@ import org.jetbrains.annotations.Nullable;
 public class StubTreeBuilder {
   private static final Key<Stub> stubElementKey = Key.create("stub.tree.for.file.content");
 
-  private StubTreeBuilder() {
-  }
+  private StubTreeBuilder() { }
 
   @Nullable
   public static Stub buildStubTree(final FileContent inputData) {
@@ -50,15 +52,30 @@ public class StubTreeBuilder {
       if (builder != null) {
         data = builder.buildStubTree(inputData);
       }
-      if (data == null && !fileType.isBinary()) {
+      else {
         final LanguageFileType languageFileType = (LanguageFileType)fileType;
         Language l = languageFileType.getLanguage();
         final IFileElementType type = LanguageParserDefinitions.INSTANCE.forLanguage(l).getFileNodeType();
 
-        PsiFile psi = inputData.getPsiFile();
+        PsiFile psi = null;
+        CharSequence contentAsText = null;
+        Document document = FileDocumentManager.getInstance().getCachedDocument(inputData.getFile());
+        if (document != null) {
+          PsiFile existingPsi = PsiDocumentManager.getInstance(inputData.getProject()).getPsiFile(document);
+          if (existingPsi != null) {
+            contentAsText = existingPsi.getText();
+            psi = existingPsi;
+          }
+        }
+        if (contentAsText == null) {
+          contentAsText = inputData.getContentAsText();
+          psi = inputData.getPsiFile();
+        }
         psi = psi.getViewProvider().getStubBindingRoot();
-        CharSequence contentAsText = inputData.getContentAsText();
         psi.putUserData(IndexingDataKeys.FILE_TEXT_CONTENT_KEY, contentAsText);
+
+        // if we load AST, it should be easily gc-able. See PsiFileImpl.createTreeElementPointer()
+        psi.getManager().startBatchFilesProcessingMode();
 
         try {
           IStubFileElementType stubFileElementType;
@@ -80,6 +97,7 @@ public class StubTreeBuilder {
         }
         finally {
           psi.putUserData(IndexingDataKeys.FILE_TEXT_CONTENT_KEY, null);
+          psi.getManager().finishBatchFilesProcessingMode();
         }
       }
 

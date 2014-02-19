@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.tree.TokenSet;
 import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.groovy.GroovyFileType;
 import org.jetbrains.plugins.groovy.formatter.AlignmentProvider;
@@ -301,12 +302,20 @@ public class GroovyBlockGenerator implements GroovyElementTypes {
       if (myContext.getSettings().ALIGN_MULTILINE_TERNARY_OPERATION) {
         final GrConditionalExpression conditional = (GrConditionalExpression)blockPsi;
 
-        final AlignmentProvider.Aligner aligner = myAlignmentProvider.createAligner(false);
-        aligner.append(conditional.getCondition());
+        final AlignmentProvider.Aligner exprAligner = myAlignmentProvider.createAligner(false);
+        exprAligner.append(conditional.getCondition());
         if (!(conditional instanceof GrElvisExpression)) {
-          aligner.append(conditional.getThenBranch());
+          exprAligner.append(conditional.getThenBranch());
         }
-        aligner.append(conditional.getElseBranch());
+        exprAligner.append(conditional.getElseBranch());
+
+        ASTNode question = conditional.getNode().findChildByType(GroovyTokenTypes.mQUESTION);
+        ASTNode colon = conditional.getNode().findChildByType(GroovyTokenTypes.mCOLON);
+        if (question != null && colon != null) {
+          AlignmentProvider.Aligner questionColonAligner = myAlignmentProvider.createAligner(false);
+          questionColonAligner.append(question.getPsi());
+          questionColonAligner.append(colon.getPsi());
+        }
       }
     }
 
@@ -323,21 +332,25 @@ public class GroovyBlockGenerator implements GroovyElementTypes {
     return wrap;
   }
 
+  @NotNull
   public List<Block> generateSubBlockForCodeBlocks(boolean classLevel, final List<ASTNode> children, boolean indentLabelBlocks) {
 
-    calculateAlignments(children, classLevel);
     final ArrayList<Block> subBlocks = new ArrayList<Block>();
 
-    if (indentLabelBlocks) {
-      for (int i = 0; i < children.size(); i++) {
-        ASTNode childNode = children.get(i);
+    if (indentLabelBlocks && (myNode.getElementType() == OPEN_BLOCK || myNode.getElementType() == CLOSABLE_BLOCK || myNode.getElementType() == CONSTRUCTOR_BODY)) {
+      List<ASTNode> flattenChildren = flattenChildren(children);
+      calculateAlignments(flattenChildren, classLevel);
+      for (int i = 0; i < flattenChildren.size(); i++) {
+        ASTNode childNode = flattenChildren.get(i);
         if (childNode.getElementType() == LABELED_STATEMENT) {
-          int j = i;
+          int start = i;
           do {
             i++;
           }
-          while (i < children.size() && children.get(i).getElementType() != LABELED_STATEMENT && children.get(i).getElementType() != mRCURLY);
-          subBlocks.add(new GrLabelBlock(childNode, children.subList(j, i), classLevel, getIndent(childNode), getChildWrap(childNode), myContext));
+          while (i < flattenChildren.size() &&
+                 flattenChildren.get(i).getElementType() != LABELED_STATEMENT &&
+                 flattenChildren.get(i).getElementType() != mRCURLY);
+          subBlocks.add(new GrLabelBlock(childNode, flattenChildren.subList(start + 1, i), classLevel, getIndent(childNode), getChildWrap(childNode), myContext));
           i--;
         }
         else {
@@ -346,11 +359,30 @@ public class GroovyBlockGenerator implements GroovyElementTypes {
       }
     }
     else {
+      calculateAlignments(children, classLevel);
+
       for (ASTNode childNode : children) {
         subBlocks.add(new GroovyBlock(childNode, getIndent(childNode), getChildWrap(childNode), myContext));
       }
     }
     return subBlocks;
+  }
+
+  private static List<ASTNode> flattenChildren(List<ASTNode> children) {
+    ArrayList<ASTNode> result = ContainerUtil.newArrayList();
+    for (ASTNode child : children) {
+      processNodeFlattening(result, child);
+    }
+    return result;
+  }
+
+  private static void processNodeFlattening(ArrayList<ASTNode> result, ASTNode child) {
+    result.add(child);
+    if (child.getElementType() == LABELED_STATEMENT) {
+      for (ASTNode node : visibleChildren(child)) {
+        processNodeFlattening(result, node);
+      }
+    }
   }
 
   private Indent getIndent(ASTNode childNode) {
@@ -365,7 +397,7 @@ public class GroovyBlockGenerator implements GroovyElementTypes {
       PsiElement psi = child.getPsi();
       if (psi instanceof GrLabeledStatement) {
         alignGroup(currentGroup, spock, classLevel);
-        currentGroup = ContainerUtil.newArrayList((GrStatement)psi);
+        currentGroup = ContainerUtil.newArrayList(/*(GrStatement)psi*/);
         spock = true;
       }
       else if (currentGroup != null && spock && isTablePart(psi)) {
@@ -383,16 +415,24 @@ public class GroovyBlockGenerator implements GroovyElementTypes {
         }
       }
       else {
-        if (psi instanceof PsiComment) {
-          PsiElement prev = psi.getPrevSibling();
-          if (prev != null && prev.getNode().getElementType() != mNLS || classLevel && !fieldGroupEnded(psi)) {
-            continue;
-          }
-        }
+        if (shouldSkip(classLevel, psi)) continue;
         alignGroup(currentGroup, spock, classLevel);
         currentGroup = null;
       }
     }
+  }
+
+  private boolean shouldSkip(boolean classLevel, PsiElement psi) {
+    if (psi instanceof PsiComment) {
+      PsiElement prev = psi.getPrevSibling();
+      if (prev != null && prev.getNode().getElementType() != mNLS || classLevel && !fieldGroupEnded(psi)) {
+        return true;
+      }
+    }
+    if (psi.getParent() instanceof GrLabeledStatement && !(psi instanceof GrStatement)) {
+      return true;
+    }
+    return false;
   }
 
   private void alignGroup(@Nullable List<GrStatement> group, boolean spock, boolean classLevel) {
@@ -432,7 +472,7 @@ public class GroovyBlockGenerator implements GroovyElementTypes {
     if (group.size() < 2) {
       return;
     }
-    GrStatement inner = ((GrLabeledStatement)group.get(0)).getStatement();
+    GrStatement inner = group.get(0);
     boolean embedded = inner != null && isTablePart(inner);
 
     GrStatement first = embedded ? inner : group.get(1);
@@ -508,7 +548,6 @@ public class GroovyBlockGenerator implements GroovyElementTypes {
     return blockPsi instanceof GrParameterList && myContext.getSettings().ALIGN_MULTILINE_PARAMETERS ||
            blockPsi instanceof GrExtendsClause && myContext.getSettings().ALIGN_MULTILINE_EXTENDS_LIST ||
            blockPsi instanceof GrThrowsClause && myContext.getSettings().ALIGN_MULTILINE_THROWS_LIST ||
-           blockPsi instanceof GrConditionalExpression && myContext.getSettings().ALIGN_MULTILINE_TERNARY_OPERATION ||
            blockPsi instanceof GrListOrMap && myContext.getGroovySettings().ALIGN_MULTILINE_LIST_OR_MAP;
   }
 
@@ -516,7 +555,6 @@ public class GroovyBlockGenerator implements GroovyElementTypes {
     return blockPsi instanceof GrParameterList ||
         blockPsi instanceof GrArgumentList ||
         blockPsi instanceof GrAssignmentExpression ||
-        blockPsi instanceof GrConditionalExpression ||
         blockPsi instanceof GrExtendsClause ||
         blockPsi instanceof GrThrowsClause ||
         blockPsi instanceof GrListOrMap;

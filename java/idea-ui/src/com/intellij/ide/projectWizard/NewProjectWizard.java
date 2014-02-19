@@ -15,6 +15,7 @@
  */
 package com.intellij.ide.projectWizard;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.ide.util.newProjectWizard.AbstractProjectWizard;
 import com.intellij.ide.util.newProjectWizard.StepSequence;
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
@@ -23,24 +24,35 @@ import com.intellij.openapi.roots.ui.configuration.ModulesProvider;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.awt.*;
+
 /**
  * @author Dmitry Avdeev
- *         Date: 04.09.13
  */
 public class NewProjectWizard extends AbstractProjectWizard {
 
-  private final StepSequence mySequence;
+  private final StepSequence mySequence = new StepSequence();
 
   public NewProjectWizard(@Nullable Project project, @NotNull ModulesProvider modulesProvider, @Nullable String defaultPath) {
-    super("New Project", project, defaultPath);
+    super(project == null ? IdeBundle.message("title.new.project") : IdeBundle.message("title.add.module"), project, defaultPath);
+    init(modulesProvider);
+  }
+
+  public NewProjectWizard(Project project, Component dialogParent, ModulesProvider modulesProvider) {
+    super(IdeBundle.message("title.add.module"), project, dialogParent);
+    init(modulesProvider);
+  }
+
+  protected void init(@NotNull ModulesProvider modulesProvider) {
     myWizardContext.setNewWizard(true);
-    mySequence = new StepSequence();
-    mySequence.addCommonStep(new ProjectTypeStep(myWizardContext, this, modulesProvider));
+    ProjectTypeStep projectTypeStep = new ProjectTypeStep(myWizardContext, this, modulesProvider);
+    mySequence.addCommonStep(projectTypeStep);
+    mySequence.addCommonStep(new ChooseTemplateStep(myWizardContext, projectTypeStep));
     mySequence.addCommonFinishingStep(new ProjectSettingsStep(myWizardContext), null);
     for (ModuleWizardStep step : mySequence.getAllSteps()) {
       addStep(step);
     }
-    init();
+    super.init();
   }
 
   @Nullable

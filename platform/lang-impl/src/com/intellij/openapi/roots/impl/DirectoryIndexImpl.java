@@ -112,6 +112,7 @@ public class DirectoryIndexImpl extends DirectoryIndex {
         myState.myProjectExcludeRoots.clear();
         myState.myRootTypeId.clear();
         myState.myRootTypes.clear();
+        myRootIndex = null;
       }
     });
   }
@@ -176,9 +177,6 @@ public class DirectoryIndexImpl extends DirectoryIndex {
   }
 
   private class MyVirtualFileListener extends VirtualFileAdapter implements BulkFileListener {
-    private static final int MAX_DEPTH_TO_COUNT = 20;
-    private static final int DIRECTORIES_CHANGED_THRESHOLD = 50;
-
     @Override
     public void fileCreated(VirtualFileEvent event) {
       VirtualFile file = event.getFile();
@@ -356,45 +354,16 @@ public class DirectoryIndexImpl extends DirectoryIndex {
       }
 
       myBatchChangePlanned = false;
-      int directoriesRemoved = 0;
-      int directoriesCreated = 0;
-
-      for (VFileEvent event : events) {
-        if (event instanceof VFileDeleteEvent) {
-          VirtualFile file = event.getFile();
-          if (file != null && file.isDirectory()) {
-            directoriesRemoved += 1 + countDirectories(file, MAX_DEPTH_TO_COUNT);
-          }
-        }
-        else if (event instanceof VFileCreateEvent) {
-          VirtualFile file = event.getFile();
-          if (file != null && file.isDirectory() ||
-              file == null && ((VFileCreateEvent)event).isDirectory()) {
-            directoriesCreated += 1 + countDirectories(file, MAX_DEPTH_TO_COUNT);
-          }
-        }
-      }
-
-      final boolean willDoBatchUpdate = directoriesCreated + directoriesRemoved > DIRECTORIES_CHANGED_THRESHOLD;
+      final boolean willDoBatchUpdate = isLargeVfsChange(events);
       if (willDoBatchUpdate) {
         myBatchChangePlanned = true;
-        LOG.info("Too many directories created / deleted: " + directoriesCreated + "," + directoriesRemoved + ", will rebuild index state");
+        LOG.info("will rebuild index state");
       }
       else {
         for (VFileEvent event : events) {
           BulkVirtualFileListenerAdapter.fireBefore(this, event);
         }
       }
-    }
-
-    private int countDirectories(@Nullable VirtualFile file, int depth) {
-      if (!(file instanceof NewVirtualFile)) return 0;
-
-      int counter = 0;
-      for (VirtualFile child : ((NewVirtualFile)file).iterInDbChildren()) {
-        if (child.isDirectory()) counter += 1 + (depth > 0 ? countDirectories(child, depth - 1) : 0);
-      }
-      return counter;
     }
 
     @Override
@@ -507,7 +476,7 @@ public class DirectoryIndexImpl extends DirectoryIndex {
     }
     RootIndex rootIndex = myRootIndex;
     if (rootIndex == null) {
-      rootIndex = myRootIndex = new RootIndex(myProject);
+      myRootIndex = rootIndex = new RootIndex(myProject);
     }
     return rootIndex;
   }
@@ -621,13 +590,40 @@ public class DirectoryIndexImpl extends DirectoryIndex {
       return riInfo;
     }
 
-    return assertConsistentResult(dir, riInfo, myState.getInfo(((NewVirtualFile)dir).getId()));
+    DirectoryInfo standardResult = myState.getInfo(((NewVirtualFile)dir).getId());
+    assertConsistentResult(dir, riInfo, standardResult);
+    if (standardResult != riInfo && standardResult.equals(riInfo) && rootIndex != null) {
+      rootIndex.cacheInfos(dir, dir, standardResult);
+    }
+    return standardResult;
   }
 
-  private static <T> T assertConsistentResult(@NotNull Object arg, @Nullable T rootIndexResult, T standardResult) {
+  private <T> T assertConsistentResult(@NotNull Object arg, @Nullable T rootIndexResult, T standardResult) {
     //noinspection ConstantConditions
     if (ourCompareImplementations && !Comparing.equal(rootIndexResult, standardResult)) {
-      LOG.error("DirectoryIndex differs from RootIndex at " + arg + "\nriInfo=" + rootIndexResult + "\nstandardResult=" + standardResult);
+      String msg = "DirectoryIndex differs from RootIndex at " + arg +
+                       "\nriInfo         =  " + rootIndexResult +
+                       "\nstandardResult =  " + standardResult + 
+                       "\nRoot model:";
+      for (Module module : ModuleManager.getInstance(myProject).getModules()) {
+        msg += "\nModule " + module.getName();
+        for (ContentEntry entry : ModuleRootManager.getInstance(module).getContentEntries()) {
+          msg += "\n  Content " + entry.getFile();
+          for (VirtualFile file : entry.getSourceFolderFiles()) {
+            msg += "\n    Source " + file;
+          }
+          for (VirtualFile file : entry.getExcludeFolderFiles()) {
+            msg += "\n    Excluded " + file;
+          }
+        }
+      }
+      for (DirectoryIndexExcludePolicy policy : Extensions.getExtensions(DirectoryIndexExcludePolicy.EP_NAME, myProject)) {
+        for (VirtualFile root : policy.getExcludeRootsForProject()) {
+          msg += "\nProject exclude " + root;
+        }
+      }
+
+      LOG.error(msg);
     }
     return standardResult;
   }
@@ -657,13 +653,12 @@ public class DirectoryIndexImpl extends DirectoryIndex {
       return getRootIndex().isProjectExcludeRoot(dir);
     }
 
-
     //noinspection UnnecessaryLocalVariable
     boolean standardResult = myState.myProjectExcludeRoots.contains(((NewVirtualFile)dir).getId());
-/* todo
+/*
     RootIndex rootIndex = getRootIndex();
     Boolean riResult = rootIndex != null ? rootIndex.isProjectExcludeRoot(dir) : null;
-    return assertConsistentResult(dir, riResult, standardResult);
+    assertConsistentResult(dir, riResult, standardResult);
 */
     return standardResult;
   }
@@ -1635,5 +1630,45 @@ public class DirectoryIndexImpl extends DirectoryIndex {
       "; my classRoot: " + info.getLibraryClassRoot() +
       "; path is substring: " + FileUtil.isAncestor(root.getPath(), myFile.getPath(), false)
       ;
+  }
+
+  private static final int MAX_DEPTH_TO_COUNT = 20;
+  private static final int DIRECTORIES_CHANGED_THRESHOLD = 50;
+
+  public static boolean isLargeVfsChange(List<? extends VFileEvent> events) {
+    int directoriesRemoved = 0;
+    int directoriesCreated = 0;
+
+    for (VFileEvent event : events) {
+      if (event instanceof VFileDeleteEvent) {
+        VirtualFile file = event.getFile();
+        if (file != null && file.isDirectory()) {
+          directoriesRemoved += 1 + countDirectories(file, MAX_DEPTH_TO_COUNT);
+        }
+      }
+      else if (event instanceof VFileCreateEvent) {
+        VirtualFile file = event.getFile();
+        if (file != null && file.isDirectory() ||
+            file == null && ((VFileCreateEvent)event).isDirectory()) {
+          directoriesCreated += 1 + countDirectories(file, MAX_DEPTH_TO_COUNT);
+        }
+      }
+    }
+
+    boolean largeChange = directoriesCreated + directoriesRemoved > DIRECTORIES_CHANGED_THRESHOLD;
+    if (largeChange) {
+      LOG.info("Too many directories created / deleted: " + directoriesCreated + "," + directoriesRemoved);
+    }
+    return largeChange;
+  }
+
+  private static int countDirectories(@Nullable VirtualFile file, int depth) {
+    if (!(file instanceof NewVirtualFile)) return 0;
+
+    int counter = 0;
+    for (VirtualFile child : ((NewVirtualFile)file).iterInDbChildren()) {
+      if (child.isDirectory()) counter += 1 + (depth > 0 ? countDirectories(child, depth - 1) : 0);
+    }
+    return counter;
   }
 }

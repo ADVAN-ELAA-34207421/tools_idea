@@ -59,6 +59,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.*;
 
 /**
+ * * TODO: Merge with {@link com.jetbrains.python.refactoring.classes.PyClassRefactoringUtil#createMethod(String, com.jetbrains.python.psi.PyClass, com.jetbrains.python.psi.PyFunction.Modifier, java.util.Collection, String...)}
  * @author oleg
  */
 public class PyExtractMethodUtil {
@@ -564,7 +565,7 @@ public class PyExtractMethodUtil {
           throw new CommonRefactoringUtil.RefactoringErrorHintException(error);
         }
         if (Messages.showOkCancelDialog(error + ". " + RefactoringBundle.message("do.you.wish.to.continue"),
-                                        RefactoringBundle.message("warning.title"), Messages.getWarningIcon()) != 0){
+                                        RefactoringBundle.message("warning.title"), Messages.getWarningIcon()) != Messages.OK){
           throw new CommonRefactoringUtil.RefactoringErrorHintException(error);
         }
       }

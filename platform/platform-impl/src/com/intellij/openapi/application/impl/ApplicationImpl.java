@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ import com.intellij.openapi.components.impl.stores.StoresFactory;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.openapi.extensions.Extensions;
-import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.progress.EmptyProgressIndicator;
 import com.intellij.openapi.progress.ProcessCanceledException;
@@ -616,6 +615,10 @@ public class ApplicationImpl extends PlatformComponentManagerImpl implements App
     }
 
     final ProgressWindow progress = new ProgressWindow(canBeCanceled, false, project, parentComponent, cancelText);
+    // in case of abrupt application exit when 'ProgressManager.getInstance().runProcess(process, progress)' below
+    // does not have a chance to run, and as a result the progress won't be disposed
+    Disposer.register(this, progress);
+
     progress.setTitle(progressTitle);
 
     try {
@@ -1013,7 +1016,7 @@ public class ApplicationImpl extends PlatformComponentManagerImpl implements App
 
     for (int i = myWriteActionsStack.size() - 1; i >= 0; i--) {
       Class action = myWriteActionsStack.get(i);
-      if (actionClass == action || action != null && actionClass != null && ReflectionCache.isAssignable(actionClass, action)) return true;
+      if (actionClass == action || action != null && actionClass != null && ReflectionUtil.isAssignable(actionClass, action)) return true;
     }
     return false;
   }
@@ -1155,12 +1158,6 @@ public class ApplicationImpl extends PlatformComponentManagerImpl implements App
       }
     }
     return true;
-  }
-
-  @Nullable
-  @Override
-  public PluginId getPluginByClassName(@NotNull String className) {
-    return PluginManagerCore.getPluginByClassName(className);
   }
 
   public boolean tryToApplyActivationState(boolean active, Window window) {

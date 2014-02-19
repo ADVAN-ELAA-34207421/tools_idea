@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,7 +62,8 @@ public class ContainerUtilRt {
     return map;
   }
 
-  public static <K, V> Map<K,V> newHashMap(Pair<K, V> first, Pair<K, V>[] entries) {
+  @NotNull
+  public static <K, V> Map<K,V> newHashMap(@NotNull Pair<K, V> first, Pair<K, V>[] entries) {
     Map<K, V> map = newHashMap();
     map.put(first.getFirst(), first.getSecond());
     for (Pair<K, V> entry : entries) {
@@ -89,6 +90,16 @@ public class ContainerUtilRt {
   @NotNull
   public static <K, V> LinkedHashMap<K, V> newLinkedHashMap(@NotNull Map<K, V> map) {
     return new com.intellij.util.containers.LinkedHashMap<K, V>(map);
+  }
+
+  @NotNull
+  public static <K, V> LinkedHashMap<K,V> newLinkedHashMap(@NotNull Pair<K, V> first, Pair<K, V>[] entries) {
+    LinkedHashMap<K, V> map = newLinkedHashMap();
+    map.put(first.getFirst(), first.getSecond());
+    for (Pair<K, V> entry : entries) {
+      map.put(entry.getFirst(), entry.getSecond());
+    }
+    return map;
   }
 
   @NotNull
@@ -129,18 +140,14 @@ public class ContainerUtilRt {
     return copy(ContainerUtilRt.<T>newArrayList(), elements);
   }
 
-  @NotNull
+  /** @deprecated Use {@link #newArrayListWithCapacity(int)} (to remove in IDEA 15) */
   public static <T> ArrayList<T> newArrayListWithExpectedSize(int size) {
-    return new ArrayList<T>(size);
+    return newArrayListWithCapacity(size);
   }
 
   @NotNull
   public static <T> ArrayList<T> newArrayListWithCapacity(int size) {
-    return new ArrayList<T>(computeArrayListCapacity(size));
-  }
-
-  private static int computeArrayListCapacity(int size) {
-    return 5 + size + size / 5;
+    return new ArrayList<T>(size);
   }
 
   @NotNull
@@ -154,6 +161,11 @@ public class ContainerUtilRt {
   @NotNull
   public static <T> HashSet<T> newHashSet() {
     return new com.intellij.util.containers.HashSet<T>();
+  }
+
+  @NotNull
+  public static <T> HashSet<T> newHashSet(int initialCapacity) {
+    return new com.intellij.util.containers.HashSet<T>(initialCapacity);
   }
 
   @NotNull

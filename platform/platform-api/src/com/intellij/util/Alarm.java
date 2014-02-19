@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -226,6 +226,27 @@ public class Alarm implements Disposable {
     return count;
   }
 
+  public void flush() {
+    List<Request> requests;
+    synchronized (LOCK) {
+      if (myRequests.isEmpty()) {
+        return;
+      }
+
+      requests = new SmartList<Request>();
+      for (Request request : myRequests) {
+        if (request.cancel()) {
+          requests.add(request);
+        }
+      }
+      myRequests.clear();
+    }
+
+    for (Request request : requests) {
+      request.run();
+    }
+  }
+
   public int getActiveRequestCount() {
     synchronized (LOCK) {
       return myRequests.size();
@@ -268,7 +289,9 @@ public class Alarm implements Disposable {
           return;
         }
         synchronized (LOCK) {
-          if (myTask == null) return;
+          if (myTask == null) {
+            return;
+          }
         }
 
         final Runnable scheduledTask = new Runnable() {
@@ -289,13 +312,20 @@ public class Alarm implements Disposable {
               SwingUtilities.invokeLater(new Runnable() {
                 @Override
                 public void run() {
-                  QueueProcessor.runSafely(task);
+                  if (!myDisposed) {
+                    QueueProcessor.runSafely(task);
+                  }
                 }
               });
             }
             else {
               QueueProcessor.runSafely(task);
             }
+          }
+
+          @Override
+          public String toString() {
+            return "ScheduledTask "+Request.this;
           }
         };
 
@@ -310,6 +340,9 @@ public class Alarm implements Disposable {
           if (app == null) {
             //noinspection SSBasedInspection
             SwingUtilities.invokeLater(scheduledTask);
+          }
+          else if (app.isDispatchThread() && app.getCurrentModalityState().equals(myModalityState)) {
+            scheduledTask.run();
           }
           else {
             app.invokeLater(scheduledTask, myModalityState);
@@ -337,22 +370,27 @@ public class Alarm implements Disposable {
       return myModalityState;
     }
 
-    private void cancel() {
+    private boolean cancel() {
+      boolean result;
       synchronized (LOCK) {
         if (myFuture != null) {
-          myFuture.cancel(false);
+          result = myFuture.cancel(false);
           // TODO Use java.util.concurrent.ScheduledThreadPoolExecutor.setRemoveOnCancelPolicy(true) when on jdk 1.7
           ((ScheduledThreadPoolExecutor)JobScheduler.getScheduler()).remove((Runnable)myFuture);
           myFuture = null;
         }
+        else {
+          result = false;
+        }
         myTask = null;
       }
+      return result;
     }
 
     @Override
     public String toString() {
       Runnable task = getTask();
-      return super.toString() + (task != null ? task.toString():null);
+      return super.toString() + (task != null ? ": "+task : "");
     }
   }
 

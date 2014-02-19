@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -158,13 +158,13 @@ public class XDebugSessionImpl implements XDebugSession {
   }
 
   @Override
-  public void setPauseActionSupported(final boolean isSupported) {
-    myPauseActionSupported = isSupported;
+  public void setAutoInitBreakpoints(boolean value) {
+    autoInitBreakpoints = value;
   }
 
   @Override
-  public void setAutoInitBreakpoints(boolean value) {
-    autoInitBreakpoints = value;
+  public void setPauseActionSupported(final boolean isSupported) {
+    myPauseActionSupported = isSupported;
   }
 
   public List<AnAction> getRestartActions() {
@@ -236,7 +236,7 @@ public class XDebugSessionImpl implements XDebugSession {
     myDebugProcess = process;
     mySessionData = sessionData;
 
-    if (autoInitBreakpoints) {
+    if (autoInitBreakpoints && myDebugProcess.checkCanInitBreakpoints()) {
       initBreakpoints();
     }
 
@@ -328,7 +328,7 @@ public class XDebugSessionImpl implements XDebugSession {
     return myValueMarkers;
   }
 
-  private static <B extends XBreakpoint<?>> XBreakpointType<?, ?> getBreakpointTypeClass(final XBreakpointHandler<B> handler) {
+  private static XBreakpointType getBreakpointTypeClass(final XBreakpointHandler handler) {
     return XDebuggerUtil.getInstance().findBreakpointType(handler.getBreakpointTypeClass());
   }
 

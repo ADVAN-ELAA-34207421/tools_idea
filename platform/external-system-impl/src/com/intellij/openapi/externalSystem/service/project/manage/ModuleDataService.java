@@ -219,6 +219,8 @@ public class ModuleDataService implements ProjectDataService<ModuleData, Module>
       @Override
       public void execute() {
         for (Module module : modules) {
+          if(module.isDisposed()) continue;
+
           ModuleManager moduleManager = ModuleManager.getInstance(module.getProject());
           String path = module.getModuleFilePath();
           moduleManager.disposeModule(module);
@@ -282,5 +284,8 @@ public class ModuleDataService implements ProjectDataService<ModuleData, Module>
     if (moduleData.getVersion() != null) {
       module.setOption(ExternalSystemConstants.EXTERNAL_SYSTEM_MODULE_VERSION_KEY, moduleData.getVersion());
     }
+
+    // clear maven option
+    module.clearOption("org.jetbrains.idea.maven.project.MavenProjectsManager.isMavenModule");
   }
 }

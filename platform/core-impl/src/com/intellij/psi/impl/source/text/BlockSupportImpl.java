@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,11 +106,13 @@ public class BlockSupportImpl extends BlockSupport {
         if (baseLanguage.isKindOf(reparseable.getLanguage())) {
           final int start = textRange.getStartOffset();
           final int end = start + textRange.getLength() + lengthShift;
-          assertFileLength(file, newFileText, node, elementType, start, end);
+          if (!assertFileLength(file, newFileText, node, elementType, start, end)) {
+            break;
+          }
 
           CharSequence newTextStr = newFileText.subSequence(start, end);
 
-          if (reparseable.isParsable(newTextStr, baseLanguage, project)) {
+          if (reparseable.isParsable(node.getTreeParent(), newTextStr, baseLanguage, project)) {
             ASTNode chameleon = reparseable.createNode(newTextStr);
             if (chameleon != null) {
               DummyHolder holder = DummyHolderFactory.createHolder(fileImpl.getManager(), null, node.getPsi(), charTable);
@@ -134,11 +136,13 @@ public class BlockSupportImpl extends BlockSupport {
     return makeFullParse(node, newFileText, textLength, fileImpl, indicator);
   }
 
-  private static void assertFileLength(PsiFile file, CharSequence newFileText, ASTNode node, IElementType elementType, int start, int end) {
-    if (end > newFileText.length() && ApplicationManager.getApplication().isInternal()) {
+  private static boolean assertFileLength(PsiFile file, CharSequence newFileText, ASTNode node, IElementType elementType, int start, int end) {
+    if ((end > newFileText.length() || start > end) && ApplicationManager.getApplication().isInternal()) {
       String newTextBefore = newFileText.subSequence(0, start).toString();
       String oldTextBefore = file.getText().subSequence(0, start).toString();
       String message = "IOOBE: type=" + elementType +
+                       "; start=" + start +
+                       "; end=" + end +
                        "; oldText=" + node.getText() +
                        "; newText=" + newFileText.subSequence(start, newFileText.length()) +
                        "; length=" + node.getTextLength();
@@ -148,8 +152,10 @@ public class BlockSupportImpl extends BlockSupport {
         message += "; oldTextBefore=" + oldTextBefore +
                    "; newTextBefore=" + newTextBefore;
       }
-      throw new AssertionError(message);
+      LOG.error(message);
+      return false;
     }
+    return true;
   }
 
   @NotNull

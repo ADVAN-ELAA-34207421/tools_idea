@@ -23,6 +23,7 @@ import com.intellij.vcs.log.graph.render.PrintParameters;
 import com.intellij.vcs.log.ui.VcsLogColorManager;
 import com.intellij.vcs.log.ui.render.RefPainter;
 import com.intellij.vcs.log.ui.tables.AbstractVcsLogTableModel;
+import net.miginfocom.swing.MigLayout;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -63,14 +64,24 @@ class DetailsPanel extends JPanel implements ListSelectionListener {
     myContainingBranchesPanel = new ContainingBranchesPanel();
     myMessagePanel = new MessagePanel();
 
-    Box content = Box.createVerticalBox();
-    content.add(myRefsPanel);
-    content.add(myDataPanel);
-    content.add(myContainingBranchesPanel);
+    final JScrollPane scrollPane = ScrollPaneFactory.createScrollPane();
+    JPanel content = new JPanel(new MigLayout("flowy, ins 0, fill, hidemode 3")) {
+      @Override
+      public Dimension getPreferredSize() {
+        Dimension size = super.getPreferredSize();
+        size.width = scrollPane.getViewport().getWidth() - 5;
+        return size;
+      }
+    };
+    content.setOpaque(false);
+    scrollPane.setViewportView(content);
+    content.add(myRefsPanel, "shrinky, pushx, growx");
+    content.add(myDataPanel, "growy, push");
+    content.add(myContainingBranchesPanel, "shrinky, pushx, growx");
     content.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
 
     myLoadingPanel = new JBLoadingPanel(new BorderLayout(), logDataHolder, ProgressWindow.DEFAULT_PROGRESS_DIALOG_POSTPONE_TIME_MILLIS);
-    myLoadingPanel.add(ScrollPaneFactory.createScrollPane(content));
+    myLoadingPanel.add(scrollPane);
 
     add(myLoadingPanel, STANDARD_LAYER);
     add(myMessagePanel, MESSAGE_LAYER);
@@ -153,8 +164,10 @@ class DetailsPanel extends JPanel implements ListSelectionListener {
     }
 
     private String getMessageText(VcsFullCommitDetails commit) {
-      String subject = commit.getSubject();
-      String description = subject.length() < commit.getFullMessage().length() ? commit.getFullMessage().substring(subject.length()) : "";
+      String fullMessage = commit.getFullMessage();
+      int separator = fullMessage.indexOf("\n\n");
+      String subject = separator > 0 ? fullMessage.substring(0, separator) : fullMessage;
+      String description = fullMessage.substring(subject.length());
       return "<b>" + IssueLinkHtmlRenderer.formatTextWithLinks(myProject, subject) + "</b>" +
              IssueLinkHtmlRenderer.formatTextWithLinks(myProject, description);
     }

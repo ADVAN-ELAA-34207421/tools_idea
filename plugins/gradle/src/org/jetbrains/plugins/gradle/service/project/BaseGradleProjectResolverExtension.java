@@ -55,7 +55,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.gradle.model.*;
 import org.jetbrains.plugins.gradle.model.data.BuildScriptClasspathData;
-import org.jetbrains.plugins.gradle.model.data.ClasspathEntry;
 import org.jetbrains.plugins.gradle.util.GradleBundle;
 import org.jetbrains.plugins.gradle.util.GradleConstants;
 import org.jetbrains.plugins.gradle.util.GradleUtil;
@@ -156,11 +155,11 @@ public class BaseGradleProjectResolverExtension implements GradleProjectResolver
   public void populateModuleExtraModels(@NotNull IdeaModule gradleModule, @NotNull DataNode<ModuleData> ideModule) {
     BuildScriptClasspathModel buildScriptClasspathModel = resolverCtx.getExtraProject(gradleModule, BuildScriptClasspathModel.class);
     if (buildScriptClasspathModel != null) {
-      List<ClasspathEntry> classpathEntries =
-        ContainerUtil.map(buildScriptClasspathModel.getClasspath(), new Function<ClasspathEntryModel, ClasspathEntry>() {
+      List<BuildScriptClasspathData.ClasspathEntry> classpathEntries =
+        ContainerUtil.map(buildScriptClasspathModel.getClasspath(), new Function<ClasspathEntryModel, BuildScriptClasspathData.ClasspathEntry>() {
           @Override
-          public ClasspathEntry fun(ClasspathEntryModel model) {
-            return new ClasspathEntry(model.getClassesFile(), model.getSourcesFile(), model.getJavadocFile());
+          public BuildScriptClasspathData.ClasspathEntry fun(ClasspathEntryModel model) {
+            return new BuildScriptClasspathData.ClasspathEntry(model.getClassesFile(), model.getSourcesFile(), model.getJavadocFile());
           }
         });
       BuildScriptClasspathData buildScriptClasspathData =
@@ -313,7 +312,16 @@ public class BaseGradleProjectResolverExtension implements GradleProjectResolver
   @Override
   public List<KeyValue<String, String>> getExtraJvmArgs() {
     if (ExternalSystemApiUtil.isInProcessMode(GradleConstants.SYSTEM_ID)) {
-      return HttpConfigurable.getJvmPropertiesList(false, null);
+      final List<KeyValue<String, String>> extraJvmArgs = ContainerUtil.newArrayList();
+      final HttpConfigurable httpConfigurable = HttpConfigurable.getInstance();
+      if (!StringUtil.isEmpty(httpConfigurable.PROXY_EXCEPTIONS)) {
+        List<String> hosts = StringUtil.split(httpConfigurable.PROXY_EXCEPTIONS, ",");
+        if (!hosts.isEmpty()) {
+          extraJvmArgs.add(KeyValue.create("http.nonProxyHosts", StringUtil.join(hosts, StringUtil.TRIMMER, "|")));
+        }
+      }
+      extraJvmArgs.addAll(HttpConfigurable.getJvmPropertiesList(false, null));
+      return extraJvmArgs;
     }
     return Collections.emptyList();
   }
@@ -324,6 +332,10 @@ public class BaseGradleProjectResolverExtension implements GradleProjectResolver
                                                       @NotNull String projectPath,
                                                       @Nullable String buildFilePath) {
     return myErrorHandler.getUserFriendlyError(error, projectPath, buildFilePath);
+  }
+
+  @Override
+  public void preImportCheck() {
   }
 
   @Override
@@ -362,6 +374,7 @@ public class BaseGradleProjectResolverExtension implements GradleProjectResolver
     ContainerUtilRt.addIfNotNull(additionalEntries, PathUtil.getJarPathForClass(JavaModuleType.class));
     ContainerUtilRt.addIfNotNull(additionalEntries, PathUtil.getJarPathForClass(ModuleType.class));
     ContainerUtilRt.addIfNotNull(additionalEntries, PathUtil.getJarPathForClass(EmptyModuleType.class));
+    ContainerUtilRt.addIfNotNull(additionalEntries, PathUtil.getJarPathForClass(ProjectImportAction.class));
     for (String entry : additionalEntries) {
       classPath.add(entry);
     }

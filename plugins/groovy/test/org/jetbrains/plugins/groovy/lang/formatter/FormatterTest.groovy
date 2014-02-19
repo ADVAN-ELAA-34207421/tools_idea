@@ -713,6 +713,15 @@ print abc ?:
 '''
   }
 
+  void testConditional2() {
+    groovySettings.ALIGN_MULTILINE_TERNARY_OPERATION = true
+    checkFormatting('''\
+print abc ? cde
+:xyz''', '''\
+print abc ? cde
+          : xyz''')
+  }
+
   void testLabelsInBasicMode() {
     groovySettings.indentOptions.INDENT_SIZE = 4
     groovySettings.indentOptions.LABEL_INDENT_SIZE = -2
@@ -767,6 +776,10 @@ def foo() {
   void testGroovyDocAfterImports2() { doTest() }
 
   void testRegexExpressions() { doTest() }
+
+  void testSpreadArg() { doTest() }
+
+  void testExtraLines() { doTest() }
 
   void testLabelWithDescription() {
     GroovyCodeStyleSettings customSettings = myTempSettings.getCustomSettings(GroovyCodeStyleSettings.class)

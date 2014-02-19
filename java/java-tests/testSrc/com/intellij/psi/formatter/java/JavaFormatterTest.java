@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,17 +15,17 @@
  */
 package com.intellij.psi.formatter.java;
 
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.CommandProcessor;
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileTypes.StdFileTypes;
 import com.intellij.openapi.roots.LanguageLevelProjectExtension;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.pom.java.LanguageLevel;
-import com.intellij.psi.*;
-import com.intellij.psi.codeStyle.CodeStyleManager;
-import com.intellij.psi.codeStyle.CodeStyleSettings;
-import com.intellij.psi.codeStyle.CodeStyleSettingsManager;
-import com.intellij.psi.codeStyle.CommonCodeStyleSettings;
+import com.intellij.psi.JavaCodeFragmentFactory;
+import com.intellij.psi.JavaPsiFacade;
+import com.intellij.psi.PsiCodeFragment;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.codeStyle.*;
 import com.intellij.util.IncorrectOperationException;
 import org.jetbrains.annotations.NonNls;
 
@@ -1150,7 +1150,7 @@ public class JavaFormatterTest extends AbstractJavaFormatterTest {
     CommandProcessor.getInstance().executeCommand(getProject(), new Runnable() {
       @Override
       public void run() {
-        ApplicationManager.getApplication().runWriteAction(new Runnable() {
+        WriteCommandAction.runWriteCommandAction(null, new Runnable() {
           @Override
           public void run() {
             try {
@@ -3015,5 +3015,37 @@ public void testSCR260() throws Exception {
     settings.FORMATTER_OFF_TAG = "not.*format";
     settings.FORMATTER_ON_TAG = "end.*fragment";
     doTest();
+  }
+
+  public void testDoNotIndentNotSelectedStatement_AfterSelectedOne() {
+    myTextRange = new TextRange(0, 73);
+    doTextTest(
+      "class Test {\n" +
+      "    public static void main(String[] args) {\n" +
+      "    int a = 3;\n" +
+      "    System.out.println(\"AAA\");\n" +
+      "    }\n" +
+      "}",
+      "class Test {\n" +
+      "    public static void main(String[] args) {\n" +
+      "        int a = 3;\n" +
+      "    System.out.println(\"AAA\");\n" +
+      "    }\n" +
+      "}"
+    );
+
+    myTextRange = new TextRange(0, 67);
+    doTextTest(
+      "    import java.lang.Override;\n" +
+      "    import java.lang.Exception;\n" +
+      "    \n" +
+      "    class Foo {\n" +
+      "}",
+      "import java.lang.Override;\n" +
+      "import java.lang.Exception;\n" +
+      "    \n" +
+      "    class Foo {\n" +
+      "}"
+    );
   }
 }

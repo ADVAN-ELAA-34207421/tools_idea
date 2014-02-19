@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import com.intellij.lang.LanguageParserDefinitions;
 import com.intellij.lang.ParserDefinition;
 import com.intellij.lexer.LayeredLexer;
 import com.intellij.lexer.Lexer;
-import com.intellij.lexer.LexerUtil;
 import com.intellij.navigation.NavigationItem;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -55,7 +54,6 @@ import com.intellij.openapi.fileTypes.*;
 import com.intellij.openapi.fileTypes.impl.AbstractFileType;
 import com.intellij.openapi.keymap.KeymapUtil;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -467,12 +465,9 @@ public class FindManagerImpl extends FindManager implements PersistentStateCompo
           public Set<Language> compute() {
             THashSet<Language> result = new THashSet<Language>();
 
-            for(Project project: ProjectManager.getInstance().getOpenProjects()) {
-              FileViewProvider viewProvider = PsiManager.getInstance(project).findViewProvider(file);
-              if (viewProvider != null) {
-                result.addAll(viewProvider.getLanguages());
-                break;
-              }
+            FileViewProvider viewProvider = PsiManager.getInstance(myProject).findViewProvider(file);
+            if (viewProvider != null) {
+              result.addAll(viewProvider.getLanguages());
             }
 
             if (result.isEmpty()) {
@@ -1059,7 +1054,8 @@ public class FindManagerImpl extends FindManager implements PersistentStateCompo
       }
     });
   }
-  
+
+  @NotNull
   public FindUsagesManager getFindUsagesManager() {
     return myFindUsagesManager;
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2009 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -417,7 +417,7 @@ class Browser extends JPanel {
   public void showEmpty() {
     myCurrentEntity = null;
     try {
-      myHTMLViewer.read(new StringReader("<html><body></body></html>"), null);
+      myHTMLViewer.read(new StringReader(InspectionsBundle.message("inspection.offline.view.empty.browser.text")), null);
     }
     catch (IOException e) {
       //can't be

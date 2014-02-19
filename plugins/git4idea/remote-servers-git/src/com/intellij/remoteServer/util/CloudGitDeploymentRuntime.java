@@ -1,31 +1,20 @@
 package com.intellij.remoteServer.util;
 
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.module.Module;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vcs.VcsException;
+import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.remoteServer.agent.util.CloudGitAgent;
-import com.intellij.remoteServer.agent.util.CloudGitAgentDeployment;
 import com.intellij.remoteServer.agent.util.CloudGitApplication;
-import com.intellij.remoteServer.agent.util.CloudLoggingHandler;
 import com.intellij.remoteServer.configuration.deployment.DeploymentSource;
-import com.intellij.remoteServer.configuration.deployment.ModuleDeploymentSource;
-import com.intellij.remoteServer.runtime.ServerTaskExecutor;
 import com.intellij.remoteServer.runtime.deployment.DeploymentLogManager;
-import com.intellij.remoteServer.runtime.deployment.DeploymentRuntime;
 import com.intellij.remoteServer.runtime.deployment.DeploymentTask;
-import com.intellij.remoteServer.runtime.deployment.ServerRuntimeInstance;
-import com.intellij.remoteServer.runtime.log.LoggingHandler;
-import com.intellij.util.ThrowableRunnable;
+import com.intellij.util.ArrayUtil;
 import com.intellij.util.concurrency.Semaphore;
 import git4idea.GitUtil;
 import git4idea.actions.GitInit;
@@ -33,203 +22,77 @@ import git4idea.commands.*;
 import git4idea.repo.GitRemote;
 import git4idea.repo.GitRepository;
 import git4idea.repo.GitRepositoryManager;
+import git4idea.util.GitFileUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author michael.golubev
  */
-public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameConfiguration,
-  AD extends CloudGitAgentDeployment,
-  A extends CloudGitAgent<?, AD>> extends DeploymentRuntime {
+public class CloudGitDeploymentRuntime extends CloudDeploymentRuntime {
 
   private static final Logger LOG = Logger.getInstance("#" + CloudGitDeploymentRuntime.class.getName());
-  private final String myApplicationName;
-  private final CloudConfigurationBase myConfiguration;
 
-  private final Project myProject;
   private final GitRepositoryManager myGitRepositoryManager;
   private final Git myGit;
 
   private final VirtualFile myContentRoot;
-  private final File myContentRootFile;
-  private final AgentTaskExecutor myAgentTaskExecutor;
-  private final String myPresentableName;
-  private final CloudLoggingHandler myLoggingHandler;
-  private final ServerTaskExecutor myTasksExecutor;
-  private final AD myDeployment;
+  private final File myRepositoryRootFile;
 
-  private final DeploymentLogManager myLogManager;
-  private final String myRemoteName;
+  private final String myDefaultRemoteName;
+  private String myRemoteName;
   private final String myCloudName;
 
   private GitRepository myRepository;
 
-  public CloudGitDeploymentRuntime(CloudConfigurationBase serverConfiguration,
-                                   A agent,
-                                   ServerTaskExecutor taskExecutor,
-                                   DeploymentTask<DC> task,
-                                   AgentTaskExecutor agentTaskExecutor,
-                                   @Nullable DeploymentLogManager logManager,
-                                   CloudDeploymentNameProvider deploymentNameProvider,
-                                   String remoteName,
+  public CloudGitDeploymentRuntime(CloudMultiSourceServerRuntimeInstance serverRuntime,
+                                   DeploymentSource source,
+                                   File repositoryRoot,
+                                   DeploymentTask<? extends CloudDeploymentNameConfiguration> task,
+                                   DeploymentLogManager logManager,
+                                   String defaultRemoteName,
                                    String cloudName) throws ServerRuntimeException {
-    myConfiguration = serverConfiguration;
-    myTasksExecutor = taskExecutor;
-    myLogManager = logManager;
+    super(serverRuntime, source, task, logManager);
 
-    myRemoteName = remoteName;
+    myDefaultRemoteName = defaultRemoteName;
     myCloudName = cloudName;
 
-    DeploymentSource deploymentSource = task.getSource();
-    if (!(deploymentSource instanceof ModuleDeploymentSource)) {
-      throw new ServerRuntimeException("Module deployment source is the only supported");
-    }
+    myRepositoryRootFile = repositoryRoot;
 
-    ModuleDeploymentSource moduleDeploymentSource = (ModuleDeploymentSource)deploymentSource;
-    Module module = moduleDeploymentSource.getModule();
-    if (module == null) {
-      throw new ServerRuntimeException("Module not found: " + moduleDeploymentSource.getModulePointer().getModuleName());
-    }
-
-    VirtualFile contentRoot = moduleDeploymentSource.getContentRoot();
-    LOG.assertTrue(contentRoot != null, "Content root is not found");
+    VirtualFile contentRoot = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(myRepositoryRootFile);
+    LOG.assertTrue(contentRoot != null, "Repository root is not found");
     myContentRoot = contentRoot;
 
-    File contentRootFile = moduleDeploymentSource.getFile();
-    LOG.assertTrue(contentRootFile != null, "Content root file is not found");
-    myContentRootFile = contentRootFile;
-
-    myProject = task.getProject();
-    myGitRepositoryManager = GitUtil.getRepositoryManager(myProject);
+    myGitRepositoryManager = GitUtil.getRepositoryManager(getProject());
     myGit = ServiceManager.getService(Git.class);
     if (myGit == null) {
       throw new ServerRuntimeException("Can't initialize GIT");
     }
-
-    myAgentTaskExecutor = agentTaskExecutor;
-    myLoggingHandler = logManager == null ? new CloudSilentLoggingHandlerImpl() : new CloudLoggingHandlerImpl(logManager);
-
-    myPresentableName = deploymentSource.getPresentableName();
-
-    DC deploymentConfiguration = task.getConfiguration();
-    myApplicationName = deploymentConfiguration.isDefaultDeploymentName()
-                        ? deploymentNameProvider.getDeploymentName(deploymentSource)
-                        : deploymentConfiguration.getDeploymentName();
-
-    myDeployment = agent.createDeployment(getApplicationName(), myLoggingHandler);
-  }
-
-  public AgentTaskExecutor getAgentTaskExecutor() {
-    return myAgentTaskExecutor;
-  }
-
-  public AD getDeployment() {
-    return myDeployment;
-  }
-
-  public void deploy(ServerRuntimeInstance.DeploymentOperationCallback callback) {
-    try {
-      deploy();
-      callback.succeeded(this);
-    }
-    catch (ServerRuntimeException e) {
-      callback.errorOccurred(e.getMessage());
-    }
-  }
-
-  public void deploy() throws ServerRuntimeException {
-    VirtualFile contentRoot = getContentRoot();
-
-    CloudGitApplication application = findApplication();
-    if (application == null) {
-      application = createApplication();
-    }
-
-    GitRepository repository = findRepository();
-    if (repository == null) {
-      myLoggingHandler.println("Initializing git repository...");
-      GitCommandResult gitInitResult = getGit().init(getProject(), contentRoot, createGitLineHandlerListener());
-      checkGitResult(gitInitResult);
-
-      refreshApplicationRepository();
-
-      repository = getRepository();
-    }
-
-    GitRemote gitRemote = GitUtil.findRemoteByName(repository, getRemoteName());
-    if (gitRemote == null) {
-      addGitRemote(application);
-    }
-    else if (!gitRemote.getUrls().contains(application.getGitUrl())) {
-      resetGitRemote(application);
-    }
-
-    try {
-      GitSimpleHandler handler = new GitSimpleHandler(getProject(), contentRoot, GitCommand.ADD);
-      handler.setSilent(false);
-      handler.addParameters(".");
-      handler.run();
-    }
-    catch (VcsException e) {
-      throw new ServerRuntimeException(e);
-    }
-
-    try {
-      if (GitUtil.hasLocalChanges(true, getProject(), contentRoot)) {
-        GitSimpleHandler handler = new GitSimpleHandler(getProject(), contentRoot, GitCommand.COMMIT);
-        handler.setSilent(false);
-        handler.addParameters("-a");
-        handler.addParameters("-m", "Deploy");
-        handler.endOptions();
-        handler.run();
-      }
-    }
-    catch (VcsException e) {
-      throw new ServerRuntimeException(e);
-    }
-
-    repository.update();
-
-    pushApplication(getRemoteName(), application.getGitUrl());
-
-    if (myLogManager != null) {
-      LoggingHandler loggingHandler = myLogManager.getMainLoggingHandler();
-      loggingHandler.print("Application is available at ");
-      loggingHandler.printHyperlink(application.getWebUrl());
-      loggingHandler.print("\n");
-    }
   }
 
   @Override
-  public void undeploy(final @NotNull UndeploymentTaskCallback callback) {
-    myTasksExecutor.submit(new ThrowableRunnable<Exception>() {
-
-      @Override
-      public void run() throws Exception {
-        try {
-          undeploy();
-          callback.succeeded();
-        }
-        catch (ServerRuntimeException e) {
-          callback.errorOccurred(e.getMessage());
-        }
-      }
-    }, callback);
+  public CloudGitApplication deploy() throws ServerRuntimeException {
+    CloudGitApplication application = findOrCreateApplication();
+    GitRepository repository = findOrCreateRepository();
+    addOrResetGitRemote(application, repository);
+    add();
+    commit();
+    repository.update();
+    pushApplication(application);
+    return application;
   }
 
   public void undeploy() throws ServerRuntimeException {
-    if (!confirmUndeploy()) {
-      throw new ServerRuntimeException("Undeploy cancelled");
-    }
-    myAgentTaskExecutor.execute(new Computable<Object>() {
+    getAgentTaskExecutor().execute(new Computable<Object>() {
 
       @Override
       public Object compute() {
-        myDeployment.deleteApplication();
+        getDeployment().deleteApplication();
         return null;
       }
     });
@@ -237,6 +100,47 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
 
   public boolean isDeployed() throws ServerRuntimeException {
     return findApplication() != null;
+  }
+
+  public CloudGitApplication findOrCreateApplication() throws ServerRuntimeException {
+    CloudGitApplication application = findApplication();
+    if (application == null) {
+      application = createApplication();
+    }
+    return application;
+  }
+
+  public void addOrResetGitRemote(CloudGitApplication application, GitRepository repository) throws ServerRuntimeException {
+    String gitUrl = application.getGitUrl();
+    if (myRemoteName == null) {
+      for (GitRemote gitRemote : repository.getRemotes()) {
+        if (gitRemote.getUrls().contains(gitUrl)) {
+          myRemoteName = gitRemote.getName();
+          return;
+        }
+      }
+    }
+    GitRemote gitRemote = GitUtil.findRemoteByName(repository, getRemoteName());
+    if (gitRemote == null) {
+      addGitRemote(application);
+    }
+    else if (!gitRemote.getUrls().contains(gitUrl)) {
+      resetGitRemote(application);
+    }
+  }
+
+  public GitRepository findOrCreateRepository() throws ServerRuntimeException {
+    GitRepository repository = findRepository();
+    if (repository == null) {
+      getLoggingHandler().println("Initializing git repository...");
+      GitCommandResult gitInitResult = getGit().init(getProject(), getRepositoryRoot(), createGitLineHandlerListener());
+      checkGitResult(gitInitResult);
+
+      refreshApplicationRepository();
+
+      repository = getRepository();
+    }
+    return repository;
   }
 
   public void downloadExistingApplication() throws ServerRuntimeException {
@@ -251,24 +155,16 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
     refreshContentRoot();
   }
 
-  protected Project getProject() {
-    return myProject;
-  }
-
-  private String getApplicationName() {
-    return myApplicationName;
-  }
-
-  private Git getGit() {
+  protected Git getGit() {
     return myGit;
   }
 
-  protected VirtualFile getContentRoot() {
+  protected VirtualFile getRepositoryRoot() {
     return myContentRoot;
   }
 
-  private File getContentRootFile() {
-    return myContentRootFile;
+  protected File getRepositoryRootFile() {
+    return myRepositoryRootFile;
   }
 
   protected static void checkGitResult(GitCommandResult commandResult) throws ServerRuntimeException {
@@ -289,7 +185,7 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
 
       @Override
       public void onLineAvailable(String line, Key outputType) {
-        myLoggingHandler.println(line);
+        getLoggingHandler().println(line);
       }
     };
   }
@@ -308,7 +204,7 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
                              String failMessage)
     throws ServerRuntimeException {
     try {
-      final GitSimpleHandler handler = new GitSimpleHandler(myProject, myContentRoot, GitCommand.REMOTE);
+      final GitSimpleHandler handler = new GitSimpleHandler(getProject(), myContentRoot, GitCommand.REMOTE);
       handler.setSilent(false);
       handler.addParameters(subCommand, remoteName, application.getGitUrl());
       handler.run();
@@ -332,12 +228,12 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
   }
 
   protected void refreshApplicationRepository() {
-    GitInit.refreshAndConfigureVcsMappings(myProject, getContentRoot(), getContentRootFile().getAbsolutePath());
+    GitInit.refreshAndConfigureVcsMappings(getProject(), getRepositoryRoot(), getRepositoryRootFile().getAbsolutePath());
   }
 
-  protected void pushApplication(String remoteName, String gitUrl) throws ServerRuntimeException {
+  protected void pushApplication(@NotNull CloudGitApplication application) throws ServerRuntimeException {
     GitCommandResult gitPushResult
-      = getGit().push(getRepository(), remoteName, gitUrl, "master:master", createGitLineHandlerListener());
+      = getGit().push(getRepository(), getRemoteName(), application.getGitUrl(), "master:master", createGitLineHandlerListener());
     checkGitResult(gitPushResult);
   }
 
@@ -351,7 +247,7 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
   }
 
   protected void fetch() throws ServerRuntimeException {
-    final VirtualFile contentRoot = getContentRoot();
+    final VirtualFile contentRoot = getRepositoryRoot();
     GitRepository repository = getRepository();
     final GitLineHandler fetchHandler = new GitLineHandler(getProject(), contentRoot, GitCommand.FETCH);
     fetchHandler.setSilent(false);
@@ -362,8 +258,32 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
     repository.update();
   }
 
+  protected void add() throws ServerRuntimeException {
+    try {
+      GitFileUtils.addFiles(getProject(), myContentRoot, myContentRoot);
+    }
+    catch (VcsException e) {
+      throw new ServerRuntimeException(e);
+    }
+  }
+
+  protected void commit() throws ServerRuntimeException {
+    try {
+      if (GitUtil.hasLocalChanges(true, getProject(), myContentRoot)) {
+        GitSimpleHandler handler = new GitSimpleHandler(getProject(), myContentRoot, GitCommand.COMMIT);
+        handler.setSilent(false);
+        handler.addParameters("-m", "Deploy");
+        handler.endOptions();
+        handler.run();
+      }
+    }
+    catch (VcsException e) {
+      throw new ServerRuntimeException(e);
+    }
+  }
+
   protected void performRemoteGitTask(final GitLineHandler handler, String title) throws ServerRuntimeException {
-    final GitTask task = new GitTask(myProject, handler, title);
+    final GitTask task = new GitTask(getProject(), handler, title);
     task.setProgressAnalyzer(new GitStandardProgressAnalyzer());
 
     final Semaphore semaphore = new Semaphore();
@@ -386,7 +306,7 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
           @Override
           protected void onFailure() {
             for (VcsException error : handler.errors()) {
-              myLoggingHandler.println(error.toString());
+              getLoggingHandler().println(error.toString());
               if (errorRef.isNull()) {
                 errorRef.set(new ServerRuntimeException(error));
               }
@@ -407,35 +327,15 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
 
       @Override
       public void run() {
-        getContentRoot().refresh(false, true);
+        getRepositoryRoot().refresh(false, true);
       }
     });
   }
 
-  protected boolean confirmUndeploy() {
-    final Ref<Boolean> confirmed = new Ref<Boolean>(false);
-    ApplicationManager.getApplication().invokeAndWait(new Runnable() {
-
-      @Override
-      public void run() {
-        String title = CloudBundle.getText("cloud.undeploy.confirm.title");
-        while (true) {
-          String password = Messages.showPasswordDialog(CloudBundle.getText("cloud.undeploy.confirm.message", myPresentableName), title);
-          if (password == null) {
-            return;
-          }
-          if (password.equals(myConfiguration.getPassword())) {
-            confirmed.set(true);
-            return;
-          }
-          Messages.showErrorDialog(CloudBundle.getText("cloud.undeploy.confirm.password.incorrect"), title);
-        }
-      }
-    }, ModalityState.defaultModalityState());
-    return confirmed.get();
-  }
-
   private String getRemoteName() {
+    if (myRemoteName == null) {
+      myRemoteName = myDefaultRemoteName;
+    }
     return myRemoteName;
   }
 
@@ -444,21 +344,38 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
   }
 
   protected CloudGitApplication findApplication() throws ServerRuntimeException {
-    return myAgentTaskExecutor.execute(new Computable<CloudGitApplication>() {
+    return getAgentTaskExecutor().execute(new Computable<CloudGitApplication>() {
 
       @Override
       public CloudGitApplication compute() {
-        return myDeployment.findApplication();
+        return getDeployment().findApplication();
       }
     });
   }
 
   protected CloudGitApplication createApplication() throws ServerRuntimeException {
-    return myAgentTaskExecutor.execute(new Computable<CloudGitApplication>() {
+    return getAgentTaskExecutor().execute(new Computable<CloudGitApplication>() {
 
       @Override
       public CloudGitApplication compute() {
-        return myDeployment.createApplication();
+        return getDeployment().createApplication();
+      }
+    });
+  }
+
+  public CloudGitApplication findApplication4Repository() throws ServerRuntimeException {
+    final List<String> repositoryUrls = new ArrayList<String>();
+    for (GitRemote remote : getRepository().getRemotes()) {
+      for (String url : remote.getUrls()) {
+        repositoryUrls.add(url);
+      }
+    }
+
+    return getAgentTaskExecutor().execute(new Computable<CloudGitApplication>() {
+
+      @Override
+      public CloudGitApplication compute() {
+        return getDeployment().findApplication4Repository(ArrayUtil.toStringArray(repositoryUrls));
       }
     });
   }
@@ -485,7 +402,7 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
       File cloneDir = cloneToTemp(gitUrl);
 
       try {
-        FileUtil.copyDir(cloneDir, getContentRootFile());
+        FileUtil.copyDir(cloneDir, getRepositoryRootFile());
       }
       catch (IOException e) {
         throw new ServerRuntimeException(e);

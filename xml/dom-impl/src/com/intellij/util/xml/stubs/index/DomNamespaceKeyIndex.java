@@ -51,13 +51,13 @@ public class DomNamespaceKeyIndex extends StringStubIndexExtension<PsiFile> {
       namespaceKey,
       domFileElement.getFile().getProject(),
       GlobalSearchScope.fileScope(domFileElement.getFile()),
-      new IdFilter() {
-        @Override
-        public boolean containsFileId(int id) {
-          return id == virtualFileId;
-        }
-      },
-      processor
+       new IdFilter() {
+         @Override
+         public boolean containsFileId(int id) {
+           return id == virtualFileId;
+         }
+       },
+       processor
     );
     return processor.isFound();
   }

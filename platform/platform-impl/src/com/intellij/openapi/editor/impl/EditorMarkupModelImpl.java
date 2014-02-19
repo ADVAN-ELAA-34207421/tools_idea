@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -300,7 +300,7 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
       int lineEnd = doc.getLineEndOffset(doc.getLineNumber(offset));
       myEditor.getCaretModel().moveToOffset(lineEnd);
     }
-
+    myEditor.getCaretModel().removeSecondaryCarets();
     myEditor.getCaretModel().moveToOffset(offset);
     myEditor.getSelectionModel().removeSelection();
     ScrollingModel scrollingModel = myEditor.getScrollingModel();
@@ -1170,6 +1170,7 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
                 if (tooltip == null) continue;
                 String s = String.valueOf(tooltip);
                 if (s.isEmpty()) continue;
+                s = s.replaceAll("&nbsp;", " ").replaceAll("\\s+", " ");
 
                 LogicalPosition logicalPosition = myEditor.offsetToLogicalPosition(hEndOffset);
                 int endOfLineOffset = myEditor.getDocument().getLineEndOffset(logicalPosition.line);
@@ -1247,7 +1248,7 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
       }
       Point point = new Point(hintInfo.getOriginalPoint());
       hintInfo.setTextBg(myEditor.getColorsScheme().getDefaultBackground());
-      hintInfo.setBorderColor(new JBColor(Gray._0, Gray._111));
+      hintInfo.setBorderColor(myEditor.getColorsScheme().getDefaultForeground());
       point = SwingUtilities.convertPoint(((EditorImpl)editor).getVerticalScrollBar(), point, myEditor.getComponent().getRootPane());
       myPointHolder.set(point);
       myHintHolder.set(hintInfo);

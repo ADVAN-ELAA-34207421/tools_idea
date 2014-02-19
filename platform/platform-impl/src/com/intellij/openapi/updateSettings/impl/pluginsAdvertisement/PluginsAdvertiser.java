@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,10 +23,7 @@ import com.intellij.ide.BrowserUtil;
 import com.intellij.ide.plugins.*;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.notification.*;
-import com.intellij.openapi.application.Application;
-import com.intellij.openapi.application.ApplicationInfo;
-import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.PathManager;
+import com.intellij.openapi.application.*;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.fileTypes.FileTypeFactory;
@@ -89,8 +86,10 @@ public class PluginsAdvertiser implements StartupActivity {
         for (JsonElement jsonElement : jsonRootElement.getAsJsonArray()) {
           final JsonObject jsonObject = jsonElement.getAsJsonObject();
           final JsonElement pluginId = jsonObject.get("pluginId");
+          final JsonElement pluginName = jsonObject.get("pluginName");
           final JsonElement bundled = jsonObject.get("bundled");
-          result.add(new Plugin(PluginId.getId(StringUtil.unquoteString(pluginId.toString())), 
+          result.add(new Plugin(PluginId.getId(StringUtil.unquoteString(pluginId.toString())),
+                                pluginName != null ? StringUtil.unquoteString(pluginName.toString()) : null,
                                 Boolean.parseBoolean(StringUtil.unquoteString(bundled.toString()))));
         }
         return result;
@@ -132,7 +131,7 @@ public class PluginsAdvertiser implements StartupActivity {
           final IdeaPluginDescriptor loadedPlugin = PluginManager.getPlugin(PluginId.getId(pluginId));
           if (loadedPlugin != null && loadedPlugin.isEnabled()) continue;
 
-          if (loadedPlugin != null && fromServerPluginDescription != null && 
+          if (loadedPlugin != null && fromServerPluginDescription != null &&
               StringUtil.compareVersionNumbers(loadedPlugin.getVersion(), fromServerPluginDescription.getVersion()) >= 0) continue;
 
           final JsonElement ext = jsonObject.get("implementationName");
@@ -142,7 +141,8 @@ public class PluginsAdvertiser implements StartupActivity {
             pluginIds = new HashSet<Plugin>();
             result.put(extension, pluginIds);
           }
-          pluginIds.add(new Plugin(PluginId.getId(pluginId), isBundled));
+          final JsonElement pluginNameElement = jsonObject.get("pluginName");
+          pluginIds.add(new Plugin(PluginId.getId(pluginId), pluginNameElement != null ? StringUtil.unquoteString(pluginNameElement.toString()) : null, isBundled));
         }
         saveExtensions(result);
         return result;
@@ -188,7 +188,7 @@ public class PluginsAdvertiser implements StartupActivity {
   }
 
   public static void openDownloadPage() {
-    BrowserUtil.open(ApplicationInfo.getInstance().getCompanyURL());    
+    BrowserUtil.open(ApplicationInfo.getInstance().getCompanyURL());
   }
 
   static void enablePlugins(Project project, final Collection<IdeaPluginDescriptor> disabledPlugins) {
@@ -215,14 +215,15 @@ public class PluginsAdvertiser implements StartupActivity {
     return null;
   }
 
-  static boolean hasBundledPluginToInstall(Collection<Plugin> plugins) {
-    if (PlatformUtils.isIdea()) return false;
+  static List<String> hasBundledPluginToInstall(Collection<Plugin> plugins) {
+    if (PlatformUtils.isIdeaUltimate()) return null;
+    final List<String> bundled = new ArrayList<String>();
     for (Plugin plugin : plugins) {
       if (plugin.myBundled && PluginManager.getPlugin(PluginId.getId(plugin.myPluginId)) == null) {
-        return true;
+        bundled.add(plugin.myPluginName != null ? plugin.myPluginName : plugin.myPluginId);
       }
     }
-    return false;
+    return bundled.isEmpty() ? null : bundled;
   }
 
   @Override
@@ -236,32 +237,30 @@ public class PluginsAdvertiser implements StartupActivity {
       public void run() {
         final Application application = ApplicationManager.getApplication();
         if (application.isUnitTestMode() || application.isHeadlessEnvironment()) return;
-        ProgressManager.getInstance().run(new Task.Backgroundable(project, "Search for non-bundled plugins in plugin repository...") {
+        ApplicationManager.getApplication().executeOnPooledThread(new Runnable() {
           private final Set<PluginDownloader> myPlugins = new HashSet<PluginDownloader>();
           private List<IdeaPluginDescriptor> myAllPlugins;
 
           private Map<Plugin, IdeaPluginDescriptor> myDisabledPlugins = new HashMap<Plugin, IdeaPluginDescriptor>();
-          private boolean myBundledPlugins = false;
+          private List<String> myBundledPlugin;
 
-          @Override
-          public void run(@NotNull ProgressIndicator indicator) {
+          public void run() {
             try {
-              myAllPlugins = RepositoryHelper.loadPluginsFromRepository(indicator);
+              myAllPlugins = RepositoryHelper.loadPluginsFromRepository(null);
+              if (project.isDisposed()) return;
               if (extensions == null) {
                 loadSupportedExtensions(myAllPlugins);
                 EditorNotifications.getInstance(project).updateAllNotifications();
               }
-              int idx = 0;
               final Map<String, Plugin> ids = new HashMap<String, Plugin>();
               for (UnknownFeature feature : unknownFeatures) {
-                indicator.setText("Searching for plugin supporting \'" + feature.getImplementationName() + "\'");
+                ProgressManager.checkCanceled();
                 final List<Plugin> pluginId = retrieve(feature);
                 if (pluginId != null) {
                   for (Plugin plugin : pluginId) {
                     ids.put(plugin.myPluginId, plugin);
                   }
                 }
-                indicator.setFraction(((double)idx++) / unknownFeatures.size());
               }
 
               final List<String> disabledPlugins = PluginManagerCore.getDisabledPlugins();
@@ -273,10 +272,10 @@ public class PluginsAdvertiser implements StartupActivity {
                   if (pluginDescriptor != null) {
                     myDisabledPlugins.put(plugin, pluginDescriptor);
                   }
-                } 
+                }
               }
 
-              myBundledPlugins = hasBundledPluginToInstall(ids.values());
+              myBundledPlugin = hasBundledPluginToInstall(ids.values());
 
               for (IdeaPluginDescriptor loadedPlugin : myAllPlugins) {
                 final PluginId pluginId = loadedPlugin.getPluginId();
@@ -284,14 +283,21 @@ public class PluginsAdvertiser implements StartupActivity {
                   myPlugins.add(PluginDownloader.createDownloader(loadedPlugin));
                 }
               }
+
+              ApplicationManager.getApplication().invokeLater(new Runnable() {
+                @Override
+                public void run() {
+                  onSuccess();
+                }
+              }, ModalityState.NON_MODAL);
+
             }
             catch (Exception e) {
               LOG.info(e);
             }
           }
 
-          @Override
-          public void onSuccess() {
+          private void onSuccess() {
             String message = null;
             if (!myPlugins.isEmpty() || !myDisabledPlugins.isEmpty()) {
               message = "Features covered by non-bundled plugins are detected.<br>";
@@ -305,8 +311,8 @@ public class PluginsAdvertiser implements StartupActivity {
 
               message += "<a href=\"ignore\">Ignore All</a>";
             }
-            else if (myBundledPlugins && !PropertiesComponent.getInstance().isTrueValue(IGNORE_ULTIMATE_EDITION)) {
-              message = "Features covered by IntelliJ IDEA Ultimate Edition are detected.<br>" +
+            else if (myBundledPlugin != null && !PropertiesComponent.getInstance().isTrueValue(IGNORE_ULTIMATE_EDITION)) {
+              message = "Features covered by IntelliJ IDEA Ultimate Edition (" + StringUtil.join(myBundledPlugin, ", ") + ") are detected.<br>" +
                         "<a href=\"open\">" + CHECK_ULTIMATE_EDITION_TITLE + "</a><br>" +
                         "<a href=\"ignoreUltimate\">" + ULTIMATE_EDITION_SUGGESTION + "</a>";
             }
@@ -361,15 +367,17 @@ public class PluginsAdvertiser implements StartupActivity {
       }
     }
   }
-  
+
   @Tag("plugin")
   public static class Plugin implements Comparable<Plugin> {
     public String myPluginId;
+    public String myPluginName;
     public boolean myBundled;
 
-    public Plugin(PluginId pluginId, boolean bundled) {
+    public Plugin(PluginId pluginId, String pluginName, boolean bundled) {
       myPluginId = pluginId.getIdString();
       myBundled = bundled;
+      myPluginName = pluginName;
     }
 
     public Plugin() {
@@ -384,6 +392,7 @@ public class PluginsAdvertiser implements StartupActivity {
 
       if (myBundled != plugin.myBundled) return false;
       if (!myPluginId.equals(plugin.myPluginId)) return false;
+      if (myPluginName != null && !myPluginName.equals(plugin.myPluginName)) return false;
 
       return true;
     }
@@ -392,6 +401,7 @@ public class PluginsAdvertiser implements StartupActivity {
     public int hashCode() {
       int result = myPluginId.hashCode();
       result = 31 * result + (myBundled ? 1 : 0);
+      result = 31 * result + (myPluginName != null ? myPluginName.hashCode() : 0);
       return result;
     }
 
@@ -413,7 +423,7 @@ public class PluginsAdvertiser implements StartupActivity {
     public ConfigurePluginsListener(Set<UnknownFeature> unknownFeatures,
                                     Project project,
                                     List<IdeaPluginDescriptor> allPlugins,
-                                    Set<PluginDownloader> plugins, 
+                                    Set<PluginDownloader> plugins,
                                     Map<Plugin, IdeaPluginDescriptor> disabledPlugins) {
       myUnknownFeatures = unknownFeatures;
       myProject = project;

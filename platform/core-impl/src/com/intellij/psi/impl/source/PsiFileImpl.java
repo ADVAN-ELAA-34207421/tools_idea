@@ -393,8 +393,7 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
   }
 
   private void clearStub(@NotNull String reason) {
-    SoftReference<StubTree> stubRef = myStub;
-    StubTree stubHolder = stubRef == null ? null : stubRef.get();
+    StubTree stubHolder = SoftReference.dereference(myStub);
     if (stubHolder != null) {
       ((PsiFileStubImpl<?>)stubHolder.getRoot()).clearPsi(reason);
     }
@@ -617,7 +616,7 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
   @Override
   @NotNull
   public char[] textToCharArray() {
-    return CharArrayUtil.fromSequenceStrict(getViewProvider().getContents());
+    return CharArrayUtil.fromSequence(getViewProvider().getContents());
   }
 
   @NotNull
@@ -730,7 +729,7 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
     if (myStub == null) return  null;
 
     synchronized (PsiLock.LOCK) {
-      return myStub != null ? myStub.get() : null;
+      return SoftReference.dereference(myStub);
     }
   }
 
@@ -954,6 +953,8 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
 
   @Override
   public void navigate(boolean requestFocus) {
+    assert canNavigate() : this;
+    //noinspection ConstantConditions
     PsiNavigationSupport.getInstance().getDescriptor(this).navigate(requestFocus);
   }
 
@@ -993,18 +994,20 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
     FileElement fileElement = calcTreeElement();
     synchronized (myStubFromTreeLock) {
       SoftReference<StubTree> ref = fileElement.getUserData(STUB_TREE_IN_PARSED_TREE);
-      StubTree tree = ref == null ? null : ref.get();
+      StubTree tree = SoftReference.dereference(ref);
 
       if (tree == null) {
         ApplicationManager.getApplication().assertReadAccessAllowed();
         IElementType contentElementType = getContentElementType();
         if (!(contentElementType instanceof IStubFileElementType)) {
           VirtualFile vFile = getVirtualFile();
-          throw new AssertionError("ContentElementType: " + contentElementType + "; file: " + this +
-                    "\n\t" + "Boolean.TRUE.equals(getUserData(BUILDING_STUB)) = " + Boolean.TRUE.equals(getUserData(BUILDING_STUB)) +
-                    "\n\t" + "getTreeElement() = " + getTreeElement() +
-                    "\n\t" + "vFile instanceof VirtualFileWithId = " + (vFile instanceof VirtualFileWithId) +
-                    "\n\t" + "StubUpdatingIndex.canHaveStub(vFile) = " + StubTreeLoader.getInstance().canHaveStub(vFile));
+          String message = "ContentElementType: " + contentElementType + "; file: " + this +
+                           "\n\t" + "Boolean.TRUE.equals(getUserData(BUILDING_STUB)) = " + Boolean.TRUE.equals(getUserData(BUILDING_STUB)) +
+                           "\n\t" + "getTreeElement() = " + getTreeElement() +
+                           "\n\t" + "vFile instanceof VirtualFileWithId = " + (vFile instanceof VirtualFileWithId) +
+                           "\n\t" + "StubUpdatingIndex.canHaveStub(vFile) = " + StubTreeLoader.getInstance().canHaveStub(vFile);
+          rebuildStub();
+          throw new AssertionError(message);
         }
 
         StubElement currentStubTree = ((IStubFileElementType)contentElementType).getBuilder().buildStubTree(this);

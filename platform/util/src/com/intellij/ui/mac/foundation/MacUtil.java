@@ -31,6 +31,7 @@ import java.awt.event.AWTEventListener;
 import java.awt.event.KeyEvent;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.intellij.ui.mac.foundation.Foundation.invoke;
 import static com.intellij.ui.mac.foundation.Foundation.toStringViaUTF8;
@@ -41,7 +42,7 @@ import static com.intellij.ui.mac.foundation.Foundation.toStringViaUTF8;
 public class MacUtil {
   private static final Logger LOG = Logger.getInstance("#com.intellij.ui.mac.foundation.MacUtil");
   public static final String MAC_NATIVE_WINDOW_SHOWING = "MAC_NATIVE_WINDOW_SHOWING";
-
+  
   private MacUtil() {
   }
 
@@ -111,14 +112,21 @@ public class MacUtil {
     catch (InterruptedException ignored) {
     }
   }
-
+  
   public static synchronized void startModal(JComponent component) {
     startModal(component, MAC_NATIVE_WINDOW_SHOWING);
   }
 
   public static boolean isFullKeyboardAccessEnabled() {
-    return SystemInfo.isMacOSSnowLeopard
-           && invoke(invoke("NSApplication", "sharedApplication"), "isFullKeyboardAccessEnabled").intValue() == 1;
+    if (!SystemInfo.isMacOSSnowLeopard) return false;
+    final AtomicBoolean result = new AtomicBoolean();
+    Foundation.executeOnMainThread(new Runnable() {
+      @Override
+      public void run() {
+          result.set(invoke(invoke("NSApplication", "sharedApplication"), "isFullKeyboardAccessEnabled").intValue() == 1);
+      }
+    }, true, true);
+    return result.get();
   }
 
   public static void adjustFocusTraversal(@NotNull Disposable disposable) {

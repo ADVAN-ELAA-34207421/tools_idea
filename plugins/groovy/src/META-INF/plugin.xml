@@ -105,6 +105,8 @@
 
     <membersContributor implementation="org.jetbrains.plugins.groovy.markup.XmlMarkupBuilderNonCodeMemberContributor"/>
 
+    <closureMissingMethodContributor implementation="org.jetbrains.plugins.groovy.lang.resolve.PluginXmlClosureMemberContributor"/>
+
     <astTransformContributor implementation="org.jetbrains.plugins.groovy.lang.resolve.ast.DelegatedMethodsContributor"/>
     <astTransformContributor implementation="org.jetbrains.plugins.groovy.lang.resolve.ast.AutoExternalizeContributor"/>
     <astTransformContributor implementation="org.jetbrains.plugins.groovy.lang.resolve.ast.AutoCloneContributor"/>
@@ -189,7 +191,7 @@
   </extensions>
 
   <extensions defaultExtensionNs="com.intellij">
-    <navbar implementation="org.jetbrains.plugins.groovy.navbar.GrNavBarModelExtension"/>
+    <navbar implementation="org.jetbrains.plugins.groovy.navbar.GrNavBarModelExtension" order="after defaultNavbar"/>
 
     <declarationRangeHandler key="org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.members.GrMethod"
                              implementationClass="org.jetbrains.plugins.groovy.codeInsight.hint.GrMethodDeclarationRangeHandler"/>
@@ -1408,6 +1410,13 @@
       <categoryKey>intention.category.groovy.other</categoryKey>
       <className>org.jetbrains.plugins.groovy.intentions.other.GrCopyStringConcatenationContentIntention</className>
     </intentionAction>
+
+    <intentionAction>
+      <bundleName>org.jetbrains.plugins.groovy.intentions.GroovyIntentionsBundle</bundleName>
+      <categoryKey>intention.category.groovy.other</categoryKey>
+      <className>org.jetbrains.plugins.groovy.intentions.other.GrSortMapKeysIntention</className>
+    </intentionAction>
+
     <intentionAction>
       <bundleName>org.jetbrains.plugins.groovy.intentions.GroovyIntentionsBundle</bundleName>
       <categoryKey>intention.category.groovy.declaration</categoryKey>
@@ -1555,14 +1564,12 @@
             icon="JetgroovyIcons.Groovy.GroovyDoc">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
-<!--
     <action id="Groovy.Shell"
             class="org.jetbrains.plugins.groovy.console.GroovyShellAction"
             text="Groovy Shell..." description="Launch Groovy Shell"
             icon="JetgroovyIcons.Groovy.Groovy_16x16">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
--->
 
     <action id="Groovy.Console"
             class="org.jetbrains.plugins.groovy.console.GroovyConsoleAction"

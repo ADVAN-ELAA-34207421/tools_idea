@@ -9,9 +9,9 @@ import com.intellij.openapi.roots.ModuleRootAdapter;
 import com.intellij.openapi.roots.ModuleRootEvent;
 import com.intellij.openapi.roots.ModuleRootListener;
 import com.intellij.openapi.startup.StartupManager;
+import com.intellij.openapi.wm.ext.LibraryDependentToolWindow;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ex.ToolWindowManagerEx;
-import com.intellij.openapi.wm.ext.LibraryDependentToolWindow;
 import com.intellij.psi.PsiManager;
 import com.intellij.util.messages.MessageBusConnection;
 
@@ -28,7 +28,11 @@ public class LibraryDependentToolWindowManager extends AbstractProjectComponent 
   public void projectOpened() {
     final ModuleRootListener rootListener = new ModuleRootAdapter() {
       public void rootsChanged(ModuleRootEvent event) {
-        checkToolWindowStatuses();
+        DumbService.getInstance(myProject).smartInvokeLater(new Runnable() {
+          public void run() {
+            checkToolWindowStatuses();
+          }
+        });
       }
     };
 
@@ -42,29 +46,24 @@ public class LibraryDependentToolWindowManager extends AbstractProjectComponent 
   }
 
   private void checkToolWindowStatuses() {
-    DumbService.getInstance(myProject).smartInvokeLater(new Runnable() {
-      public void run() {
-        if (myProject.isDisposed()) {
-          return;
-        }
-        final PsiManager psiManager = PsiManager.getInstance(myProject);
-        if (psiManager.isDisposed()) {
-          return;
-        }
+    if (myProject.isDisposed()) {
+      return;
+    }
+    final PsiManager psiManager = PsiManager.getInstance(myProject);
+    if (psiManager.isDisposed()) {
+      return;
+    }
 
-        for (LibraryDependentToolWindow libraryToolWindow : Extensions.getExtensions(LibraryDependentToolWindow.EXTENSION_POINT_NAME)) {
-          if (libraryToolWindow.getLibrarySearchHelper().isLibraryExists(myProject)) {
-            ensureToolWindowExists(libraryToolWindow);
-          }
-          else {
-            ToolWindow toolWindow = myToolWindowManager.getToolWindow(libraryToolWindow.id);
-            if (toolWindow != null) {
-              myToolWindowManager.unregisterToolWindow(libraryToolWindow.id);
-            }
-          }
-        }
-      }
-    });
+    for (LibraryDependentToolWindow libraryToolWindow : Extensions.getExtensions(LibraryDependentToolWindow.EXTENSION_POINT_NAME)) {
+       if (libraryToolWindow.getLibrarySearchHelper().isLibraryExists(myProject)) {
+           ensureToolWindowExists(libraryToolWindow);
+       } else {
+         ToolWindow toolWindow = myToolWindowManager.getToolWindow(libraryToolWindow.id);
+         if (toolWindow != null) {
+           myToolWindowManager.unregisterToolWindow(libraryToolWindow.id);
+         }
+       }
+    }
   }
 
   private void ensureToolWindowExists(LibraryDependentToolWindow extension) {

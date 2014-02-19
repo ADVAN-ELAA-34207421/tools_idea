@@ -16,14 +16,11 @@
 package com.intellij.psi;
 
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.Pair;
 import com.intellij.pom.java.LanguageLevel;
 import com.intellij.psi.codeStyle.JavaCodeStyleManager;
-import com.intellij.psi.infos.CandidateInfo;
-import com.intellij.psi.infos.ClassCandidateInfo;
 import com.intellij.psi.infos.MethodCandidateInfo;
 import com.intellij.psi.util.*;
 import org.jetbrains.annotations.NonNls;
@@ -94,6 +91,22 @@ public class LambdaUtil {
     return initialSubst;
   }
 
+  public static boolean isFunctionalType(PsiType type) {
+    if (type instanceof PsiIntersectionType) {
+      for (PsiType type1 : ((PsiIntersectionType)type).getConjuncts()) {
+        if (isFunctionalType(type1)) return true;
+      }
+    }
+    final PsiClassType.ClassResolveResult resolveResult = PsiUtil.resolveGenericsClassInType(GenericsUtil.eliminateWildcards(type));
+    final PsiClass aClass = resolveResult.getElement();
+    if (aClass != null) {
+      if (aClass instanceof PsiTypeParameter) return false;
+      final List<MethodSignature> signatures = findFunctionCandidates(aClass);
+      return signatures != null && signatures.size() == 1;
+    }
+    return false;
+  }
+  
   public static boolean isValidLambdaContext(@Nullable PsiElement context) {
     return context instanceof PsiTypeCastExpression ||
            context instanceof PsiAssignmentExpression ||
@@ -252,7 +265,7 @@ public class LambdaUtil {
   }
 
   @Nullable
-  static List<MethodSignature> findFunctionCandidates(PsiClass psiClass) {
+  public static List<MethodSignature> findFunctionCandidates(PsiClass psiClass) {
     if (psiClass instanceof PsiAnonymousClass) {
       psiClass = PsiUtil.resolveClassInType(((PsiAnonymousClass)psiClass).getBaseClassType());
     }
@@ -470,13 +483,19 @@ public class LambdaUtil {
               final int finalLambdaIdx = adjustLambdaIdx(lambdaIdx, (PsiMethod)resolve, parameters);
               if (finalLambdaIdx < parameters.length) {
                 if (!tryToSubstitute) return getNormalizedType(parameters[finalLambdaIdx]);
-                if (cachedType != null && paramIdx > -1) {
+                if (cachedType != null) {
                   final PsiMethod interfaceMethod = getFunctionalInterfaceMethod(cachedType);
                   if (interfaceMethod != null) {
                     final PsiClassType.ClassResolveResult cachedResult = PsiUtil.resolveGenericsClassInType(cachedType);
-                    final PsiType interfaceMethodParameterType = interfaceMethod.getParameterList().getParameters()[paramIdx].getType();
-                    if (!dependsOnTypeParams(cachedResult.getSubstitutor().substitute(interfaceMethodParameterType), cachedType, expression)){
-                      return cachedType;
+                    if (paramIdx == -1) {
+                      if (!dependsOnTypeParams(cachedType, cachedType, expression) && !dependsOnTypeParams(getFunctionalInterfaceReturnType(cachedType), cachedType, expression)) {
+                        return cachedType;
+                      }
+                    }
+                    else {
+                      if (!dependsOnTypeParams(cachedResult.getSubstitutor().substitute(interfaceMethod.getParameterList().getParameters()[paramIdx].getType()), cachedType, expression)) {
+                        return cachedType;
+                      }
                     }
                   }
                 }
@@ -577,25 +596,6 @@ public class LambdaUtil {
       }
     }
     return null;
-  }
-
-  public static PsiSubstitutor inferFromReturnType(final PsiTypeParameter[] typeParameters,
-                                                   final PsiType returnType,
-                                                   @Nullable final PsiType interfaceMethodReturnType,
-                                                   PsiSubstitutor psiSubstitutor,
-                                                   final LanguageLevel languageLevel,
-                                                   final Project project) {
-    if (interfaceMethodReturnType == null) return psiSubstitutor;
-    final PsiResolveHelper resolveHelper = JavaPsiFacade.getInstance(project).getResolveHelper();
-    final PsiSubstitutor substitutor =
-      resolveHelper.inferTypeArguments(typeParameters, new PsiType[]{interfaceMethodReturnType}, new PsiType[]{returnType}, languageLevel);
-    for (PsiTypeParameter typeParameter : typeParameters) {
-      final PsiType inferredType = substitutor.substitute(typeParameter);
-      if (PsiUtil.resolveClassInType(inferredType) != typeParameter) {
-        psiSubstitutor = psiSubstitutor.put(typeParameter, inferredType);
-      }
-    }
-    return psiSubstitutor;
   }
 
   public static boolean notInferredType(PsiType typeByExpression) {

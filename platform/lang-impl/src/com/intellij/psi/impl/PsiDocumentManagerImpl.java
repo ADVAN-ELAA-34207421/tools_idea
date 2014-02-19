@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package com.intellij.psi.impl;
 
 import com.intellij.AppTopics;
 import com.intellij.injected.editor.DocumentWindow;
-import com.intellij.injected.editor.EditorWindow;
+import com.intellij.injected.editor.EditorWindowImpl;
 import com.intellij.openapi.application.ApplicationAdapter;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.SettingsSavingComponent;
@@ -44,7 +44,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
 
 //todo listen & notifyListeners readonly events?
 public class PsiDocumentManagerImpl extends PsiDocumentManagerBase implements SettingsSavingComponent {
@@ -136,7 +137,7 @@ public class PsiDocumentManagerImpl extends PsiDocumentManagerBase implements Se
   protected boolean finishCommitInWriteAction(@NotNull Document document,
                                               @NotNull List<Processor<Document>> finishProcessors,
                                               boolean synchronously) {
-    EditorWindow.disposeInvalidEditors();  // in write action
+    EditorWindowImpl.disposeInvalidEditors();  // in write action
     return super.finishCommitInWriteAction(document, finishProcessors, synchronously);
   }
 

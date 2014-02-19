@@ -155,6 +155,11 @@ public interface XDebugSession extends AbstractDebuggerSession {
 
   void setPauseActionSupported(boolean isSupported);
 
+  @SuppressWarnings("UnusedDeclaration")
+  @Deprecated
+  /**
+   * @deprecated to remove in IDEA 14
+   */
   void setAutoInitBreakpoints(boolean value);
 
   void rebuildViews();

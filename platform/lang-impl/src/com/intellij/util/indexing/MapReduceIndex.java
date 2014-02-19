@@ -24,6 +24,7 @@ import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.util.Processor;
+import com.intellij.util.SmartList;
 import com.intellij.util.io.PersistentHashMap;
 import gnu.trove.THashMap;
 import gnu.trove.TObjectObjectProcedure;
@@ -203,8 +204,7 @@ public class MapReduceIndex<Key, Value, Input> implements UpdatableIndex<Key,Val
   }
 
   @Override
-  public final Computable<Boolean> update(final int inputId, @Nullable Input content) {
-    assert myInputsIndex != null;
+  public final Computable<Boolean> update(final int inputId, @Nullable final Input content) {
 
     final Map<Key, Value> data = content != null ? myIndexer.map(content) : Collections.<Key, Value>emptyMap();
 
@@ -222,6 +222,9 @@ public class MapReduceIndex<Key, Value, Input> implements UpdatableIndex<Key,Val
               updateWithMap(inputId, data, new Callable<Collection<Key>>() {
                 @Override
                 public Collection<Key> call() throws Exception {
+                  if (myInputsIndex == null) {
+                    return new SmartList<Key>((Key)(Integer)inputId);
+                  }
                   final Collection<Key> oldKeys = myInputsIndex.get(inputId);
                   return oldKeys == null? Collections.<Key>emptyList() : oldKeys;
                 }
@@ -243,7 +246,9 @@ public class MapReduceIndex<Key, Value, Input> implements UpdatableIndex<Key,Val
     };
   }
 
-  protected void updateWithMap(final int inputId, @NotNull Map<Key, Value> newData, @NotNull Callable<Collection<Key>> oldKeysGetter) throws StorageException {
+  protected void updateWithMap(final int inputId,
+                               @NotNull Map<Key, Value> newData,
+                               @NotNull Callable<Collection<Key>> oldKeysGetter) throws StorageException {
     getWriteLock().lock();
     try {
       try {

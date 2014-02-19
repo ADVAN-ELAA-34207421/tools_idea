@@ -25,7 +25,7 @@ import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
 import com.jetbrains.python.psi.*;
 import com.jetbrains.python.psi.resolve.PyResolveContext;
-import com.jetbrains.python.refactoring.classes.PyMemberInfo;
+import com.jetbrains.python.refactoring.classes.membersManager.PyMemberInfo;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,29 +34,29 @@ import java.util.List;
 /**
  * @author Dennis.Ushakov
  */
-public class PyPushDownConflicts {
+class PyPushDownConflicts {
   private static final Logger LOG = Logger.getInstance(PyPushDownProcessor.class.getName());
 
   private final PyClass myClass;
-  private final Collection<PyMemberInfo> myMembers;
+  private final Collection<PyMemberInfo<PyElement>> myMembers;
   private final MultiMap<PsiElement, String> myConflicts;
 
-  public PyPushDownConflicts(final PyClass clazz, final Collection<PyMemberInfo> members) {
+  public PyPushDownConflicts(final PyClass clazz, final Collection<PyMemberInfo<PyElement>> members) {
     myClass = clazz;
     myMembers = members;
     myConflicts = new MultiMap<PsiElement, String>();
   }
 
-  public MultiMap<PsiElement, String> getConflicts() {
+  MultiMap<PsiElement, String> getConflicts() {
     return myConflicts;
   }
 
-  public void checkTargetClassConflicts(PyClass clazz) {
+  void checkTargetClassConflicts(PyClass clazz) {
     checkPlacementConflicts(clazz);    
   }
 
   private void checkPlacementConflicts(PyClass clazz) {
-    for (PyMemberInfo member : myMembers) {
+    for (PyMemberInfo<PyElement> member : myMembers) {
       final PyElement element = member.getMember();
       if (element instanceof PyFunction) {
         for (PyFunction function : clazz.getMethods()) {
@@ -73,8 +73,8 @@ public class PyPushDownConflicts {
   }
 
   public void checkSourceClassConflicts() {
-    final List<PyElement> elements = ContainerUtil.map(myMembers, new Function<PyMemberInfo, PyElement>() {
-      public PyElement fun(PyMemberInfo pyMemberInfo) {
+    final List<PyElement> elements = ContainerUtil.map(myMembers, new Function<PyMemberInfo<PyElement>, PyElement>() {
+      public PyElement fun(PyMemberInfo<PyElement> pyMemberInfo) {
         return pyMemberInfo.getMember();
       }
     });

@@ -39,7 +39,7 @@ public class GroovyAwareModuleBuilder extends JavaModuleBuilder {
 
   @SuppressWarnings("UnusedDeclaration")
   public GroovyAwareModuleBuilder() {
-    this("groovy", "Groovy", "Simple module with attached Groovy library", null);
+    this("groovy", "Groovy", "Simple module with attached Groovy library", JetgroovyIcons.Groovy.GroovyModule);
   }
 
   protected GroovyAwareModuleBuilder(String builderId, String presentableName, String description, Icon bigIcon) {
@@ -88,6 +88,16 @@ public class GroovyAwareModuleBuilder extends JavaModuleBuilder {
   @Override
   public String getGroupName() {
     return "Groovy";
+  }
+
+  @Override
+  public String getParentGroup() {
+    return getModuleTypeName();
+  }
+
+  @Override
+  public boolean isTemplateBased() {
+    return true;
   }
 
   @Nullable

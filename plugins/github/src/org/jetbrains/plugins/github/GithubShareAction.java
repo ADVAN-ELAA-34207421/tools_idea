@@ -52,7 +52,7 @@ import icons.GithubIcons;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.github.api.*;
-import org.jetbrains.plugins.github.exceptions.GithubAuthenticationCanceledException;
+import org.jetbrains.plugins.github.exceptions.GithubOperationCanceledException;
 import org.jetbrains.plugins.github.ui.GithubShareDialog;
 import org.jetbrains.plugins.github.util.GithubAuthData;
 import org.jetbrains.plugins.github.util.GithubNotifications;
@@ -73,7 +73,7 @@ public class GithubShareAction extends DumbAwareAction {
   private static final Logger LOG = GithubUtil.LOG;
 
   public GithubShareAction() {
-    super("Share project on GitHub", "Easily share project on GitHub", GithubIcons.Github_icon);
+    super("Share Project on GitHub", "Easily share project on GitHub", GithubIcons.Github_icon);
   }
 
   public void update(AnActionEvent e) {
@@ -228,7 +228,7 @@ public class GithubShareAction extends DumbAwareAction {
           }
         });
     }
-    catch (GithubAuthenticationCanceledException e) {
+    catch (GithubOperationCanceledException e) {
       return null;
     }
     catch (IOException e) {
@@ -288,6 +288,8 @@ public class GithubShareAction extends DumbAwareAction {
       final List<VirtualFile> trackedFiles = ChangeListManager.getInstance(project).getAffectedFiles();
       final Collection<VirtualFile> untrackedFiles = filterOutIgnored(project,
                                                                       repository.getUntrackedFilesHolder().retrieveUntrackedFiles());
+      trackedFiles.removeAll(untrackedFiles); // fix IDEA-119855
+
       final List<VirtualFile> allFiles = new ArrayList<VirtualFile>();
       allFiles.addAll(trackedFiles);
       allFiles.addAll(untrackedFiles);

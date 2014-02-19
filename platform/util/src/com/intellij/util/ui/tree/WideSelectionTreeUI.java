@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ public class WideSelectionTreeUI extends BasicTreeUI {
   private boolean myOldRepaintAllRowValue;
   private boolean invertLineColor;
   private boolean myForceDontPaintLines = false;
+  private boolean mySkinny = false;
 
   @SuppressWarnings("unchecked")
   public WideSelectionTreeUI() {
@@ -67,6 +68,23 @@ public class WideSelectionTreeUI extends BasicTreeUI {
   public WideSelectionTreeUI(final boolean wideSelection, @NotNull Condition<Integer> wideSelectionCondition) {
     myWideSelection = wideSelection;
     myWideSelectionCondition = wideSelectionCondition;
+  }
+
+  @Override
+  public int getRightChildIndent() {
+    return isSkinny() ? 8 : super.getRightChildIndent();
+  }
+
+  public boolean isSkinny() {
+    return mySkinny;
+  }
+
+  /**
+   * Setting to <code>true</code> make tree to reduce row offset
+   * @param skinny <code>true</code> to reduce row offset
+   */
+  public void setSkinny(boolean skinny) {
+    mySkinny = skinny;
   }
 
   private final MouseListener mySelectionListener = new MouseAdapter() {
@@ -241,6 +259,16 @@ public class WideSelectionTreeUI extends BasicTreeUI {
   }
 
   private abstract static class TreeUIAction extends AbstractAction implements UIResource {
+  }
+
+  @Override
+  protected int getRowX(int row, int depth) {
+    if (isSkinny()) {
+      int off = tree.isRootVisible() ? 8 : 0;
+      return 8 * depth + 8 + off;
+    } else {
+      return super.getRowX(row, depth);
+    }
   }
 
   @Override

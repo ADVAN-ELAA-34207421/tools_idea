@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -234,21 +234,21 @@ public class HighlightNamesUtil {
     DependencyValidationManagerImpl validationManager = (DependencyValidationManagerImpl)DependencyValidationManager.getInstance(file.getProject());
     List<Pair<NamedScope,NamedScopesHolder>> scopes = validationManager.getScopeBasedHighlightingCachedScopes();
     for (Pair<NamedScope, NamedScopesHolder> scope : scopes) {
-      NamedScope namedScope = scope.getFirst();
-      NamedScopesHolder scopesHolder = scope.getSecond();
-      PackageSet packageSet = namedScope.getValue();
-      if (packageSet != null && packageSet.contains(file, scopesHolder)) {
-        TextAttributesKey scopeKey = ScopeAttributesUtil.getScopeTextAttributeKey(namedScope.getName());
-        TextAttributes attributes = colorsScheme.getAttributes(scopeKey);
-        if (attributes == null || attributes.isEmpty()) {
-          continue;
-        }
+      final NamedScope namedScope = scope.getFirst();
+      final TextAttributesKey scopeKey = ScopeAttributesUtil.getScopeTextAttributeKey(namedScope.getName());
+      final TextAttributes attributes = colorsScheme.getAttributes(scopeKey);
+      if (attributes == null || attributes.isEmpty()) {
+        continue;
+      }
+      final PackageSet packageSet = namedScope.getValue();
+      if (packageSet != null && packageSet.contains(file, scope.getSecond())) {
         result = TextAttributes.merge(attributes, result);
       }
     }
     return result;
   }
 
+  @NotNull
   public static TextRange getMethodDeclarationTextRange(@NotNull PsiMethod method) {
     if (method instanceof SyntheticElement) return TextRange.EMPTY_RANGE;
     int start = stripAnnotationsFromModifierList(method.getModifierList());
@@ -258,12 +258,14 @@ public class HighlightNamesUtil {
     return new TextRange(start, end);
   }
 
+  @NotNull
   public static TextRange getFieldDeclarationTextRange(@NotNull PsiField field) {
     int start = stripAnnotationsFromModifierList(field.getModifierList());
     int end = field.getNameIdentifier().getTextRange().getEndOffset();
     return new TextRange(start, end);
   }
 
+  @NotNull
   public static TextRange getClassDeclarationTextRange(@NotNull PsiClass aClass) {
     if (aClass instanceof PsiEnumConstantInitializer) {
       return ((PsiEnumConstantInitializer)aClass).getEnumConstant().getNameIdentifier().getTextRange();

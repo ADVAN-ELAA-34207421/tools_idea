@@ -124,6 +124,7 @@ public abstract class ChooseItemAction extends EditorAction {
         if (customLiveTemplate instanceof CustomLiveTemplateBase) {
           final int offset = editor.getCaretModel().getOffset();
           if (customLiveTemplate.getShortcut() == shortcutChar 
+              && TemplateManagerImpl.isApplicable(customLiveTemplate, editor, file)
               && ((CustomLiveTemplateBase)customLiveTemplate).hasCompletionItem(file, offset)) {
             return customLiveTemplate.computeTemplateKey(callback) != null;
           }
@@ -149,7 +150,7 @@ public abstract class ChooseItemAction extends EditorAction {
       return false;
     }
 
-    return TemplateSettings.getInstance().getShortcutChar(liveTemplateLookup.getTemplate()) == shortcutChar;
+    return liveTemplateLookup.getTemplateShortcut() == shortcutChar;
   }
 
   public static class Always extends ChooseItemAction {

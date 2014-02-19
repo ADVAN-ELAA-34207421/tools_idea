@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 package com.jetbrains.python.psi;
 
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 import com.intellij.codeInsight.FileModificationService;
 import com.intellij.codeInsight.completion.PrioritizedLookupElement;
@@ -51,7 +52,7 @@ import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.PlatformIcons;
 import com.intellij.util.SmartList;
 import com.intellij.util.containers.ContainerUtil;
-import com.intellij.util.containers.HashSet;
+import com.jetbrains.NotNullPredicate;
 import com.jetbrains.python.PyBundle;
 import com.jetbrains.python.PyNames;
 import com.jetbrains.python.PyTokenTypes;
@@ -63,6 +64,7 @@ import com.jetbrains.python.psi.impl.PyBuiltinCache;
 import com.jetbrains.python.psi.impl.PyPsiUtils;
 import com.jetbrains.python.psi.types.*;
 import com.jetbrains.python.refactoring.classes.extractSuperclass.PyExtractSuperclassHelper;
+import com.jetbrains.python.refactoring.classes.membersManager.PyMemberInfo;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -102,21 +104,6 @@ public class PyUtil {
 
   private static boolean isWhitespace(ASTNode node) {
     return node != null && node.getElementType().equals(TokenType.WHITE_SPACE);
-  }
-
-
-  @NotNull
-  public static Set<PsiElement> getComments(PsiElement start) {
-    final Set<PsiElement> comments = new HashSet<PsiElement>();
-    PsiElement seeker = start.getPrevSibling();
-    if (seeker == null) seeker = start.getParent().getPrevSibling();
-    while (seeker instanceof PsiWhiteSpace || seeker instanceof PsiComment) {
-      if (seeker instanceof PsiComment) {
-        comments.add(seeker);
-      }
-      seeker = seeker.getPrevSibling();
-    }
-    return comments;
   }
 
   @Nullable
@@ -713,6 +700,38 @@ public class PyUtil {
     return PyElementGenerator.getInstance(element.getProject()).createNameIdentifier(name, LanguageLevel.forElement(element));
   }
 
+  /**
+   * Finds element declaration by resolving its references top the top but not further than file (to prevent unstubing)
+   * @param element element to resolve
+   * @return its declaration
+   */
+  @NotNull
+  public static PsiElement resolveToTheTop(@NotNull final PsiElement elementToResolve) {
+    PsiElement currentElement = elementToResolve;
+    while (true) {
+      final PsiReference reference = currentElement.getReference();
+      if (reference == null) {
+        break;
+      }
+      final PsiElement resolve = reference.resolve();
+      if ((resolve == null) || resolve.equals(currentElement) || !inSameFile(resolve, currentElement)) {
+        break;
+      }
+      currentElement = resolve;
+    }
+    return currentElement;
+  }
+
+  /**
+   * Gets class init method
+   * @param pyClass class where to find init
+   * @return class init method if any
+   */
+  @Nullable
+  public static PyFunction getInitMethod(@NotNull final PyClass pyClass) {
+    return pyClass.findMethodByName(PyNames.INIT, false);
+  }
+
   public static class KnownDecoratorProviderHolder {
     public static PyKnownDecoratorProvider[] KNOWN_DECORATOR_PROVIDERS = Extensions.getExtensions(PyKnownDecoratorProvider.EP_NAME);
 
@@ -915,6 +934,10 @@ public class PyUtil {
     return selfName;
   }
 
+  /**
+   *
+   * @return Source roots <strong>and</strong> content roots for element's project
+   */
   @NotNull
   public static Collection<VirtualFile> getSourceRoots(@NotNull PsiElement foothold) {
     final Module module = ModuleUtilCore.findModuleForPsiElement(foothold);
@@ -924,6 +947,10 @@ public class PyUtil {
     return Collections.emptyList();
   }
 
+  /**
+   *
+   * @return Source roots <strong>and</strong> content roots for module
+   */
   @NotNull
   public static Collection<VirtualFile> getSourceRoots(@NotNull Module module) {
     final Set<VirtualFile> result = new LinkedHashSet<VirtualFile>();
@@ -1091,6 +1118,11 @@ public class PyUtil {
         return new MethodFlags(modifier == CLASSMETHOD, modifier == STATICMETHOD, isMetaclassMethod, isSpecialMetaclassMethod);
       }
       return null;
+    }
+
+    //TODO: Doc
+    public boolean isInstanceMethod() {
+      return ! (myIsClassMethod || myIsStaticMethod);
     }
   }
 
@@ -1397,5 +1429,58 @@ public class PyUtil {
       }
     }
     return false;
+  }
+
+  public static boolean isInit(@NotNull final PyFunction function) {
+    return PyNames.INIT.equals(function.getName());
+  }
+
+
+  private static boolean isObject(@NotNull final PyMemberInfo<PyElement> classMemberInfo) {
+    final PyElement element = classMemberInfo.getMember();
+    if ((element instanceof PyClass) && PyNames.OBJECT.equals(element.getName())) {
+      return true;
+    }
+    return false;
+
+  }
+
+  /**
+   * Filters out {@link com.jetbrains.python.refactoring.classes.membersManager.PyMemberInfo}
+   * that should not be displayed in this refactoring (like object)
+   *
+   * @param pyMemberInfos collection to sort
+   * @return sorted collection
+   */
+  @NotNull
+  public static Collection<PyMemberInfo<PyElement>> filterOutObject(@NotNull final Collection<PyMemberInfo<PyElement>> pyMemberInfos) {
+    return Collections2.filter(pyMemberInfos, new ObjectPredicate(false));
+  }
+
+  /**
+   * Filters only pyclass object (new class)
+   */
+  public static class ObjectPredicate extends NotNullPredicate<PyMemberInfo<PyElement>> {
+    private final boolean myAllowObjects;
+
+    /**
+     * @param allowObjects allows only objects if true. Allows all but objects otherwise.
+     */
+    public ObjectPredicate(final boolean allowObjects) {
+      myAllowObjects = allowObjects;
+    }
+
+    @Override
+    public boolean applyNotNull(@NotNull final PyMemberInfo<PyElement> input) {
+      return myAllowObjects == isObject(input);
+    }
+
+    private static boolean isObject(@NotNull final PyMemberInfo<PyElement> classMemberInfo) {
+      final PyElement element = classMemberInfo.getMember();
+      if ((element instanceof PyClass) && PyNames.OBJECT.equals(element.getName())) {
+        return true;
+      }
+      return false;
+    }
   }
 }

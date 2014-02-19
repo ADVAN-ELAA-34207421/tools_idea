@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,10 +25,11 @@ import com.intellij.codeInsight.daemon.impl.HighlightInfo;
 import com.intellij.codeInsight.daemon.impl.HighlightInfoType;
 import com.intellij.codeInsight.daemon.impl.SeveritiesProvider;
 import com.intellij.lang.annotation.HighlightSeverity;
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.Result;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.editor.HighlighterColors;
 import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.editor.colors.TextAttributesKey;
 import com.intellij.openapi.editor.markup.EffectType;
@@ -96,13 +97,14 @@ public class ExpectedHighlightingData {
   private final Map<RangeMarker, LineMarkerInfo> lineMarkerInfos = new THashMap<RangeMarker, LineMarkerInfo>();
 
   public void init() {
-    ApplicationManager.getApplication().runWriteAction(new Runnable() {
-      public void run() {
+    new WriteCommandAction(null){
+      @Override
+      protected void run(Result result) throws Throwable {
         extractExpectedLineMarkerSet(myDocument);
         extractExpectedHighlightsSet(myDocument);
         refreshLineMarkers();
       }
-    });
+    }.execute();
   }
 
   public ExpectedHighlightingData(@NotNull Document document,boolean checkWarnings, boolean checkInfos) {
@@ -136,7 +138,7 @@ public class ExpectedHighlightingData {
         for (SeveritiesProvider provider : Extensions.getExtensions(SeveritiesProvider.EP_NAME)) {
           for (HighlightInfoType type : provider.getSeveritiesHighlightInfoTypes()) {
             final HighlightSeverity severity = type.getSeverity(null);
-            highlightingTypes.put(severity.toString(), new ExpectedHighlightingSet(severity, false, true));
+            highlightingTypes.put(severity.getName(), new ExpectedHighlightingSet(severity, false, true));
           }
         }
         highlightingTypes.put(END_LINE_HIGHLIGHT_MARKER, new ExpectedHighlightingSet(HighlightSeverity.ERROR, true, true));
@@ -344,7 +346,8 @@ public class ExpectedHighlightingData {
     return toContinueFrom;
   }
 
-  private static final HighlightInfoType WHATEVER = new HighlightInfoType.HighlightInfoTypeImpl();
+  private static final HighlightInfoType WHATEVER = new HighlightInfoType.HighlightInfoTypeImpl(HighlightSeverity.INFORMATION,
+                                                                                                HighlighterColors.TEXT);
 
   public void checkLineMarkers(Collection<LineMarkerInfo> markerInfos, String text) {
     String fileName = myFile == null ? "" : myFile.getName() + ": ";

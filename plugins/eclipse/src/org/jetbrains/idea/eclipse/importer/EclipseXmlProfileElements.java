@@ -48,4 +48,30 @@ public interface EclipseXmlProfileElements {
   String OPTION_TAB_CHAR = "org.eclipse.jdt.core.formatter.tabulation.char";
   String OPTION_CONTINUATION_INDENT = "org.eclipse.jdt.core.formatter.continuation_indentation";
   String OPTION_TAB_SIZE = "org.eclipse.jdt.core.formatter.tabulation.size";
+
+  String OPTION_ALIGN_EXPR_IN_ARRAY_INITIALIZER = "org.eclipse.jdt.core.formatter.alignment_for_expressions_in_array_initializer";
+  String OPTION_ALIGN_ARGS_IN_ANNOTATION = "org.eclipse.jdt.core.formatter.alignment_for_arguments_in_annotation";
+  String OPTION_ALIGN_ARGS_IN_METHOD_INVOCATION = "org.eclipse.jdt.core.formatter.alignment_for_arguments_in_method_invocation";
+  String OPTION_ALIGN_SUPERCLASS_IN_TYPE_DECL = "org.eclipse.jdt.core.formatter.alignment_for_superclass_in_type_declaration";
+  String OPTION_ALIGN_INTERFACES_IN_TYPE_DECL = "org.eclipse.jdt.core.formatter.alignment_for_superinterfaces_in_type_declaration";
+  String OPTION_ALIGN_ASSIGNMENT = "org.eclipse.jdt.core.formatter.alignment_for_assignment";
+  String OPTION_ALIGN_METHOD_DECL_PARAMETERS = "org.eclipse.jdt.core.formatter.alignment_for_parameters_in_method_declaration";
+  String OPTION_ALIGN_BINARY_EXPR = "org.eclipse.jdt.core.formatter.alignment_for_binary_expression";
+  String OPTION_ALIGN_THROWS_IN_METHOD_DECL = "org.eclipse.jdt.core.formatter.alignment_for_throws_clause_in_method_declaration";
+  String OPTION_ALIGN_RESOURCES_IN_TRY = "org.eclipse.jdt.core.formatter.alignment_for_resources_in_try";
+  String OPTION_ALIGN_METHOD_DECL = "org.eclipse.jdt.core.formatter.alignment_for_method_declaration";
+  String OPTION_ALIGN_CHAINED_CALLS = "org.eclipse.jdt.core.formatter.alignment_for_selector_in_method_invocation";
+  String OPTION_ALIGN_CONDITIONALS = "org.eclipse.jdt.core.formatter.alignment_for_conditional_expression";
+
+  String OPTION_BLANK_LINES_BEFORE_FIRST_DECLARATION_IN_CLASS = "org.eclipse.jdt.core.formatter.blank_lines_before_first_class_body_declaration";
+  String OPTION_EMPTY_LINES_TO_PRESERVE = "org.eclipse.jdt.core.formatter.number_of_empty_lines_to_preserve";
+
+  int WRAP_MASK = 0x70;
+
+  int DO_NOT_WRAP                       = 0x00;
+  int WRAP_WHERE_NECESSARY              = 0x10;
+  int WRAP_FIRST_OTHERS_WHERE_NECESSARY = 0x20;
+  int WRAP_ALL_ON_NEW_LINE_EACH         = 0x30;
+  int WRAP_ALL_INDENT_EXCEPT_FIRST      = 0x40;
+  int WRAP_ALL_EXCEPT_FIRST             = 0x50;
 }

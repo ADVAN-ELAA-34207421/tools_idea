@@ -19,11 +19,11 @@ import com.google.common.collect.Lists;
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.ExecutionResult;
 import com.intellij.execution.configurations.*;
+import com.intellij.execution.console.LanguageConsoleBuilder;
 import com.intellij.execution.executors.DefaultDebugExecutor;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.runners.GenericProgramRunner;
-import com.intellij.execution.runners.LanguageConsoleBuilder;
 import com.intellij.execution.ui.ExecutionConsole;
 import com.intellij.execution.ui.RunContentDescriptor;
 import com.intellij.openapi.application.ApplicationManager;
@@ -76,9 +76,9 @@ public class PyDebugRunner extends GenericProgramRunner {
            ((AbstractPythonRunConfiguration)profile).canRunWithCoverage();
   }
 
-  protected RunContentDescriptor doExecute(final Project project, RunProfileState profileState,
+  protected RunContentDescriptor doExecute(@NotNull final Project project, @NotNull RunProfileState profileState,
                                            RunContentDescriptor contentToReuse,
-                                           ExecutionEnvironment env) throws ExecutionException {
+                                           @NotNull ExecutionEnvironment env) throws ExecutionException {
     FileDocumentManager.getInstance().saveAllDocuments();
 
     final PythonCommandLineState pyState = (PythonCommandLineState)profileState;
@@ -133,7 +133,7 @@ public class PyDebugRunner extends GenericProgramRunner {
       pythonConsoleView.setExecutionHandler(consoleExecuteActionHandler);
 
       debugProcess.getSession().addSessionListener(consoleExecuteActionHandler);
-      new LanguageConsoleBuilder().console(pythonConsoleView).processHandler(processHandler).initActions(consoleExecuteActionHandler, "py");
+      new LanguageConsoleBuilder(pythonConsoleView).processHandler(processHandler).initActions(consoleExecuteActionHandler, "py");
     }
   }
 

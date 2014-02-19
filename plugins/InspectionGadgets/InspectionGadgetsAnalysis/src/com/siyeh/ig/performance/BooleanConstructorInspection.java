@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2013 Dave Griffith, Bas Leijdekkers
+ * Copyright 2003-2014 Dave Griffith, Bas Leijdekkers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import com.siyeh.InspectionGadgetsBundle;
 import com.siyeh.ig.BaseInspection;
 import com.siyeh.ig.BaseInspectionVisitor;
 import com.siyeh.ig.InspectionGadgetsFix;
+import com.siyeh.ig.PsiReplacementUtil;
 import com.siyeh.ig.psiutils.ClassUtils;
 import com.siyeh.ig.psiutils.ParenthesesUtils;
 import org.jetbrains.annotations.NonNls;
@@ -127,7 +128,7 @@ public class BooleanConstructorInspection extends BaseInspection {
         }
         newExpression = buildText(argument, methodFound);
       }
-      replaceExpression(expression, newExpression);
+      PsiReplacementUtil.replaceExpression(expression, newExpression);
     }
 
     @NonNls
@@ -172,7 +173,7 @@ public class BooleanConstructorInspection extends BaseInspection {
       if (expressions.length != 1) {
         return;
       }
-      registerError(expression);
+      registerNewExpressionError(expression);
     }
   }
 }

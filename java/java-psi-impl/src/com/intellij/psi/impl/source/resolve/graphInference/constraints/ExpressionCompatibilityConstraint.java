@@ -50,7 +50,7 @@ public class ExpressionCompatibilityConstraint extends InputOutputConstraintForm
       }
     
       final PsiType exprType = myExpression.getType();
-      if (exprType != null && !exprType.equals(PsiType.NULL)) {
+      if (exprType != null) {
         constraints.add(new TypeCompatibilityConstraint(myT, exprType));
       }
       return true;
@@ -108,11 +108,11 @@ public class ExpressionCompatibilityConstraint extends InputOutputConstraintForm
           PsiSubstitutor substitutor = PsiSubstitutor.EMPTY;
           if (pair == null) {
             if (method != null) {
-              InferenceSession callSession = new InferenceSession(typeParams, ((MethodCandidateInfo)resolveResult).getSiteSubstitutor(), myExpression.getManager());
+              InferenceSession callSession = new InferenceSession(typeParams, ((MethodCandidateInfo)resolveResult).getSiteSubstitutor(), myExpression.getManager(), myExpression);
               final PsiExpression[] args = argumentList.getExpressions();
               final PsiParameter[] parameters = method.getParameterList().getParameters();
               callSession.initExpressionConstraints(parameters, args, myExpression, method);
-              substitutor = callSession.infer(parameters, args, myExpression, LiftParameterTypeInferencePolicy.INSTANCE);
+              substitutor = callSession.infer(parameters, args, myExpression, true, LiftParameterTypeInferencePolicy.INSTANCE);
             }
           } else {
             substitutor = pair.second;

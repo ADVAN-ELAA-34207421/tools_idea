@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -261,7 +261,7 @@ public class PyPackageManagerImpl extends PyPackageManager {
             }
           }, ModalityState.current());
         }
-        if (warning[0] != 0) return true;
+        if (warning[0] != Messages.YES) return true;
       }
       catch (PyExternalProcessException e) {
         LOG.info("Error loading packages dependents: " + e.getMessage(), e);

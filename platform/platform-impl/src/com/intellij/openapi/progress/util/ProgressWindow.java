@@ -22,6 +22,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.DialogWrapperPeer;
+import com.intellij.openapi.ui.impl.DialogWrapperPeerImpl;
 import com.intellij.openapi.ui.impl.FocusTrackbackProvider;
 import com.intellij.openapi.ui.impl.GlassPaneDialogWrapperPeer;
 import com.intellij.openapi.util.*;
@@ -612,6 +613,14 @@ public class ProgressWindow extends BlockingProgressIndicator implements Disposa
                 ? new MyDialogWrapper(myParentWindow, myShouldShowCancel)
                 : new MyDialogWrapper(myProject, myShouldShowCancel);
       myPopup.setUndecorated(true);
+      if (SystemInfo.isAppleJvm) {
+        // With Apple JDK we look for MacMessage parent by the window title.
+        // Let's set just the title as the window title for simplicity.
+        myPopup.setTitle(myTitle);
+      }
+      if (myPopup.getPeer() instanceof DialogWrapperPeerImpl) {
+        ((DialogWrapperPeerImpl)myPopup.getPeer()).setAutoRequestFocus(false);
+      }
       myPopup.pack();
 
       SwingUtilities.invokeLater(new Runnable() {

@@ -25,6 +25,8 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.popup.JBPopup;
+import com.intellij.openapi.ui.popup.JBPopupFactory;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
@@ -148,9 +150,11 @@ public abstract class TreeInplaceEditor implements AWTEventListener {
         cancelEditing();
       }
     };
+    tree.addComponentListener(componentListener);
     rootPane.addComponentListener(componentListener);
     myRemoveActions.add(new Runnable() {
       public void run() {
+        tree.addComponentListener(componentListener);
         rootPane.removeComponentListener(componentListener);
       }
     });
@@ -214,12 +218,7 @@ public abstract class TreeInplaceEditor implements AWTEventListener {
     }
 
     final int id = mouseEvent.getID();
-    if (id == MouseEvent.MOUSE_WHEEL) {
-      cancelEditing();
-      return;
-    }
-
-    if (id != MouseEvent.MOUSE_PRESSED && id != MouseEvent.MOUSE_RELEASED && id != MouseEvent.MOUSE_CLICKED) {
+    if (id != MouseEvent.MOUSE_PRESSED && id != MouseEvent.MOUSE_RELEASED && id != MouseEvent.MOUSE_CLICKED && id != MouseEvent.MOUSE_WHEEL) {
       return;
     }
     
@@ -239,6 +238,14 @@ public abstract class TreeInplaceEditor implements AWTEventListener {
       }
     }
 
+    // do not cancel editing if we click in editor popup
+    final List<JBPopup> popups = JBPopupFactory.getInstance().getChildPopups(myInplaceEditorComponent);
+    for (JBPopup popup : popups) {
+      if (SwingUtilities.isDescendingFrom(sourceComponent, popup.getContent())) {
+        return;
+      }
+    }
+
     final Point point = SwingUtilities.convertPoint(sourceComponent, originalPoint, myInplaceEditorComponent);
     if (myInplaceEditorComponent.contains(point)) {
       return;
@@ -246,7 +253,9 @@ public abstract class TreeInplaceEditor implements AWTEventListener {
     final Component componentAtPoint = SwingUtilities.getDeepestComponentAt(sourceComponent, originalPoint.x, originalPoint.y);
     for (Component comp = componentAtPoint; comp != null; comp = comp.getParent()) {
       if (comp instanceof ComboPopup) {
-        doOKAction();
+        if (id != MouseEvent.MOUSE_WHEEL) {
+          doOKAction();
+        }
         return;
       }
     }

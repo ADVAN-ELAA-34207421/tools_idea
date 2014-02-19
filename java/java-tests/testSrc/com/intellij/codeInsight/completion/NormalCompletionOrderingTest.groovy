@@ -117,10 +117,6 @@ public class NormalCompletionOrderingTest extends CompletionSortingTestCase {
     checkPreferredItems(0, "aabbb", "aaa");
   }
 
-  public void testDispreferDeclaredOfExpectedType() throws Throwable {
-    checkPreferredItems(0, "aabbb", "aaa");
-  }
-
   public void testDispreferImpls() throws Throwable {
     myFixture.addClass("package foo; public class Xxx {}");
     configureSecondCompletion();
@@ -456,7 +452,7 @@ interface TxANotAnno {}
     myFixture.addClass('public class fooAClass {}')
     configureNoCompletion(getTestName(false) + ".java");
     myFixture.complete(CompletionType.BASIC, 2);
-    assertPreferredItems(0, 'fooy', 'fooAClass', 'fooBar', 'foox');
+    assertPreferredItems(0, 'fooy', 'foox', 'fooAClass', 'fooBar');
   }
 
   public void testChangePreselectionOnSecondInvocation() {
@@ -614,6 +610,22 @@ interface TxANotAnno {}
     myFixture.completeBasic()
     myFixture.type('set')
     assertPreferredItems 0, 'setText', 'setOurText'
+  }
+
+  public void testPreferString() {
+    checkPreferredItems 0, 'String', 'System', 'Set'
+  }
+
+  public void testAnnotationEnum() {
+    checkPreferredItems 0, 'MyEnum.BAR', 'MyEnum', 'MyEnum.FOO'
+  }
+
+  public void testGlobalStaticMemberStats() {
+    configureNoCompletion(getTestName(false) + ".java")
+    myFixture.complete(CompletionType.BASIC, 2)
+    assertPreferredItems 0, 'newLinkedSet0', 'newLinkedSet1', 'newLinkedSet2'
+    incUseCount lookup, 1
+    assertPreferredItems 0, 'newLinkedSet1', 'newLinkedSet0', 'newLinkedSet2'
   }
 
 }

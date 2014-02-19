@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ public class MethodResolverProcessor extends ResolverProcessor implements GrMeth
   private boolean myStopExecuting = false;
 
   private final boolean myByShape;
-  
+
   private final SubstitutorComputer mySubstitutorComputer;
 
   private final boolean myTypedContext;
@@ -88,44 +88,54 @@ public class MethodResolverProcessor extends ResolverProcessor implements GrMeth
     myAllVariants = allVariants;
     myByShape = byShape;
 
-    mySubstitutorComputer = new SubstitutorComputer(thisType, argumentTypes, typeArguments, allVariants, place, myPlace.getParent());
+    mySubstitutorComputer = new SubstitutorComputer(myThisType, myArgumentTypes, typeArguments, myAllVariants, myPlace, myPlace.getParent());
     myTypedContext = GppTypeConverter.hasTypedContext(myPlace);
   }
 
 
+  @Override
   public boolean execute(@NotNull PsiElement element, @NotNull ResolveState state) {
     if (myStopExecuting) {
       return false;
     }
-    PsiSubstitutor substitutor = state.get(PsiSubstitutor.KEY);
     if (element instanceof PsiMethod) {
       PsiMethod method = (PsiMethod) element;
 
       if (method.isConstructor() != myIsConstructor) return true;
-      if (substitutor == null) substitutor = PsiSubstitutor.EMPTY;
-      if (!myByShape) {
-        substitutor = mySubstitutorComputer.obtainSubstitutor(substitutor, method, state);
-      }
+
+      PsiSubstitutor substitutor = inferSubstitutor(method, state);
 
       PsiElement resolveContext = state.get(RESOLVE_CONTEXT);
       final SpreadState spreadState = state.get(SpreadState.SPREAD_STATE);
 
       boolean isAccessible = isAccessible(method);
       boolean isStaticsOK = isStaticsOK(method, resolveContext, true);
+      boolean isApplicable = PsiUtil.isApplicable(myArgumentTypes, method, substitutor, myPlace, myByShape);
+      boolean isValidResult = isStaticsOK && isAccessible && isApplicable;
 
-      if (!myAllVariants && isStaticsOK && isAccessible && PsiUtil.isApplicable(myArgumentTypes, method, substitutor, myPlace, myByShape)) {
-        addCandidate(new GroovyResolveResultImpl(method, resolveContext, spreadState, substitutor, isAccessible, isStaticsOK));
+      GroovyResolveResultImpl candidate = new GroovyResolveResultImpl(method, resolveContext, spreadState, substitutor, isAccessible, isStaticsOK, false, isValidResult);
+
+      if (!myAllVariants && isValidResult) {
+        addCandidate(candidate);
       }
       else {
-        myInapplicableCandidates.add(new GroovyResolveResultImpl(method, resolveContext, spreadState, substitutor, isAccessible, isStaticsOK));
+        myInapplicableCandidates.add(candidate);
       }
-
-      return true;
     }
 
     return true;
   }
 
+  @NotNull
+  private PsiSubstitutor inferSubstitutor(@NotNull PsiMethod method, @NotNull ResolveState state) {
+    PsiSubstitutor substitutor = state.get(PsiSubstitutor.KEY);
+    if (substitutor == null) substitutor = PsiSubstitutor.EMPTY;
+
+    return myByShape ? substitutor
+                     : mySubstitutorComputer.obtainSubstitutor(substitutor, method, state);
+  }
+
+  @Override
   @NotNull
   public GroovyResolveResult[] getCandidates() {
     if (!myAllVariants && super.hasCandidates()) {
@@ -148,7 +158,7 @@ public class MethodResolverProcessor extends ResolverProcessor implements GrMeth
         result.add(candidate);
       }
     }
-    if (result.size() > 0) return result;
+    if (!result.isEmpty()) return result;
     return candidates;
   }
 
@@ -220,7 +230,7 @@ public class MethodResolverProcessor extends ResolverProcessor implements GrMeth
 
     return 0;
   }
-  
+
   private static boolean isMoreConcreteThan(@NotNull PsiMethod method,
                                             @NotNull final PsiSubstitutor substitutor,
                                             @NotNull PsiMethod another,
@@ -230,7 +240,7 @@ public class MethodResolverProcessor extends ResolverProcessor implements GrMeth
       final PsiParameter[] plusParameters = method.getParameterList().getParameters();
       final PsiParameter[] defParameters = another.getParameterList().getParameters();
 
-      final PsiType[] paramTypes = new PsiType[plusParameters.length];
+      final PsiType[] paramTypes = PsiType.createArray(plusParameters.length);
       for (int i = 0; i < paramTypes.length; i++) {
         paramTypes[i] = eliminateOneMethodInterfaces(plusParameters[i], defParameters, i);
 
@@ -270,7 +280,7 @@ public class MethodResolverProcessor extends ResolverProcessor implements GrMeth
       method1 = ((GrGdkMethod)method1).getStaticMethod();
       method2 = ((GrGdkMethod)method2).getStaticMethod();
       if (myArgumentTypes != null) {
-        argTypes = new PsiType[argTypes.length + 1];
+        argTypes = PsiType.createArray(argTypes.length + 1);
         System.arraycopy(myArgumentTypes, 0, argTypes, 1, myArgumentTypes.length);
         argTypes[0] = myThisType;
       }
@@ -345,6 +355,7 @@ public class MethodResolverProcessor extends ResolverProcessor implements GrMeth
   }
 
 
+  @Override
   public boolean hasCandidates() {
     return super.hasCandidates() || !myInapplicableCandidates.isEmpty();
   }
@@ -353,6 +364,7 @@ public class MethodResolverProcessor extends ResolverProcessor implements GrMeth
     return super.hasCandidates();
   }
 
+  @Override
   @Nullable
   public PsiType[] getArgumentTypes() {
     return myArgumentTypes;

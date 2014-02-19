@@ -214,7 +214,7 @@ public final class HgCommandExecutor {
       ShellCommand shellCommand = new ShellCommand(cmdLine, workingDir, myCharset);
       long startTime = System.currentTimeMillis();
       LOG.debug(String.format("hg %s started", operation));
-      result = shellCommand.execute();
+      result = shellCommand.execute(myShowOutput);
       LOG.debug(String.format("hg %s finished. Took %s ms", operation, System.currentTimeMillis() - startTime));
       if (!HgErrorUtil.isAuthorizationError(result)) {
         passReceiver.saveCredentials();

@@ -45,8 +45,12 @@ import com.intellij.openapi.util.io.FileSystemUtil;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.CharFilter;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vfs.*;
+import com.intellij.openapi.vfs.JarFileSystem;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VfsUtilCore;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
+import com.intellij.reference.SoftReference;
 import com.intellij.remotesdk.RemoteSdkData;
 import com.intellij.remotesdk.RemoteSdkDataHolder;
 import com.intellij.ui.awt.RelativePoint;
@@ -76,6 +80,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.File;
 import java.io.FilenameFilter;
+import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.List;
@@ -143,6 +148,10 @@ public class PythonSdkType extends SdkType {
   @NonNls
   @Nullable
   public String suggestHomePath() {
+    final String pythonFromPath = findPythonInPath();
+    if (pythonFromPath != null) {
+      return pythonFromPath;
+    }
     for (PythonSdkFlavor flavor : PythonSdkFlavor.getApplicableFlavors()) {
       TreeSet<String> candidates = createVersionSet();
       candidates.addAll(flavor.suggestHomePaths());
@@ -150,6 +159,23 @@ public class PythonSdkType extends SdkType {
         // return latest version
         String[] candidateArray = ArrayUtil.toStringArray(candidates);
         return candidateArray[candidateArray.length - 1];
+      }
+    }
+    return null;
+  }
+
+  @Nullable
+  private static String findPythonInPath() {
+    final String defaultCommand = SystemInfo.isWindows ? "python.exe" : "python";
+    final String path = System.getenv("PATH");
+    for (String root : path.split(File.pathSeparator)) {
+      final File file = new File(root, defaultCommand);
+      if (file.exists()) {
+        try {
+          return file.getCanonicalPath();
+        }
+        catch (IOException ignored) {
+        }
       }
     }
     return null;
@@ -254,15 +280,16 @@ public class PythonSdkType extends SdkType {
 
   public void showCustomCreateUI(SdkModel sdkModel, final JComponent parentComponent, final Consumer<Sdk> sdkCreatedCallback) {
     Project project = CommonDataKeys.PROJECT.getData(DataManager.getInstance().getDataContext(parentComponent));
-    InterpreterPathChooser.show(project, sdkModel.getSdks(), RelativePoint.getCenterOf(parentComponent), true, new NullableConsumer<Sdk>() {
-      @Override
-      public void consume(@Nullable Sdk sdk) {
-        if (sdk != null) {
-          sdk.putUserData(SDK_CREATOR_COMPONENT_KEY, new WeakReference<Component>(parentComponent));
-          sdkCreatedCallback.consume(sdk);
+    PythonSdkDetailsStep
+      .show(project, sdkModel.getSdks(), null, RelativePoint.getCenterOf(parentComponent), true, new NullableConsumer<Sdk>() {
+        @Override
+        public void consume(@Nullable Sdk sdk) {
+          if (sdk != null) {
+            sdk.putUserData(SDK_CREATOR_COMPONENT_KEY, new WeakReference<Component>(parentComponent));
+            sdkCreatedCallback.consume(sdk);
+          }
         }
-      }
-    });
+      });
   }
 
   public static boolean isVirtualEnv(Sdk sdk) {
@@ -460,11 +487,8 @@ public class PythonSdkType extends SdkType {
 
   public void setupSdkPaths(@NotNull final Sdk sdk) {
     final Project project;
-    Component ownerComponent = null;
     final WeakReference<Component> ownerComponentRef = sdk.getUserData(SDK_CREATOR_COMPONENT_KEY);
-    if (ownerComponentRef != null) {
-      ownerComponent = ownerComponentRef.get();
-    }
+    Component ownerComponent = SoftReference.dereference(ownerComponentRef);
     if (ownerComponent != null) {
       project = CommonDataKeys.PROJECT.getData(DataManager.getInstance().getDataContext(ownerComponent));
     }

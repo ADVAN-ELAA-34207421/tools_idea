@@ -73,6 +73,7 @@ public class SvnUtil {
   @NonNls public static final String WC_DB_FILE_NAME = "wc.db";
   @NonNls public static final String DIR_PROPS_FILE_NAME = "dir-props";
   @NonNls public static final String PATH_TO_LOCK_FILE = SVN_ADMIN_DIR_NAME + "/lock";
+  public static final int DEFAULT_PORT_INDICATOR = -1;
   private static final Logger LOG = Logger.getInstance("#org.jetbrains.idea.svn.SvnUtil");
 
   public static final Pattern ERROR_PATTERN = Pattern.compile("^svn: (E(\\d+)): (.*)$", Pattern.MULTILINE);
@@ -149,12 +150,6 @@ public class SvnUtil {
   public static String getExactLocation(final SvnVcs vcs, File path) {
     SVNInfo info = vcs.getInfo(path);
     return info != null && info.getURL() != null ? info.getURL().toString() : null;
-  }
-
-  public static Map<String, File> getLocationInfoForModule(final SvnVcs vcs, File path, ProgressIndicator progress) {
-    final LocationsCrawler crawler = new LocationsCrawler(vcs);
-    crawlWCRoots(vcs.getProject(), path, crawler, progress);
-    return crawler.getLocationInfos();
   }
 
   public static void doLockFiles(Project project, final SvnVcs activeVcs, @NotNull final File[] ioFiles) throws VcsException {
@@ -348,12 +343,7 @@ public class SvnUtil {
 
   public static <T> MultiMap<Pair<SVNURL, WorkingCopyFormat>, T> splitIntoRepositoriesMap(SvnVcs vcs,
     List<T> committables, Convertor<T, File> convertor) {
-    final MultiMap<Pair<SVNURL, WorkingCopyFormat>, T> result = new MultiMap<Pair<SVNURL, WorkingCopyFormat>, T>() {
-      @Override
-      protected Collection<T> createCollection() {
-        return new ArrayList<T>();
-      }
-    };
+    final MultiMap<Pair<SVNURL, WorkingCopyFormat>, T> result = MultiMap.create();
     for (T committable : committables) {
       final RootUrlInfo path = vcs.getSvnFileUrlMapping().getWcRootForFilePath(convertor.convert(committable));
       if (path == null) {
@@ -416,35 +406,6 @@ public class SvnUtil {
     }
 
     return result;
-  }
-
-  private static class LocationsCrawler implements SvnWCRootCrawler {
-    private final SvnVcs myVcs;
-    private final Map<String, File> myLocations;
-
-    public LocationsCrawler(SvnVcs vcs) {
-      myVcs = vcs;
-      myLocations = new HashMap<String, File>();
-    }
-
-    public Map<String, File> getLocationInfos() {
-      return Collections.unmodifiableMap(myLocations);
-    }
-
-    public void handleWorkingCopyRoot(File root, ProgressIndicator progress) {
-      String oldText = null;
-      if (progress != null) {
-        oldText = progress.getText();
-        progress.setText(SvnBundle.message("progress.text.discovering.location", root.getAbsolutePath()));
-      }
-      SVNInfo info = myVcs.getInfo(root);
-      if (info != null && info.getURL() != null) {
-        myLocations.put(info.getURL().toString(), info.getFile());
-      }
-      if (progress != null) {
-        progress.setText(oldText);
-      }
-    }
   }
 
   @Nullable
@@ -573,6 +534,7 @@ public class SvnUtil {
       return repository.hasCapability(SVNCapability.MERGE_INFO);
     }
     catch (SVNException e) {
+      // TODO: Exception is thrown when url just not exist (was deleted, for instance) => and false is returned which seems not to be correct.
       return false;
     }
     finally {
@@ -743,7 +705,24 @@ public class SvnUtil {
     }
   }
 
-  public static String appendMultiParts(@NotNull final String base, @NotNull final String subPath) throws SVNException {
+  public static String getRelativeUrl(@NotNull String parentUrl, @NotNull String childUrl) {
+    return FileUtilRt.getRelativePath(parentUrl, childUrl, '/', true);
+  }
+
+  public static String getRelativePath(@NotNull String parentPath, @NotNull String childPath) {
+    return  FileUtilRt.getRelativePath(FileUtil.toSystemIndependentName(parentPath), FileUtil.toSystemIndependentName(childPath), '/');
+  }
+
+  public static String ensureStartSlash(@NotNull String path) {
+    return StringUtil.startsWithChar(path, '/') ? path : '/' + path;
+  }
+
+  @NotNull
+  public static String join(@NotNull final String... parts) {
+    return StringUtil.join(parts, "/");
+  }
+
+  public static String appendMultiParts(@NotNull final String base, @NotNull final String subPath) {
     if (StringUtil.isEmpty(subPath)) return base;
     final List<String> parts = StringUtil.split(subPath.replace('\\', '/'), "/", true);
     String result = base;
@@ -768,9 +747,32 @@ public class SvnUtil {
                                        @Nullable final SVNRevision revision,
                                        @Nullable final SVNRevision pegRevision)
     throws VcsException {
-    ClientFactory factory = target.isFile() ? vcs.getFactory(target.getFile()) : vcs.getFactory();
+    return vcs.getFactory(target).createContentClient().getContent(target, revision, pegRevision);
+  }
 
-    return factory.createContentClient().getContent(target, revision, pegRevision);
+  public static boolean hasDefaultPort(@NotNull SVNURL result) {
+    return !result.hasPort() || SVNURL.getDefaultPortNumber(result.getProtocol()) == result.getPort();
+  }
+
+  /**
+   * When creating SVNURL with default port, some negative value should be specified as port number, otherwise specified port value (even
+   * if equals to default) will occur in toString() result.
+   */
+  public static int resolvePort(@NotNull SVNURL url) {
+    return !hasDefaultPort(url) ? url.getPort() : DEFAULT_PORT_INDICATOR;
+  }
+
+  @NotNull
+  public static SVNURL createUrl(@NotNull String url) throws SVNException {
+    SVNURL result = SVNURL.parseURIEncoded(url);
+
+    // explicitly check if port corresponds to default port and recreate url specifying default port indicator
+    if (result.hasPort() && hasDefaultPort(result)) {
+      result = SVNURL
+        .create(result.getProtocol(), result.getUserInfo(), result.getHost(), DEFAULT_PORT_INDICATOR, result.getURIEncodedPath(), true);
+    }
+
+    return result;
   }
 
   public static SVNURL parseUrl(@NotNull String url) {

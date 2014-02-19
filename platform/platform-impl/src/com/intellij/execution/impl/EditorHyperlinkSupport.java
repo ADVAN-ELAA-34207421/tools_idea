@@ -18,6 +18,7 @@ package com.intellij.execution.impl;
 import com.intellij.execution.filters.Filter;
 import com.intellij.execution.filters.FilterMixin;
 import com.intellij.execution.filters.HyperlinkInfo;
+import com.intellij.execution.filters.HyperlinkInfoBase;
 import com.intellij.ide.OccurenceNavigator;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
@@ -36,6 +37,7 @@ import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
 import com.intellij.pom.NavigatableAdapter;
+import com.intellij.ui.awt.RelativePoint;
 import com.intellij.util.BeforeAfter;
 import com.intellij.util.Consumer;
 import com.intellij.util.SmartList;
@@ -87,7 +89,12 @@ public class EditorHyperlinkSupport {
           if (range != null) {
             final HyperlinkInfo info = myHighlighterToMessageInfoMap.get(range);
             if (info != null) {
-              info.navigate(project);
+              if (info instanceof HyperlinkInfoBase) {
+                ((HyperlinkInfoBase)info).navigate(project, new RelativePoint(mouseEvent));
+              }
+              else {
+                info.navigate(project);
+              }
               linkFollowed(editor, getHyperlinks().keySet(), range);
             }
           }
@@ -322,6 +329,10 @@ public class EditorHyperlinkSupport {
                                                                    Collection<RangeHighlighter> sortedHighlighters,
                                                                    final int delta,
                                                                    final Consumer<RangeHighlighter> action) {
+    if (sortedHighlighters.isEmpty()) {
+      return null;
+    }
+
     final List<RangeHighlighter> ranges = new ArrayList<RangeHighlighter>(sortedHighlighters);
     int i;
     for (i = 0; i < ranges.size(); i++) {
@@ -330,8 +341,8 @@ public class EditorHyperlinkSupport {
         break;
       }
     }
-    int initial = i > 0 ? i % ranges.size() : 0;
-    int newIndex = initial;
+    i = i % ranges.size();
+    int newIndex = i;
     while (newIndex < ranges.size() && newIndex >= 0) {
       newIndex = (newIndex + delta + ranges.size()) % ranges.size();
       final RangeHighlighter next = ranges.get(newIndex);
@@ -343,7 +354,7 @@ public class EditorHyperlinkSupport {
           }
         }, newIndex == -1 ? -1 : newIndex + 1, ranges.size());
       }
-      if (newIndex == initial) {
+      if (newIndex == i) {
         break; // cycled through everything, found no next/prev hyperlink
       }
     }

@@ -100,6 +100,20 @@ public class NormalCompletionTest extends LightFixtureCompletionTestCase {
     assert "Param2" == presentation.itemText
     assert presentation.tailText == " (type parameter of goo)"
   }
+  
+  public void testDisplayDefaultValueInAnnotationMethods() {
+    configure()
+    LookupElementPresentation presentation = renderElement(myItems[0])
+    assert "myBool" == presentation.itemText
+    assert presentation.tailText == " default false"
+    assert presentation.tailFragments[0].grayed
+    assert !presentation.typeText
+    assert !presentation.itemTextBold
+
+    presentation = renderElement(myItems[1])
+    assert "myString" == presentation.itemText
+    assert presentation.tailText == ' default "unknown"'
+  }
 
   public void testMethodItemPresentation() {
     configure()
@@ -1129,6 +1143,7 @@ class XInternalError {}
     """)
     assertOneElement myFixture.completeBasic()
   }
+  public void testStaticallyImportedFieldsTwiceSwitch() { doTest() }
 
   public void testStatementKeywords() {
     myFixture.configureByText("a.java", """
@@ -1355,8 +1370,7 @@ class Foo {{
     myFixture.configureByText "a.java", """
 class Foo extends my<caret>
 """
-    myFixture.completeBasic()
-    myFixture.type('\n')
+    myFixture.complete(CompletionType.BASIC, 2)
     myFixture.checkResult '''import foo.myClass;
 
 class Foo extends myClass
@@ -1389,5 +1403,12 @@ class Bar {
   }
 
   public void testNoMathTargetMethods() { doAntiTest() }
+
+  public void testNoLowercaseClasses() {
+    myFixture.addClass("package foo; public class abcdefgXxx {}")
+    doAntiTest()
+    myFixture.complete(CompletionType.BASIC, 2)
+    assertStringItems('abcdefgXxx')
+  }
 
 }

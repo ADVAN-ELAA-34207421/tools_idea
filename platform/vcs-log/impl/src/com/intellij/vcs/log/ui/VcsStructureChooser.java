@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -202,7 +202,7 @@ public class VcsStructureChooser extends DialogWrapper {
 
     new ClickListener() {
       @Override
-      public boolean onClick(MouseEvent e, int clickCount) {
+      public boolean onClick(@NotNull MouseEvent e, int clickCount) {
         int row = myTree.getRowForLocation(e.getX(), e.getY());
         if (row < 0) return false;
         final Object o = myTree.getPathForRow(row).getLastPathComponent();
@@ -300,7 +300,7 @@ public class VcsStructureChooser extends DialogWrapper {
           if (idx != null && idx.length > 0) {
             final int answer = Messages
               .showYesNoDialog(myProject, "Remove selected paths from filter?", "Remove from filter", Messages.getQuestionIcon());
-            if (Messages.OK == answer) {
+            if (Messages.YES == answer) {
               Arrays.sort(idx);
               for (int i = idx.length - 1; i >= 0; --i) {
                 int i1 = idx[i];

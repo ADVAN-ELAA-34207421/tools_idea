@@ -22,24 +22,27 @@ import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.TextRange;
+import com.intellij.openapi.vcs.changes.issueLinks.LinkMouseListenerBase;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.ui.SimpleColoredComponent;
 import com.intellij.ui.SimpleColoredText;
+import com.intellij.util.Consumer;
 import com.intellij.xdebugger.XDebugSession;
 import com.intellij.xdebugger.XDebuggerUtil;
 import com.intellij.xdebugger.XSourcePosition;
 import com.intellij.xdebugger.evaluation.XDebuggerEvaluator;
+import com.intellij.xdebugger.frame.XDebuggerTreeNodeHyperlink;
 import com.intellij.xdebugger.frame.XFullValueEvaluator;
 import com.intellij.xdebugger.frame.XValue;
 import com.intellij.xdebugger.frame.XValuePlace;
 import com.intellij.xdebugger.frame.presentation.XValuePresentation;
 import com.intellij.xdebugger.impl.XDebugSessionImpl;
-import com.intellij.xdebugger.impl.actions.XDebuggerActions;
 import com.intellij.xdebugger.impl.actions.handlers.XDebuggerEvaluateActionHandler;
 import com.intellij.xdebugger.impl.evaluate.quick.common.AbstractValueHint;
 import com.intellij.xdebugger.impl.evaluate.quick.common.ValueHintType;
 import com.intellij.xdebugger.impl.frame.XValueMarkers;
+import com.intellij.xdebugger.impl.ui.DebuggerUIUtil;
 import com.intellij.xdebugger.impl.ui.XDebuggerUIConstants;
-import com.intellij.xdebugger.impl.ui.tree.XDebuggerTree;
 import com.intellij.xdebugger.impl.ui.tree.nodes.XEvaluationCallbackBase;
 import com.intellij.xdebugger.impl.ui.tree.nodes.XValueNodeImpl;
 import com.intellij.xdebugger.impl.ui.tree.nodes.XValueNodePresentationConfigurator;
@@ -48,6 +51,7 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseEvent;
 
 /**
  * @author nik
@@ -83,17 +87,33 @@ public class XValueHint extends AbstractValueHint {
       @Override
       public void evaluated(@NotNull final XValue result) {
         result.computePresentation(new XValueNodePresentationConfigurator.ConfigurableXValueNodeImpl() {
+          private XFullValueEvaluator myFullValueEvaluator;
+
           @Override
           public void applyPresentation(@Nullable Icon icon,
                                         @NotNull XValuePresentation valuePresenter,
                                         boolean hasChildren) {
-            if (isHintHidden()) return;
+            if (isHintHidden()) {
+              return;
+            }
 
             SimpleColoredText text = new SimpleColoredText();
             text.append(myExpression, XDebuggerUIConstants.VALUE_NAME_ATTRIBUTES);
             XValueNodeImpl.buildText(valuePresenter, text);
+
             if (!hasChildren) {
-              showHint(HintUtil.createInformationLabel(text));
+              SimpleColoredComponent component = HintUtil.createInformationComponent();
+              text.appendToComponent(component);
+              if (myFullValueEvaluator != null) {
+                component.append(myFullValueEvaluator.getLinkText(), XDebuggerTreeNodeHyperlink.TEXT_ATTRIBUTES, new Consumer<MouseEvent>() {
+                  @Override
+                  public void consume(MouseEvent event) {
+                    DebuggerUIUtil.showValuePopup(myFullValueEvaluator, event, getProject(), getEditor());
+                  }
+                });
+                LinkMouseListenerBase.installSingleTagOn(component);
+              }
+              showHint(component);
             }
             else if (getType() == ValueHintType.MOUSE_CLICK_HINT) {
               showTree(result, myExpression);
@@ -111,13 +131,12 @@ public class XValueHint extends AbstractValueHint {
 
           @Override
           public void setFullValueEvaluator(@NotNull XFullValueEvaluator fullValueEvaluator) {
-            //todo[nik] implement?
+            myFullValueEvaluator = fullValueEvaluator;
           }
 
           @Override
           public boolean isObsolete() {
-            //todo[nik]
-            return false;
+            return isHintHidden();
           }
         }, XValuePlace.TOOLTIP);
       }
@@ -131,10 +150,9 @@ public class XValueHint extends AbstractValueHint {
 
   private void showTree(final XValue value, final String name) {
     XValueMarkers<?,?> valueMarkers = ((XDebugSessionImpl)myDebugSession).getValueMarkers();
-    XDebuggerTree tree = new XDebuggerTree(myDebugSession.getProject(), myDebugSession.getDebugProcess().getEditorsProvider(),
-                                           myDebugSession.getCurrentPosition(), XDebuggerActions.INSPECT_TREE_POPUP_GROUP, valueMarkers);
-    tree.getModel().addTreeModelListener(createTreeListener(tree));
-    XValueHintTreeComponent component = new XValueHintTreeComponent(this, tree, Pair.create(value, name));
-    showTreePopup(component, tree, name);
+    Pair<XValue, String> pair = Pair.create(value, name);
+    XDebuggerTreeCreator creator = new XDebuggerTreeCreator(myDebugSession.getProject(), myDebugSession.getDebugProcess().getEditorsProvider(),
+                                                            myDebugSession.getCurrentPosition(), valueMarkers);
+    showTreePopup(creator, pair);
   }
 }

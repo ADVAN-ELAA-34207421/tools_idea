@@ -42,6 +42,7 @@ public class StringUtil extends StringUtilRt {
   private static final Logger LOG = Logger.getInstance("#com.intellij.openapi.util.text.StringUtil");
 
   @NonNls private static final String VOWELS = "aeiouy";
+  @NonNls private static final Pattern EOL_SPLIT_KEEP_SEPARATORS = Pattern.compile("(?<=(\r\n|\n))|(?<=\r)(?=[^\n])");
   @NonNls private static final Pattern EOL_SPLIT_PATTERN = Pattern.compile(" *(\r|\n|\r\n)+ *");
   @NonNls private static final Pattern EOL_SPLIT_PATTERN_WITH_EMPTY = Pattern.compile(" *(\r|\n|\r\n) *");
   @NonNls private static final Pattern EOL_SPLIT_DONT_TRIM_PATTERN = Pattern.compile("(\r|\n|\r\n)+");
@@ -433,8 +434,10 @@ public class StringUtil extends StringUtilRt {
     }
   }
 
-  @NonNls private static final String[] ourPrepositions = {"at", "the", "and", "not", "if", "a", "or", "to", "in", "on", "into", "by"};
-
+  @NonNls private static final String[] ourPrepositions = {
+    "a", "an", "and", "as", "at", "but", "by", "down", "for", "from", "if", "in", "into", "not", "of", "on", "onto", "or", "out", "over",
+    "per", "nor", "the", "to", "up", "upon", "via", "with"
+  };
 
   public static boolean isPreposition(@NotNull String s, int firstChar, int lastChar) {
     return isPreposition(s, firstChar, lastChar, ourPrepositions);
@@ -564,6 +567,15 @@ public class StringUtil extends StringUtilRt {
   public static String unquoteString(@NotNull String s) {
     char c;
     if (s.length() <= 1 || (c = s.charAt(0)) != '"' && c != '\'' || s.charAt(s.length() - 1) != c) {
+      return s;
+    }
+    return s.substring(1, s.length() - 1);
+  }
+
+  @NotNull
+  public static String unquoteString(@NotNull String s, char quotationChar) {
+    char c;
+    if (s.length() <= 1 || (c = s.charAt(0)) != quotationChar || s.charAt(s.length() - 1) != c) {
       return s;
     }
     return s.substring(1, s.length() - 1);
@@ -1710,7 +1722,7 @@ public class StringUtil extends StringUtilRt {
   }
 
   @NotNull
-  private static String escapeChar(@NotNull final String str, final char character) {
+  public static String escapeChar(@NotNull final String str, final char character) {
     final StringBuilder buf = new StringBuilder(str);
     escapeChar(buf, character);
     return buf.toString();
@@ -1795,6 +1807,12 @@ public class StringUtil extends StringUtilRt {
     if (text == null) return null;
     return replace(text, REPLACES_DISP, REPLACES_REFS);
   }
+
+  @NotNull
+  public static String htmlEmphasize(String text) {
+    return "<b><code>" + escapeXml(text) + "</code></b>";
+  }
+
 
   @NotNull
   public static String escapeToRegexp(@NotNull String text) {
@@ -2133,7 +2151,7 @@ public class StringUtil extends StringUtilRt {
 
     for (int i = 0; i < name.length(); i++) {
       final char ch = name.charAt(i);
-      if (Character.isLetterOrDigit(ch)) {
+      if (Character.isJavaIdentifierPart(ch)) {
         if (result.length() == 0 && !Character.isJavaIdentifierStart(ch)) {
           result.append("_");
         }
@@ -2204,6 +2222,25 @@ public class StringUtil extends StringUtilRt {
   @NotNull
   public static String[] splitByLinesDontTrim(@NotNull String string) {
     return EOL_SPLIT_DONT_TRIM_PATTERN.split(string);
+  }
+
+  /**
+   * Splits string by lines, keeping all line separators at the line ends and in the empty lines.
+   * <br> E.g. splitting text
+   * <blockquote>
+   *   foo\r\n<br>
+   *   \n<br>
+   *   bar\n<br>
+   *   \r\n<br>
+   *   baz\r<br>
+   *   \r<br>
+   * </blockquote>
+   * will return the following array: foo\r\n, \n, bar\n, \r\n, baz\r, \r
+   *   
+   */
+  @NotNull
+  public static String[] splitByLinesKeepSeparators(@NotNull String string) {
+    return EOL_SPLIT_KEEP_SEPARATORS.split(string);
   }
 
   @NotNull
