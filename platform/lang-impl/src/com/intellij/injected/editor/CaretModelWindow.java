@@ -26,9 +26,7 @@ import com.intellij.openapi.util.TextRange;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 /**
  * @author Alexey
@@ -37,6 +35,7 @@ public class CaretModelWindow implements CaretModel {
   private final CaretModel myDelegate;
   private final EditorEx myHostEditor;
   private final EditorWindow myEditorWindow;
+  private final Map<Caret, InjectedCaret> myInjectedCaretMap = new WeakHashMap<Caret, InjectedCaret>();
 
   public CaretModelWindow(CaretModel delegate, EditorWindow editorWindow) {
     myDelegate = delegate;
@@ -166,9 +165,9 @@ public class CaretModelWindow implements CaretModel {
 
   @NotNull
   @Override
-  public Collection<Caret> getAllCarets() {
-    Collection<Caret> hostCarets = myDelegate.getAllCarets();
-    Collection<Caret> carets = new ArrayList<Caret>(hostCarets.size());
+  public List<Caret> getAllCarets() {
+    List<Caret> hostCarets = myDelegate.getAllCarets();
+    List<Caret> carets = new ArrayList<Caret>(hostCarets.size());
     for (Caret hostCaret : hostCarets) {
       carets.add(createInjectedCaret(hostCaret));
     }
@@ -205,7 +204,7 @@ public class CaretModelWindow implements CaretModel {
   }
 
   @Override
-  public void setCarets(@NotNull List<LogicalPosition> caretPositions, @NotNull List<? extends Segment> selections) {
+  public void setCaretsAndSelections(@NotNull List<LogicalPosition> caretPositions, @NotNull List<? extends Segment> selections) {
     List<LogicalPosition> convertedPositions = new ArrayList<LogicalPosition>(caretPositions);
     for (LogicalPosition position : caretPositions) {
       convertedPositions.add(myEditorWindow.injectedToHost(position));
@@ -215,11 +214,21 @@ public class CaretModelWindow implements CaretModel {
       convertedSelections.add(new TextRange(myEditorWindow.getDocument().injectedToHost(selection.getStartOffset()),
                                             myEditorWindow.getDocument().injectedToHost(selection.getEndOffset())));
     }
-    myDelegate.setCarets(convertedPositions, convertedSelections);
+    myDelegate.setCaretsAndSelections(convertedPositions, convertedSelections);
   }
 
   private InjectedCaret createInjectedCaret(Caret caret) {
-    return caret == null ? null : new InjectedCaret(myEditorWindow, caret);
+    if (caret == null) {
+      return null;
+    }
+    synchronized (myInjectedCaretMap) {
+      InjectedCaret injectedCaret = myInjectedCaretMap.get(caret);
+      if (injectedCaret == null) {
+        injectedCaret = new InjectedCaret(myEditorWindow, caret);
+        myInjectedCaretMap.put(caret, injectedCaret);
+      }
+      return injectedCaret;
+    }
   }
 
   @Override

@@ -88,7 +88,7 @@ public class MethodResolverProcessor extends ResolverProcessor implements GrMeth
     myAllVariants = allVariants;
     myByShape = byShape;
 
-    mySubstitutorComputer = new SubstitutorComputer(myThisType, myArgumentTypes, typeArguments, myAllVariants, myPlace, myPlace.getParent());
+    mySubstitutorComputer = new SubstitutorComputer(myThisType, myArgumentTypes, typeArguments, myPlace, myPlace.getParent());
     myTypedContext = GppTypeConverter.hasTypedContext(myPlace);
   }
 
@@ -109,7 +109,7 @@ public class MethodResolverProcessor extends ResolverProcessor implements GrMeth
       final SpreadState spreadState = state.get(SpreadState.SPREAD_STATE);
 
       boolean isAccessible = isAccessible(method);
-      boolean isStaticsOK = isStaticsOK(method, resolveContext, true);
+      boolean isStaticsOK = isStaticsOK(method, resolveContext, false);
       boolean isApplicable = PsiUtil.isApplicable(myArgumentTypes, method, substitutor, myPlace, myByShape);
       boolean isValidResult = isStaticsOK && isAccessible && isApplicable;
 

@@ -32,6 +32,9 @@ import org.jetbrains.annotations.NonNls;
 
 import java.util.Date;
 
+import static com.intellij.tasks.jira.JiraRemoteApi.ApiType.REST_2_0;
+import static com.intellij.tasks.jira.JiraRemoteApi.ApiType.REST_2_0_ALPHA;
+
 /**
  * @author Dmitry Avdeev
  *         Date: 1/15/13
@@ -69,14 +72,18 @@ public class JiraIntegrationTest extends TaskManagerTestCase {
 
   public void testVersionDiscovery() throws Exception {
     myRepository.setUrl(JIRA_5_TEST_SERVER_URL);
-    assertEquals("2.0", myRepository.discoverRestApiVersion().getVersionName());
+    assertEquals(REST_2_0, myRepository.discoverApiVersion().getType());
     myRepository.setUrl(JIRA_4_TEST_SERVER_URL);
-    assertEquals("2.0.alpha1", myRepository.discoverRestApiVersion().getVersionName());
+    assertEquals(REST_2_0_ALPHA, myRepository.discoverApiVersion().getType());
   }
 
   public void testJqlQuery() throws Exception {
     myRepository.setSearchQuery("assignee = currentUser() AND (summary ~ 'foo' or resolution = Fixed)");
     assertEquals(2, myRepository.getIssues("", 50, 0).length);
+
+    // test that user part of query is prepended to existing one
+    myRepository.setSearchQuery("assignee = currentUser() order by updated");
+    assertEquals(1, myRepository.getIssues("foo", 50, 0).length);
   }
 
   /**
@@ -129,13 +136,17 @@ public class JiraIntegrationTest extends TaskManagerTestCase {
     myRepository.setUrl(url);
     Task task = myRepository.findTask(key);
     assertNotNull("Test task not found", task);
-    assertEquals(String.format("Initial state of test task '%s' should be 'Reopened'", key),
-                 TaskState.REOPENED, task.getState());
+    // set required initial state, if was left wrong
+    if (task.getState() != TaskState.REOPENED) {
+      myRepository.setTaskState(task, TaskState.REOPENED);
+    }
     try {
+      //assertEquals("Wrong initial state of test issue: " + key, TaskState.REOPENED, task.getState());
       myRepository.setTaskState(task, TaskState.RESOLVED);
       task = myRepository.findTask(key);
       assertEquals(task.getState(), TaskState.RESOLVED);
-    } finally {
+    }
+    finally {
       try {
         // always attempt to restore original state of the issue
         myRepository.setTaskState(task, TaskState.REOPENED);

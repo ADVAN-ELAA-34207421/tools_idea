@@ -9,6 +9,7 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.VisualPosition;
 import com.intellij.openapi.editor.colors.EditorFontType;
 import com.intellij.openapi.editor.ex.EditorMarkupModel;
+import com.intellij.openapi.editor.ex.util.EditorUtil;
 import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.ui.HintHint;
 import com.intellij.ui.JBColor;
@@ -25,11 +26,12 @@ import java.awt.event.MouseMotionListener;
 
 class ConsoleGutterComponent extends JComponent implements MouseMotionListener {
   private static final TooltipGroup TOOLTIP_GROUP = new TooltipGroup("CONSOLE_GUTTER_TOOLTIP_GROUP", 0);
-  private static final int RIGHT_INSET = 6;
+
+  private final EditorImpl editor;
 
   private int maxAnnotationWidth = 0;
   private int myLastPreferredHeight = -1;
-  private final EditorImpl editor;
+  private final int lineEndInset;
 
   private final GutterContentProvider gutterContentProvider;
 
@@ -41,6 +43,10 @@ class ConsoleGutterComponent extends JComponent implements MouseMotionListener {
     addListeners();
 
     addMouseMotionListener(this);
+
+    setOpaque(true);
+
+    lineEndInset = EditorUtil.getSpaceWidth(Font.PLAIN, editor);
   }
 
   private void addListeners() {
@@ -48,42 +54,45 @@ class ConsoleGutterComponent extends JComponent implements MouseMotionListener {
       @Override
       public void mouseClicked(MouseEvent e) {
         if (!e.isPopupTrigger()) {
-          gutterContentProvider.doAction(getLineAtPoint(e.getPoint()), editor);
+          gutterContentProvider.doAction(EditorUtil.yPositionToLogicalLine(editor, e.getPoint()), editor);
         }
       }
     });
   }
 
-  public void updateSize() {
+  public void updateSize(int start, int end) {
     int oldAnnotationsWidth = maxAnnotationWidth;
-    computeMaxAnnotationWidth();
+    computeMaxAnnotationWidth(start, end);
     if (oldAnnotationsWidth != maxAnnotationWidth || myLastPreferredHeight != editor.getPreferredHeight()) {
-      fireResized();
+      processComponentEvent(new ComponentEvent(this, ComponentEvent.COMPONENT_RESIZED));
     }
     repaint();
   }
 
-  private void fireResized() {
-    processComponentEvent(new ComponentEvent(this, ComponentEvent.COMPONENT_RESIZED));
-  }
+  private void computeMaxAnnotationWidth(int start, int end) {
+    gutterContentProvider.beforeUiComponentUpdate(editor);
 
-  private void computeMaxAnnotationWidth() {
     if (!gutterContentProvider.hasText()) {
       maxAnnotationWidth = 0;
       return;
     }
 
     FontMetrics fontMetrics = editor.getFontMetrics(Font.PLAIN);
-    int lineCount = editor.getDocument().getLineCount();
-    gutterContentProvider.beforeUiComponentUpdate(editor);
+    int lineCount = Math.min(end, editor.getDocument().getLineCount());
     int gutterSize = 0;
-    for (int i = 0; i < lineCount; i++) {
-      String text = gutterContentProvider.getText(i, editor);
+    for (int line = start; line < lineCount; line++) {
+      String text = gutterContentProvider.getText(line, editor);
       if (text != null) {
         gutterSize = Math.max(gutterSize, fontMetrics.stringWidth(text));
       }
     }
-    maxAnnotationWidth = gutterSize + RIGHT_INSET;
+
+    if (gutterSize != 0) {
+      gutterSize += lineEndInset;
+    }
+    maxAnnotationWidth = Math.max(gutterSize, maxAnnotationWidth);
+
+    editor.getSettings().setAdditionalColumnsCount(1 + (maxAnnotationWidth / EditorUtil.getSpaceWidth(Font.PLAIN, editor)));
   }
 
   @Override
@@ -100,9 +109,6 @@ class ConsoleGutterComponent extends JComponent implements MouseMotionListener {
       if (clip.height < 0 || maxAnnotationWidth == 0) {
         return;
       }
-
-      g.setColor(editor.getBackgroundColor());
-      g.fillRect(clip.x, clip.y, clip.width, clip.height);
 
       UISettings.setupAntialiasing(g);
 
@@ -142,7 +148,7 @@ class ConsoleGutterComponent extends JComponent implements MouseMotionListener {
       String text = gutterContentProvider.getText(editor.visualToLogicalPosition(new VisualPosition(i, 0)).line, editor);
       if (text != null) {
         // right-aligned
-        g.drawString(text, maxAnnotationWidth - RIGHT_INSET - fontMetrics.stringWidth(text), y);
+        g.drawString(text, maxAnnotationWidth - lineEndInset - fontMetrics.stringWidth(text), y);
       }
       y += lineHeight;
     }
@@ -155,7 +161,7 @@ class ConsoleGutterComponent extends JComponent implements MouseMotionListener {
 
   @Override
   public void mouseMoved(MouseEvent e) {
-    int line = getLineAtPoint(e.getPoint());
+    int line = EditorUtil.yPositionToLogicalLine(editor, e.getPoint());
     if (line == lastGutterToolTipLine) {
       return;
     }
@@ -183,7 +189,7 @@ class ConsoleGutterComponent extends JComponent implements MouseMotionListener {
     }
   }
 
-  private int getLineAtPoint(@NotNull Point clickPoint) {
-    return editor.yPositionToLogicalLine(clickPoint.y);
+  public void documentCleared() {
+    maxAnnotationWidth = 0;
   }
 }

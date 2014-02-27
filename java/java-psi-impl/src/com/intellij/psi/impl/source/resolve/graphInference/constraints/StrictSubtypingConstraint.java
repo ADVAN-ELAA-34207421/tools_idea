@@ -19,6 +19,7 @@ import com.intellij.psi.*;
 import com.intellij.psi.impl.source.resolve.graphInference.InferenceBound;
 import com.intellij.psi.impl.source.resolve.graphInference.InferenceSession;
 import com.intellij.psi.impl.source.resolve.graphInference.InferenceVariable;
+import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.psi.util.TypeConversionUtil;
 
 import java.util.List;
@@ -50,8 +51,8 @@ public class StrictSubtypingConstraint implements ConstraintFormula {
       return TypeConversionUtil.isAssignable(myT, myS);
     }
 
-    if (PsiType.NULL.equals(myS) || myS == null) return true;
     if (PsiType.NULL.equals(myT) || myT == null) return false;
+    if (PsiType.NULL.equals(myS) || myS == null || myT.equalsToText(CommonClassNames.JAVA_LANG_OBJECT)) return true;
 
     InferenceVariable inferenceVariable = session.getInferenceVariable(myS);
     if (inferenceVariable != null) {
@@ -83,13 +84,20 @@ public class StrictSubtypingConstraint implements ConstraintFormula {
               if (myT.equals(conjunct)) return true;
             }
           }
-          //todo ((PsiTypeParameter)C).getLowerBound()
+          final PsiType lowerBound = CClass.getUserData(InferenceSession.LOWER_BOUND);
+          if (lowerBound != null) {
+            constraints.add(new StrictSubtypingConstraint(lowerBound, myS));
+            return true;
+          }
           return false;
         }
 
         if (!(myS instanceof PsiClassType)) return false;
         PsiClassType.ClassResolveResult SResult = ((PsiClassType)myS).resolveGenerics();
         PsiClass SClass = SResult.getElement();
+        if (((PsiClassType)myT).isRaw()) {
+          return SClass != null && InheritanceUtil.isInheritorOrSelf(SClass, CClass, true);
+        }
         final PsiSubstitutor tSubstitutor = TResult.getSubstitutor();
         final PsiSubstitutor sSubstitutor = SClass != null ? TypeConversionUtil.getClassSubstitutor(CClass, SClass, SResult.getSubstitutor()) : null;
         if (sSubstitutor != null) {

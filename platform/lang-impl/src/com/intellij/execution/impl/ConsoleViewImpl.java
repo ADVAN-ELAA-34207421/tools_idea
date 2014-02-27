@@ -16,6 +16,7 @@
 
 package com.intellij.execution.impl;
 
+import com.google.common.base.CharMatcher;
 import com.intellij.codeInsight.navigation.IncrementalSearchHandler;
 import com.intellij.codeInsight.template.impl.editorActions.TypedActionHandlerBase;
 import com.intellij.execution.ConsoleFolding;
@@ -91,6 +92,8 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
 
   private static final int DEFAULT_FLUSH_DELAY = SystemProperties.getIntProperty("console.flush.delay.ms", 200);
 
+  private static final CharMatcher NEW_LINE_MATCHER = CharMatcher.anyOf("\n\r");
+
   public static final Key<ConsoleViewImpl> CONSOLE_VIEW_IN_EDITOR_VIEW = Key.create("CONSOLE_VIEW_IN_EDITOR_VIEW");
 
   static {
@@ -107,7 +110,7 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
 
   private ConsoleState myState;
 
-  private final Alarm mySpareTimeAlarm = new Alarm(Alarm.ThreadToUse.SWING_THREAD, this);
+  private final Alarm mySpareTimeAlarm = new Alarm(this);
   @Nullable
   private final Alarm myHeavyAlarm;
   private       int   myHeavyUpdateTicket;
@@ -465,6 +468,7 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
 
     if (myEditor == null) {
       myEditor = createEditor();
+      registerConsoleEditorActions();
       myEditor.getScrollPane().setBorder(null);
       myHyperlinks = new EditorHyperlinkSupport(myEditor, myProject);
       requestFlushImmediately();
@@ -553,10 +557,8 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
       s = pair.first;
       myContentSize += s.length() - pair.second;
 
-      if (s.indexOf('\n') >= 0 || s.indexOf('\r') >= 0) {
-        if (contentType == ConsoleViewContentType.USER_INPUT) {
-          flushDeferredUserInput();
-        }
+      if (contentType == ConsoleViewContentType.USER_INPUT && NEW_LINE_MATCHER.indexIn(s) >= 0) {
+        flushDeferredUserInput();
       }
       if (myEditor != null && !myFlushAlarm.isDisposed()) {
         final boolean shouldFlushNow = myBuffer.isUseCyclicBuffer() && myBuffer.getLength() >= myBuffer.getCyclicBufferSize();
@@ -859,9 +861,6 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
         editor.getSettings().setAllowSingleLogicalLineFolding(true); // We want to fold long soft-wrapped command lines
         editor.setHighlighter(createHighlighter());
 
-        if (!myIsViewer) {
-          registerConsoleEditorActions(editor);
-        }
         return editor;
       }
     });
@@ -899,11 +898,17 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
     return new MyHighlighter();
   }
 
-  private static void registerConsoleEditorActions(Editor editor) {
-    new EnterHandler().registerCustomShortcutSet(CommonShortcuts.ENTER, editor.getContentComponent());
-    registerActionHandler(editor, IdeActions.ACTION_EDITOR_PASTE, new PasteHandler());
-    registerActionHandler(editor, IdeActions.ACTION_EDITOR_BACKSPACE, new BackSpaceHandler());
-    registerActionHandler(editor, IdeActions.ACTION_EDITOR_DELETE, new DeleteHandler());
+  private void registerConsoleEditorActions() {
+    HyperlinkNavigationAction hyperlinkNavigationAction = new HyperlinkNavigationAction();
+    hyperlinkNavigationAction.registerCustomShortcutSet(CommonShortcuts.ENTER, myEditor.getContentComponent());
+    registerActionHandler(myEditor, IdeActions.ACTION_GOTO_DECLARATION, hyperlinkNavigationAction);
+
+    if (!myIsViewer) {
+      new EnterHandler().registerCustomShortcutSet(CommonShortcuts.ENTER, myEditor.getContentComponent());
+      registerActionHandler(myEditor, IdeActions.ACTION_EDITOR_PASTE, new PasteHandler());
+      registerActionHandler(myEditor, IdeActions.ACTION_EDITOR_BACKSPACE, new BackSpaceHandler());
+      registerActionHandler(myEditor, IdeActions.ACTION_EDITOR_DELETE, new DeleteHandler());
+    }
   }
 
   private static void registerActionHandler(final Editor editor, final String actionId, final AnAction action) {
@@ -1555,7 +1560,7 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
     synchronized (consoleView.LOCK) {
       if (consoleView.myTokens.isEmpty()) return;
       final TokenInfo info = consoleView.myTokens.get(consoleView.myTokens.size() - 1);
-      if (info.contentType != ConsoleViewContentType.USER_INPUT && !textToUse.contains("\n")) {
+      if (info.contentType != ConsoleViewContentType.USER_INPUT && !StringUtil.containsChar(textToUse, '\n')) {
         consoleView.print(textToUse, ConsoleViewContentType.USER_INPUT);
         consoleView.flushDeferredText();
         editor.getCaretModel().moveToOffset(document.getTextLength());
@@ -1848,6 +1853,20 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
   @NotNull
   public Project getProject() {
     return myProject;
+  }
+
+  private class HyperlinkNavigationAction extends DumbAwareAction {
+    @Override
+    public void actionPerformed(AnActionEvent e) {
+      Runnable runnable = myHyperlinks.getLinkNavigationRunnable(myEditor.getCaretModel().getLogicalPosition());
+      assert runnable != null;
+      runnable.run();
+    }
+
+    @Override
+    public void update(AnActionEvent e) {
+      e.getPresentation().setEnabled(myHyperlinks.getLinkNavigationRunnable(myEditor.getCaretModel().getLogicalPosition()) != null);
+    }
   }
 }
 

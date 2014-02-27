@@ -24,6 +24,7 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
+import com.intellij.psi.impl.source.resolve.FileContextUtil;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -179,7 +180,7 @@ public class CompleteReferenceExpression {
     final PsiClass containingClass = PsiTreeUtil.getParentOfType(refExpr, PsiClass.class);
     if (containingClass != null) return;
 
-    final PsiFile file = refExpr.getContainingFile();
+    final PsiFile file = FileContextUtil.getContextFile(refExpr);
     if (file instanceof GroovyFile) {
       ((GroovyFile)file).accept(new GroovyRecursiveElementVisitor() {
         @Override
@@ -441,7 +442,6 @@ public class CompleteReferenceExpression {
     private final Set<GrMethod> myProcessedMethodWithOptionalParams = new HashSet<GrMethod>();
 
     private List<GroovyResolveResult> myInapplicable;
-    private GroovyResolveResult[] myInapplicableResults;
 
     protected CompleteReferenceProcessor(@NotNull GrReferenceExpression place,
                                          @NotNull Consumer<LookupElement> consumer,
@@ -460,7 +460,7 @@ public class CompleteReferenceExpression {
       myMethodPointerOperator = place.getDotTokenType() == GroovyTokenTypes.mMEMBER_POINTER;
       myIsMap = isMap(place);
       final PsiType thisType = GrReferenceResolveUtil.getQualifierType(place);
-      mySubstitutorComputer = new SubstitutorComputer(thisType, PsiType.EMPTY_ARRAY, PsiType.EMPTY_ARRAY, true, place, place.getParent());
+      mySubstitutorComputer = new SubstitutorComputer(thisType, PsiType.EMPTY_ARRAY, PsiType.EMPTY_ARRAY, place, place.getParent());
     }
 
     private static boolean shouldSkipPackages(@NotNull GrReferenceExpression place) {

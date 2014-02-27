@@ -62,6 +62,7 @@ public class JBTable extends JTable implements ComponentWithEmptyText, Component
 
   public JBTable(final TableModel model) {
     super(model);
+
     myEmptyText = new StatusText(this) {
       @Override
       protected boolean isStatusVisible() {

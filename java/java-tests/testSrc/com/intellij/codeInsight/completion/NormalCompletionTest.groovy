@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2011 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiMethod
 import com.intellij.psi.codeStyle.CodeStyleSettingsManager
 import com.intellij.psi.codeStyle.CommonCodeStyleSettings
+import com.intellij.testFramework.EditorTestUtil
 
 public class NormalCompletionTest extends LightFixtureCompletionTestCase {
   @Override
@@ -755,6 +756,13 @@ public class ListUtils {
     assertStringItems("bar", "foo");
   }
 
+  public void testAddExplicitValueInAnnotation() throws Throwable {
+    configureByTestName()
+    assertStringItems("bar", "goo")
+    selectItem(myItems[0])
+    checkResult()
+  }
+
   public void testUnnecessaryMethodMerging() throws Throwable {
     configureByFile(getTestName(false) + ".java");
     assertStringItems("fofoo", "fofoo");
@@ -872,6 +880,16 @@ public class ListUtils {
   public void testPropertyReferencePrefix() throws Throwable {
     myFixture.addFileToProject("test.properties", "foo.bar=Foo! Bar!").getVirtualFile();
     doAntiTest()
+  }
+
+  private void doMultiCaretTest() throws Exception {
+    EditorTestUtil.enableMultipleCarets()
+    try {
+      doTest()
+    }
+    finally {
+      EditorTestUtil.disableMultipleCarets()
+    }
   }
 
   private void doTest() throws Exception {
@@ -1363,6 +1381,26 @@ class Foo {{
   return<caret>;
   return;
 }}'''
+  }
+
+  public void testMulticaretSingleItemInsertion() {
+    doMultiCaretTest()
+  }
+
+  public void testMulticaretMethodWithParen() {
+    doMultiCaretTest()
+  }
+
+  public void testFinishWithEqualsWhenMultipleCaretsAreEnabled() {
+    EditorTestUtil.enableMultipleCarets()
+    try {
+      configureByFile("SpacesAroundEq.java");
+      type('=');
+      checkResultByFile("SpacesAroundEq_after.java");
+    }
+    finally {
+      EditorTestUtil.disableMultipleCarets()
+    }
   }
 
   public void "test complete lowercase class name"() {

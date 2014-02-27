@@ -40,7 +40,8 @@ public class WebBrowserManager implements PersistentStateComponent<Element>, Mod
 
   // default standard browser ID must be constant across all IDE versions on all machines for all users
   private static final UUID DEFAULT_CHROME_ID = UUID.fromString("98CA6316-2F89-46D9-A9E5-FA9E2B0625B3");
-  private static final UUID DEFAULT_FIREFOX_ID = UUID.fromString("A7BB68E0-33C0-4D6F-A81A-AAC1FDB870C8");
+  // public, but only internal use
+  public static final UUID DEFAULT_FIREFOX_ID = UUID.fromString("A7BB68E0-33C0-4D6F-A81A-AAC1FDB870C8");
   private static final UUID DEFAULT_SAFARI_ID = UUID.fromString("E5120D43-2C3F-47EF-9F26-65E539E05186");
   private static final UUID DEFAULT_OPERA_ID = UUID.fromString("53E2F627-B1A7-4DFA-BFA7-5B83CC034776");
   private static final UUID DEFAULT_EXPLORER_ID = UUID.fromString("16BF23D4-93E0-4FFC-BFD6-CB13575177B0");
@@ -304,17 +305,19 @@ public class WebBrowserManager implements PersistentStateComponent<Element>, Mod
   }
 
   @Nullable
-  public WebBrowser findBrowserById(@Nullable String idOrName) {
-    if (StringUtil.isEmpty(idOrName)) {
+  /**
+   * @param idOrFamilyName UUID or, due to backward compatibility, browser family name or JS debugger engine ID
+   */
+  public WebBrowser findBrowserById(@Nullable String idOrFamilyName) {
+    if (StringUtil.isEmpty(idOrFamilyName)) {
       return null;
     }
 
-    UUID id = parseUuid(idOrName);
+    UUID id = parseUuid(idOrFamilyName);
     if (id == null) {
       for (ConfigurableWebBrowser browser : browsers) {
-        if (browser.getName().equals(idOrName) ||
-            browser.getFamily().name().equalsIgnoreCase(idOrName) ||
-            browser.getFamily().getName().equalsIgnoreCase(idOrName)) {
+        if (browser.getFamily().name().equalsIgnoreCase(idOrFamilyName) ||
+            browser.getFamily().getName().equalsIgnoreCase(idOrFamilyName)) {
           return browser;
         }
       }
@@ -330,14 +333,16 @@ public class WebBrowserManager implements PersistentStateComponent<Element>, Mod
   }
 
   @NotNull
+  @Deprecated
+  /**
+   * @deprecated Use {@link #getFirstBrowser(BrowserFamily)}
+   */
   public WebBrowser getBrowser(@NotNull BrowserFamily family) {
-    WebBrowser browser = findBrowser(family);
-    LOG.assertTrue(browser != null, "Must be at least one browser per family");
-    return browser;
+    return getFirstBrowser(family);
   }
 
-  @Nullable
-  public WebBrowser findBrowser(@NotNull BrowserFamily family) {
+  @NotNull
+  public WebBrowser getFirstBrowser(@NotNull BrowserFamily family) {
     for (ConfigurableWebBrowser browser : browsers) {
       if (browser.isActive() && family.equals(browser.getFamily())) {
         return browser;
@@ -350,7 +355,7 @@ public class WebBrowserManager implements PersistentStateComponent<Element>, Mod
       }
     }
 
-    return null;
+    throw new IllegalStateException("Must be at least one browser per family");
   }
 
   public boolean isActive(@NotNull WebBrowser browser) {

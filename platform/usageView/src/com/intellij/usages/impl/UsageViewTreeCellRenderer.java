@@ -238,14 +238,15 @@ class UsageViewTreeCellRenderer extends ColoredTreeCellRenderer {
   public RowLocation isRowVisible(int row, @NotNull Rectangle visibleRect) {
     Dimension pref;
     if (cachedPreferredSize == null) {
-      pref = cachedPreferredSize = getPreferredSize();
+      cachedPreferredSize = pref = getPreferredSize();
     }
     else {
       pref = cachedPreferredSize;
     }
     pref.width = Math.max(visibleRect.width, pref.width);
     myRowBoundsCalled = true;
-    final Rectangle bounds = getTree().getRowBounds(row);
+    JTree tree = getTree();
+    final Rectangle bounds = tree == null ? null : tree.getRowBounds(row);
     myRowBoundsCalled = false;
     int y = bounds == null ? 0 : bounds.y;
     TextRange vis = TextRange.from(Math.max(0, visibleRect.y - pref.height), visibleRect.height + pref.height * 2);

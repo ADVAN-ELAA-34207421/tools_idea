@@ -18,16 +18,12 @@ package com.intellij.ui.messages;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.ui.Gray;
+import com.intellij.ui.JBColor;
+import com.intellij.util.ui.UIUtil;
 
 import javax.swing.*;
-import javax.swing.text.SimpleAttributeSet;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.StyledDocument;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
+import java.awt.event.*;
 import java.awt.geom.Area;
 import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
@@ -46,18 +42,19 @@ public class SheetController {
   private boolean myDoNotAskResult;
 
 
-  private JLabel myHeaderLabel = new JLabel();
-  private MultilineLabel myMessageLabel;
   private JButton[] buttons;
   private JButton myDefaultButton;
   private JButton myFocusedButton;
-  public static int SHEET_WIDTH = 400;
+  public int SHEET_WIDTH = 400;
   public int SHEET_HEIGHT = 150;
+
+  private Icon myIcon = AllIcons.Logo_welcomeScreen;
 
   private String myResult;
   private JPanel mySheetPanel;
   private SheetMessage mySheetMessage;
-  private JTextArea myTextArea;
+
+  private Dimension messageArea = new Dimension(250, Short.MAX_VALUE);
 
   SheetController(final SheetMessage sheetMessage,
                   final String title,
@@ -67,21 +64,50 @@ public class SheetController {
                   final String defaultButtonTitle,
                   final DialogWrapper.DoNotAskOption doNotAskOption,
                   final String focusedButton) {
+    if (icon != null) {
+      myIcon = icon;
+    }
     myDoNotAskOption = doNotAskOption;
     mySheetMessage = sheetMessage;
     buttons = new JButton[buttonTitles.length];
-    for (int i = 0; i < buttonTitles.length; i++) {
-      buttons[i] = new JButton(buttonTitles[i]);
-      if (buttonTitles[i].equals(defaultButtonTitle)) {
+
+    myResult = null;
+
+    for (int i = 0; i < buttons.length; i++) {
+      int titleIndex = buttonTitles.length - 1 - i;
+      String buttonTitle = buttonTitles[titleIndex];
+
+      buttons[i] = new JButton();
+
+      handleMnemonics(i, buttonTitle);
+
+      if (buttonTitle.equals(defaultButtonTitle)) {
         myDefaultButton = buttons[i];
       }
-      if (buttonTitles[i].equals(focusedButton)) {
+      if (buttonTitle.equals(focusedButton)) {
         myFocusedButton = buttons[i];
       }
+      if (buttonTitle.equals("Cancel")) {
+        myResult = "Cancel";
+      }
     }
+
+    if (myResult == null) {
+      myResult = buttonTitles[0];
+    }
+
     mySheetPanel = createSheetPanel(title, message, buttons);
+  }
 
+  private void handleMnemonics(int i, String buttonTitle) {
+    buttons[i].setName(buttonTitle);
 
+    if (buttonTitle.indexOf('&') != -1) {
+      buttons[i].setMnemonic(buttonTitle.charAt(buttonTitle.indexOf('&') + 1));
+      buttonTitle = buttonTitle.replace("&","");
+    }
+
+    buttons[i].setText(buttonTitle);
   }
 
   void requestFocus() {
@@ -98,12 +124,15 @@ public class SheetController {
       @Override
       public void actionPerformed(ActionEvent e) {
         if (e.getSource() instanceof JButton) {
-          myResult = ((JButton)e.getSource()).getText();
+          myResult = ((JButton)e.getSource()).getName();
         }
-        mySheetMessage.startAnimation();
-
+        mySheetMessage.startAnimation(false);
       }
     };
+
+    mySheetPanel.registerKeyboardAction(actionListener,
+                                        KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                                        JComponent.WHEN_IN_FOCUSED_WINDOW);
 
     for (JButton button: buttons) {
       button.addActionListener(actionListener);
@@ -136,52 +165,68 @@ public class SheetController {
       @Override
       protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        AllIcons.Logo_welcomeScreen.paintIcon(this, g, 0, 0);
+        myIcon.paintIcon(this, g, 0, 0);
       }
     };
 
 
-    myHeaderLabel = new JLabel(title);
-
-    myHeaderLabel.setFont(boldFont);
-
-    myHeaderLabel.repaint();
-    myHeaderLabel.setSize(myHeaderLabel.getPreferredSize());
-
-    sheetPanel.add(myHeaderLabel);
-
-    myTextArea = new JTextArea(message);
-
-    myTextArea.setFont(regularFont);
-    myTextArea.setLineWrap(true);
-    myTextArea.setWrapStyleWord(true);
-
-    myTextArea.setSize(250, 10);
-    myTextArea.setOpaque(false);
+    JEditorPane headerLabel = new JEditorPane();
 
 
 
-    sheetPanel.add(myTextArea);
+    headerLabel.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.TRUE);
+    headerLabel.setFont(boldFont);
+    headerLabel.setEditable(false);
 
-    myTextArea.repaint();
-    myTextArea.setSize(myTextArea.getPreferredSize());
+    headerLabel.setContentType("text/html");
+    headerLabel.setSize(250, Short.MAX_VALUE);
+    headerLabel.setText(title);
+    headerLabel.setSize(250, headerLabel.getPreferredSize().height);
 
-    SHEET_HEIGHT = myTextArea.getPreferredSize().height +  myHeaderLabel.getPreferredSize().height + 20 + 10 + 100;
+    headerLabel.setOpaque(false);
+    headerLabel.setFocusable(false);
 
+    sheetPanel.add(headerLabel);
+
+    headerLabel.repaint();
+
+    JEditorPane messageTextPane = new JEditorPane();
+
+    messageTextPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.TRUE);
+    messageTextPane.setFont(regularFont);
+    messageTextPane.setEditable(false);
+
+    messageTextPane.setContentType("text/html");
+    messageTextPane.setSize(250, Short.MAX_VALUE);
+    messageTextPane.setText(message);
+    messageArea.setSize(250, messageTextPane.getPreferredSize().height);
+    messageTextPane.setSize(messageArea);
+
+    messageTextPane.setOpaque(false);
+    messageTextPane.setFocusable(false);
+
+    sheetPanel.add(messageTextPane);
+
+    messageTextPane.repaint();
+
+
+    SHEET_HEIGHT = 20 + headerLabel.getPreferredSize().height + 10 + messageArea.height + 10 + 70;
     sheetPanel.setSize(SHEET_WIDTH, SHEET_HEIGHT);
 
     ico.setOpaque(false);
     ico.setSize(new Dimension(AllIcons.Logo_welcomeScreen.getIconWidth(), AllIcons.Logo_welcomeScreen.getIconHeight()));
     ico.setLocation(20, 20);
     sheetPanel.add(ico);
-    myHeaderLabel.setLocation(120, 20);
-    myTextArea.setLocation(120, 20 + myHeaderLabel.getPreferredSize().height + 10);
-    layoutWithAbsoluteLayout(title, message, buttons, sheetPanel);
+    headerLabel.setLocation(120, 20);
+    messageTextPane.setLocation(120, 20 + headerLabel.getPreferredSize().height + 10);
+    layoutWithAbsoluteLayout(buttons, sheetPanel);
+
+    sheetPanel.setFocusCycleRoot(true);
 
     return sheetPanel;
   }
 
-  private void layoutWithAbsoluteLayout(String title, String message, JButton[] buttons, JPanel sheetPanel) {
+  private void layoutWithAbsoluteLayout(JButton[] buttons, JPanel sheetPanel) {
     layoutButtons(buttons, sheetPanel);
 
     if (myDoNotAskOption != null) {
@@ -190,16 +235,13 @@ public class SheetController {
     }
   }
 
-
-
-
   private void paintShadow(Graphics2D g2d, Rectangle2D dialog) {
     Area shadow = new Area(new RoundRectangle2D.Double(0, 0, mySheetPanel.getBounds().width, mySheetPanel.getBounds().height, 10, 10));
 
     g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.80f));
 
     Color color1 = Gray._130;
-    Color color2 = new Color(130, 130, 130, 0);
+    Color color2 = new JBColor(new Color(130, 130, 130, 0), new Color(130, 130, 130, 0));
 
     GradientPaint gp = new GradientPaint(
       0, mySheetPanel.getBounds().height - 10, color1,
@@ -211,13 +253,26 @@ public class SheetController {
   }
 
   private void layoutButtons(final JButton[] buttons, JPanel panel) {
-    for (int i = 0; i < buttons.length ; i ++) {
-      panel.add(buttons[i]);
-      buttons[i].repaint();
 
-      Dimension size = buttons[i].getPreferredSize();
-      buttons[i].setBounds(SHEET_WIDTH - (size.width + 10) * (buttons.length - i) -  15, SHEET_HEIGHT - 45,
-                           size.width, size.height);
+    int buttonsWidth = 120;
+
+    for (JButton button : buttons) {
+      panel.add(button);
+      button.repaint();
+      buttonsWidth = button.getWidth() + 10;
+    }
+
+    SHEET_WIDTH = Math.max(buttonsWidth, SHEET_WIDTH);
+
+    int buttonShift = 15;
+
+    for (JButton button : buttons) {
+      Dimension size = button.getPreferredSize();
+      buttonShift += size.width;
+      button.setBounds(SHEET_WIDTH - buttonShift,
+                       SHEET_HEIGHT - 45,
+                       size.width, size.height);
+      buttonShift += 10;
     }
   }
 
@@ -238,32 +293,16 @@ public class SheetController {
    * This method is used to show an image during message showing
    * @return image to show
    */
-  private Image getStaticImage() {
+  Image getStaticImage() {
     final JFrame myOffScreenFrame = new JFrame() ;
     myOffScreenFrame.add(mySheetPanel);
     myOffScreenFrame.getRootPane().setDefaultButton(myDefaultButton);
 
-    final BufferedImage image = new BufferedImage(SHEET_WIDTH, SHEET_HEIGHT, BufferedImage.TYPE_INT_ARGB);
+    final BufferedImage image = UIUtil.createImage(SHEET_WIDTH, SHEET_HEIGHT, BufferedImage.TYPE_INT_ARGB);
 
     mySheetPanel.paint(image.createGraphics());
     myOffScreenFrame.dispose();
     return image;
-  }
-
-  public JPanel getStaticPanel() {
-    final Image staticImage = getStaticImage();
-    JPanel jPanel = new JPanel() {
-      @Override
-      protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        Graphics2D g2d = (Graphics2D) g.create();
-        int zeroOffset = getHeight() - SHEET_HEIGHT;
-        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.95f));
-        g2d.drawImage(staticImage, 0 , zeroOffset, null);
-      }
-    };
-    jPanel.setOpaque(false);
-    return jPanel;
   }
 
   public boolean getDoNotAskResult () {
@@ -272,23 +311,5 @@ public class SheetController {
 
   public String getResult() {
     return myResult;
-  }
-}
-
-class MultilineLabel extends JTextPane {
-  private static final long serialVersionUID = 1L;
-  public MultilineLabel(){
-    super();
-    setEditable(false);
-    setCursor(null);
-    setOpaque(false);
-    setFocusable(false);
-
-    setPreferredSize(new Dimension(200,50));
-
-    StyledDocument doc = getStyledDocument();
-    SimpleAttributeSet center = new SimpleAttributeSet();
-    StyleConstants.setAlignment(center, StyleConstants.ALIGN_LEFT);
-    doc.setParagraphAttributes(0, doc.getLength(), center, false);
   }
 }

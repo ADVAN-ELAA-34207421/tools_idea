@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 package org.jetbrains.plugins.github.api;
 
 import com.google.gson.*;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.net.HttpConfigurable;
@@ -33,12 +34,14 @@ import org.jetbrains.plugins.github.util.GithubUtil;
 import sun.security.validator.ValidatorException;
 
 import javax.net.ssl.SSLHandshakeException;
+import java.awt.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URLEncoder;
 import java.util.*;
+import java.util.List;
 
 /**
  * @author Kirill Likhodedov
@@ -91,6 +94,10 @@ public class GithubApiUtil {
                                       @Nullable String requestBody,
                                       @NotNull Collection<Header> headers,
                                       @NotNull HttpVerb verb) throws IOException {
+    if (EventQueue.isDispatchThread() && !ApplicationManager.getApplication().isUnitTestMode()) {
+      LOG.warn("Network operation in EDT");
+    }
+
     HttpMethod method = null;
     try {
       String uri = GithubUrlUtil.getApiUrl(auth.getHost()) + path;
@@ -520,8 +527,15 @@ public class GithubApiUtil {
       List<GithubRepo> repos = new ArrayList<GithubRepo>();
 
       repos.addAll(getUserRepos(auth));
-      repos.addAll(getMembershipRepos(auth));
-      repos.addAll(getWatchedRepos(auth));
+
+      // We already can return something useful from getUserRepos, so let's ignore errors.
+      // One of this may not exist in GitHub enterprise
+      try {
+        repos.addAll(getMembershipRepos(auth));
+      } catch (GithubStatusCodeException ignore) {}
+      try {
+        repos.addAll(getWatchedRepos(auth));
+      } catch (GithubStatusCodeException ignore) {}
 
       return repos;
     }

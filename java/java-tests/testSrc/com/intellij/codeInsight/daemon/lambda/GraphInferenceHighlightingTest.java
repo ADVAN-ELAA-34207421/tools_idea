@@ -28,7 +28,7 @@ public class GraphInferenceHighlightingTest extends LightDaemonAnalyzerTestCase 
     doTest();
   }
 
-  public void testNestedCallsSameMethod() throws Exception {
+  public void _testNestedCallsSameMethod() throws Exception {
     doTest();
   }
 
@@ -88,7 +88,11 @@ public class GraphInferenceHighlightingTest extends LightDaemonAnalyzerTestCase 
     doTest();
   }
 
-  public void _testCapturedReturnTypes() throws Exception {//todo waiting for capture incorporation
+  public void testCapturedReturnTypes() throws Exception {
+    doTest();
+  }
+
+  public void testClsCapturedReturnTypes() throws Exception {
     doTest();
   }
 
@@ -125,6 +129,34 @@ public class GraphInferenceHighlightingTest extends LightDaemonAnalyzerTestCase 
   }
 
   public void testGrandParentTypeParams() throws Exception {
+    doTest();
+  }
+
+  public void testDeepCallsChain() throws Exception {
+    doTest();
+  }
+
+  public void testArrayPassedToVarargsMethod() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA121055() throws Exception {
+    doTest();
+  }
+
+  public void testTargetTypeByAnonymousClass() throws Exception {
+    doTest();
+  }
+
+  public void testStaticInheritorsAmbiguity() throws Exception {
+    doTest();
+  }
+
+  public void testNestedCalls1() throws Exception {
+    doTest();
+  }
+
+  public void testMostSpecificVarargsCase() throws Exception {
     doTest();
   }
 

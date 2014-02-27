@@ -27,7 +27,7 @@ import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public abstract class BaseProgramRunner<Settings extends RunnerSettings> implements ProgramRunner<Settings> {
+abstract class BaseProgramRunner<Settings extends RunnerSettings> implements ProgramRunner<Settings> {
   @Override
   @Nullable
   public Settings createConfigurationData(ConfigurationInfoProvider settingsProvider) {
@@ -63,16 +63,16 @@ public abstract class BaseProgramRunner<Settings extends RunnerSettings> impleme
 
     Project project = environment.getProject();
     RunManager.getInstance(project).refreshUsagesList(environment.getRunProfile());
-    startRunProfile(environment, callback, project, state);
+    execute(environment, callback, project, state);
   }
 
-  protected abstract void startRunProfile(@NotNull ExecutionEnvironment environment,
-                                          @Nullable Callback callback,
-                                          @NotNull Project project,
-                                          @NotNull RunProfileState state) throws ExecutionException;
+  protected abstract void execute(@NotNull ExecutionEnvironment environment,
+                                  @Nullable Callback callback,
+                                  @NotNull Project project,
+                                  @NotNull RunProfileState state) throws ExecutionException;
 
   @Nullable
-  protected static RunContentDescriptor postProcess(@NotNull ExecutionEnvironment environment, @Nullable RunContentDescriptor descriptor, @Nullable Callback callback) {
+  static RunContentDescriptor postProcess(@NotNull ExecutionEnvironment environment, @Nullable RunContentDescriptor descriptor, @Nullable Callback callback) {
     if (descriptor != null) {
       descriptor.setExecutionId(environment.getExecutionId());
     }

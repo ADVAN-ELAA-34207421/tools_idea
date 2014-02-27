@@ -157,6 +157,22 @@ public class NewMethodRefHighlightingTest extends LightDaemonAnalyzerTestCase {
     doTest();
   }
 
+  public void testExcludeContainingClassTypeParamsFromInference() throws Exception {
+    doTest();
+  }
+
+  public void testEnsureTypeParametersAreNotModifiedDuringGroundTypeEvaluation() throws Exception {
+    doTest();
+  }
+
+  public void testIncorrectArrayCreationSignature() throws Exception {
+    doTest();
+  }
+
+  public void testRawTargetType() throws Exception {
+    doTest();
+  }
+
   private void doTest() {
     doTest(false);
   }

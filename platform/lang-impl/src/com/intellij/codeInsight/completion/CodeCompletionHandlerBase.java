@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,9 +30,7 @@ import com.intellij.injected.editor.DocumentWindow;
 import com.intellij.lang.Language;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.actionSystem.DataContext;
-import com.intellij.openapi.application.AccessToken;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.*;
@@ -60,6 +58,7 @@ import com.intellij.psi.impl.source.tree.injected.InjectedLanguageUtil;
 import com.intellij.psi.util.PsiUtilBase;
 import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.reference.SoftReference;
+import com.intellij.util.DocumentUtil;
 import com.intellij.util.ThreeState;
 import com.intellij.util.concurrency.Semaphore;
 import org.jetbrains.annotations.NotNull;
@@ -451,16 +450,10 @@ public class CodeCompletionHandlerBase {
     final OffsetMap hostMap = translateOffsetMapToHost(initContext, originalFile, hostFile, hostEditor);
 
     final PsiFile[] hostCopy = {null};
-    CommandProcessor.getInstance().runUndoTransparentAction(new Runnable() {
+    DocumentUtil.writeInRunUndoTransparentAction(new Runnable() {
       @Override
       public void run() {
-        AccessToken token = WriteAction.start();
-        try {
-          hostCopy[0] = createFileCopy(hostFile, initContext.getStartOffset(), initContext.getSelectionEndOffset());
-        }
-        finally {
-          token.finish();
-        }
+        hostCopy[0] = createFileCopy(hostFile, initContext.getStartOffset(), initContext.getSelectionEndOffset());
       }
     });
 
@@ -581,11 +574,11 @@ public class CodeCompletionHandlerBase {
 
   }
 
-  private static CompletionAssertions.WatchingInsertionContext insertItemHonorBlockSelection(CompletionProgressIndicator indicator,
-                                                                        LookupElement item,
-                                                                        char completionChar,
-                                                                        List<LookupElement> items,
-                                                                        CompletionLookupArranger.StatisticsUpdate update) {
+  private static CompletionAssertions.WatchingInsertionContext insertItemHonorBlockSelection(final CompletionProgressIndicator indicator,
+                                                                        final LookupElement item,
+                                                                        final char completionChar,
+                                                                        final List<LookupElement> items,
+                                                                        final CompletionLookupArranger.StatisticsUpdate update) {
     final Editor editor = indicator.getEditor();
 
     final int caretOffset = editor.getCaretModel().getOffset();
@@ -593,6 +586,7 @@ public class CodeCompletionHandlerBase {
     if (idEndOffset < 0) {
       idEndOffset = CompletionInitializationContext.calcDefaultIdentifierEnd(editor, caretOffset);
     }
+    final int idEndOffsetDelta = idEndOffset - caretOffset;
 
     CompletionAssertions.WatchingInsertionContext context = null;
     if (editor.getSelectionModel().hasBlockSelection() && editor.getSelectionModel().getBlockSelectionEnds().length > 0) {
@@ -629,7 +623,19 @@ public class CodeCompletionHandlerBase {
       }
 
     } else {
-      context = insertItem(indicator, item, completionChar, items, update, editor, caretOffset, idEndOffset);
+      final Ref<CompletionAssertions.WatchingInsertionContext> contextRef = new Ref<CompletionAssertions.WatchingInsertionContext>();
+      final Caret primaryCaret = editor.getCaretModel().getPrimaryCaret();
+      editor.getCaretModel().runForEachCaret(new CaretAction() {
+        @Override
+        public void perform(Caret caret) {
+          CompletionAssertions.WatchingInsertionContext currentContext = insertItem(indicator, item, completionChar, items, update, editor,
+                                                                                    caret.getOffset(), caret.getOffset() + idEndOffsetDelta);
+          if (caret == primaryCaret) {
+            contextRef.set(currentContext);
+          }
+        }
+      });
+      context = contextRef.get();
     }
     return context;
   }

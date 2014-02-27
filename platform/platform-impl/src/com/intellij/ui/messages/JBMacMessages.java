@@ -25,6 +25,7 @@ import com.intellij.openapi.wm.impl.ModalityHelper;
 import com.intellij.ui.mac.MacMessageException;
 import com.intellij.ui.mac.MacMessagesEmulation;
 import com.intellij.ui.mac.foundation.MacUtil;
+import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -49,7 +50,8 @@ public class JBMacMessages extends MacMessagesEmulation {
     }
     SheetMessage sheetMessage = new SheetMessage(window, title, message, null,
                                                  new String [] {defaultButton, alternateButton, otherButton}, null, defaultButton, alternateButton);
-    int result = sheetMessage.getResult().equals(defaultButton) ? Messages.YES : Messages.NO;
+    String resultString = sheetMessage.getResult();
+    int result = resultString.equals(defaultButton) ? Messages.YES : resultString.equals(alternateButton) ? Messages.NO : Messages.CANCEL;
     if (doNotAskOption != null) {
         doNotAskOption.setToBeShown(sheetMessage.toBeShown(), result);
     }
@@ -187,6 +189,6 @@ public class JBMacMessages extends MacMessagesEmulation {
     if (window == null) {
       window = getForemostWindow(null);
     }
-    new SheetMessage(window, title, message, null, new String [] {okButton}, null, null, okButton);
+    new SheetMessage(window, title, message, UIUtil.getErrorIcon(), new String [] {okButton}, null, null, okButton);
   }
 }

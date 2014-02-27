@@ -102,14 +102,12 @@ public class FunctionalInterfaceParameterizationUtil {
         return null;
       }
 
-      session.resolveBounds(false);
+      final PsiSubstitutor substitutor = session.resolveDependencies(session.getInferenceVariables());
       final PsiType[] newTypeParameters = new PsiType[parameters.length];
       for (int i = 0; i < typeParameters.length; i++) {
         PsiTypeParameter typeParameter = typeParameters[i];
-        final InferenceVariable variable = session.getInferenceVariable(typeParameter);
-        final PsiType instantiation = variable.getInstantiation();
-        if (instantiation != PsiType.NULL) {
-          newTypeParameters[i] = instantiation;
+        if (substitutor.getSubstitutionMap().containsKey(typeParameter)) {
+          newTypeParameters[i] = substitutor.substitute(typeParameter);
         } else {
           newTypeParameters[i] = parameters[i];
         }
@@ -125,7 +123,11 @@ public class FunctionalInterfaceParameterizationUtil {
         return parameterization;
       }
 
-      return getNonWildcardParameterization(parameterization);
+      if (!psiClassType.isAssignableFrom(parameterization)) {
+        return null;
+      }
+
+      return getNonWildcardParameterization((PsiClassType)psiClassType);
     }
     return null;
   }
@@ -159,6 +161,7 @@ public class FunctionalInterfaceParameterizationUtil {
     if (psiClass != null) {
       final PsiTypeParameter[] typeParameters = psiClass.getTypeParameters();
       final PsiType[] parameters = psiClassType.getParameters();
+      final PsiType[] newParameters = new PsiType[parameters.length];
 
       if (parameters.length != typeParameters.length) return null;
 
@@ -170,19 +173,23 @@ public class FunctionalInterfaceParameterizationUtil {
           final PsiClassType Bi = extendsListTypes.length > 0 ? extendsListTypes[0]
                                                               : PsiType.getJavaLangObject(psiClass.getManager(),
                                                                                           GlobalSearchScope.allScope(psiClass.getProject()));
-          if (PsiPolyExpressionUtil.mentionsTypeParameters(Bi, typeParametersSet)) return null;
+          if (PsiPolyExpressionUtil.mentionsTypeParameters(Bi, typeParametersSet)) {
+            return null;
+          }
 
           final PsiType bound = ((PsiWildcardType)paramType).getBound();
           if (bound == null) {
-            parameters[i] = Bi;
+            newParameters[i] = Bi;
           } else if (((PsiWildcardType)paramType).isExtends()){
-            parameters[i] = GenericsUtil.getGreatestLowerBound(Bi, GenericsUtil.eliminateWildcards(bound, false));
+            newParameters[i] = GenericsUtil.getGreatestLowerBound(Bi, GenericsUtil.eliminateWildcards(bound, false));
           } else {
-            parameters[i] = GenericsUtil.eliminateWildcards(bound, false);
+            newParameters[i] = GenericsUtil.eliminateWildcards(bound, false);
           }
+        } else {
+          newParameters[i] = paramType;
         }
       }
-      return JavaPsiFacade.getElementFactory(psiClass.getProject()).createType(psiClass, parameters);
+      return JavaPsiFacade.getElementFactory(psiClass.getProject()).createType(psiClass, newParameters);
     }
     return null;
   }

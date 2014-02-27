@@ -17,14 +17,8 @@ package com.intellij.openapi.editor;
 
 import com.intellij.openapi.editor.ex.EditorSettingsExternalizable;
 import com.intellij.openapi.editor.impl.AbstractEditorTest;
-import com.intellij.openapi.fileEditor.FileEditorManager;
-import com.intellij.openapi.fileEditor.OpenFileDescriptor;
-import com.intellij.openapi.fileEditor.impl.EditorHistoryManager;
-import com.intellij.openapi.project.ex.ProjectManagerEx;
-import com.intellij.openapi.project.impl.ProjectManagerImpl;
 import com.intellij.testFramework.EditorTestUtil;
 import com.intellij.testFramework.TestFileType;
-import com.intellij.testFramework.fixtures.EditorScrollingFixture;
 
 public class EditorMultiCaretTest extends AbstractEditorTest {
   private boolean myStoredVirtualSpaceSetting;
@@ -51,19 +45,19 @@ public class EditorMultiCaretTest extends AbstractEditorTest {
     checkResultByText("some <selection>t<caret>ext</selection>\n" +
                       "a<caret>nother line");
 
-    mouse().alt().shift().clickAt(0,8); // alt-shift-click in existing selection
+    mouse().alt().shift().clickAt(0, 8); // alt-shift-click in existing selection
     checkResultByText("some <selection>t<caret>ext</selection>\n" +
                       "a<caret>nother line");
 
-    mouse().alt().shift().clickAt(0,6); // alt-shift-click at existing caret with selection
+    mouse().alt().shift().clickAt(0, 6); // alt-shift-click at existing caret with selection
     checkResultByText("some text\n" +
                       "a<caret>nother line");
 
-    mouse().alt().shift().clickAt(1,1); // alt-shift-click at the sole caret
+    mouse().alt().shift().clickAt(1, 1); // alt-shift-click at the sole caret
     checkResultByText("some text\n" +
                       "a<caret>nother line");
 
-    mouse().alt().shift().clickAt(0,30); // alt-shift-click in virtual space
+    mouse().alt().shift().clickAt(0, 30); // alt-shift-click in virtual space
     checkResultByText("some text<caret>\n" +
                       "a<caret>nother line");
 
@@ -79,7 +73,7 @@ public class EditorMultiCaretTest extends AbstractEditorTest {
          "long line\n" +
          "line",
          TestFileType.TEXT);
-    EditorScrollingFixture.setVisibleSize(myEditor, 1000, 1000);
+    EditorTestUtil.setEditorVisibleSize(myEditor, 1000, 1000);
 
     mouse().alt().pressAt(1, 6);
     checkResultByText("line\n" +
@@ -117,7 +111,7 @@ public class EditorMultiCaretTest extends AbstractEditorTest {
          "long line\n" +
          "line",
          TestFileType.TEXT);
-    EditorScrollingFixture.setVisibleSize(myEditor, 1000, 1000);
+    EditorTestUtil.setEditorVisibleSize(myEditor, 1000, 1000);
 
     mouse().middle().pressAt(1, 17);
     checkResultByText("line\n" +
@@ -152,7 +146,8 @@ public class EditorMultiCaretTest extends AbstractEditorTest {
     init("some<caret> text<caret>\n" +
          "some <selection><caret>other</selection> <selection>text<caret></selection>\n" +
          "<selection>ano<caret>ther</selection> line",
-         TestFileType.TEXT);
+         TestFileType.TEXT
+    );
     type('A');
     checkResultByText("someA<caret> textA<caret>\n" +
                       "some A<caret> A<caret>\n" +
@@ -173,7 +168,8 @@ public class EditorMultiCaretTest extends AbstractEditorTest {
   public void testCutAndPaste() throws Exception {
     init("<selection>one<caret></selection> two \n" +
          "<selection>three<caret></selection> four ",
-         TestFileType.TEXT);
+         TestFileType.TEXT
+    );
     executeAction("EditorCut");
     executeAction("EditorLineEnd");
     executeAction("EditorPaste");
@@ -206,19 +202,5 @@ public class EditorMultiCaretTest extends AbstractEditorTest {
                       "three<caret> \n" +
                       "five  eightsix \n" +
                       "seven<caret>");
-  }
-
-  public void testStateStoreAndLoad() throws Exception {
-    init("some<caret> text<caret>\n" +
-         "some <selection><caret>other</selection> <selection>text<caret></selection>\n" +
-         "<selection>ano<caret>ther</selection> line",
-         TestFileType.TEXT);
-    EditorHistoryManager.getInstance(ourProject).projectOpened();
-    FileEditorManager fileEditorManager = FileEditorManager.getInstance(ourProject);
-    fileEditorManager.closeFile(myVFile);
-    myEditor = fileEditorManager.openTextEditor(new OpenFileDescriptor(getProject(), myVFile, 0), false);
-    checkResultByText("some<caret> text<caret>\n" +
-                      "some <selection><caret>other</selection> <selection>text<caret></selection>\n" +
-                      "<selection>ano<caret>ther</selection> line");
   }
 }

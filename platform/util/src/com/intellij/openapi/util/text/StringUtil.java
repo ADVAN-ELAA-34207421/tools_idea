@@ -968,8 +968,14 @@ public class StringUtil extends StringUtilRt {
   }
 
   @Contract("null -> true")
-  public static boolean isEmptyOrSpaces(@Nullable final String s) {
-    if (s == null || s.isEmpty()) {
+  // we need to keep this method to preserve backward compatibility
+  public static boolean isEmptyOrSpaces(@Nullable String s) {
+    return isEmptyOrSpaces(((CharSequence)s));
+  }
+
+  @Contract("null -> true")
+  public static boolean isEmptyOrSpaces(@Nullable CharSequence s) {
+    if (isEmpty(s)) {
       return true;
     }
     for (int i = 0; i < s.length(); i++) {
@@ -1914,12 +1920,17 @@ public class StringUtil extends StringUtilRt {
   }
 
   public static int countChars(@NotNull CharSequence text, char c) {
-    int count = 0;
+    return countChars(text, c, 0, false);
+  }
 
-    for (int i = 0; i < text.length(); ++i) {
-      final char ch = text.charAt(i);
-      if (ch == c) {
-        ++count;
+  public static int countChars(@NotNull CharSequence text, char c, int offset, boolean continuous) {
+    int count = 0;
+    for (int i = offset; i < text.length(); ++i) {
+      if (text.charAt(i) == c) {
+        count++;
+      }
+      else if (continuous) {
+        break;
       }
     }
     return count;
@@ -2624,7 +2635,7 @@ public class StringUtil extends StringUtilRt {
    * i.e. when java.util.regex.Pattern match goes out of control.
    */
   public abstract static class BombedCharSequence implements CharSequence {
-    private CharSequence delegate;
+    private final CharSequence delegate;
     private int i = 0;
 
     public BombedCharSequence(@NotNull CharSequence sequence) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1766,12 +1766,16 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     }
   }
 
-  private static FileType getFileType(VirtualFile file) {
+  public static FileType getFileType(VirtualFile file) {
     FileType fileType = file.getFileType();
     if (fileType == FileTypes.PLAIN_TEXT && FileTypeManagerImpl.isFileTypeDetectedFromContent(file)) {
       fileType = FileTypes.UNKNOWN;
     }
     return fileType;
+  }
+
+  public boolean isIndexingCandidate(VirtualFile file, ID<?, ?> indexId) {
+    return !isTooLarge(file) && getAffectedIndexCandidates(file).contains(indexId);
   }
 
   private List<ID<?, ?>> getAffectedIndexCandidates(VirtualFile file) {
@@ -1920,7 +1924,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     private final ManagingFS myManagingFS = ManagingFS.getInstance();
 
     @Override
-    public void fileMoved(VirtualFileMoveEvent event) {
+    public void fileMoved(@NotNull VirtualFileMoveEvent event) {
       markDirty(event, false);
     }
 

@@ -110,6 +110,33 @@ public class NewLambdaHighlightingTest extends LightDaemonAnalyzerTestCase {
   public void testAdditionalConstraintSubstitution() throws Exception {
     doTest();
   }
+  public void testFunctionalInterfacesCalculation() throws Exception {
+    doTest();
+  }
+
+  public void testMissedSiteSubstitutorDuringDeepAdditionalConstraintsGathering() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA120992() throws Exception {
+    doTest();
+  }
+
+  public void testTargetTypeConflictResolverShouldNotTryToEvaluateCurrentArgumentType() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA119535() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA117124() throws Exception {
+    doTest();
+  }
+
+  public void testWildcardParameterization() throws Exception {
+    doTest();
+  }
 
   private void doTest() {
     doTest(false);

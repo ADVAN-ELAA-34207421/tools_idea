@@ -271,7 +271,7 @@ public class CaretModelImpl implements CaretModel, PrioritizedDocumentListener, 
 
   @Override
   @NotNull
-  public Collection<Caret> getAllCarets() {
+  public List<Caret> getAllCarets() {
     List<Caret> carets;
     synchronized (myCarets) {
       carets = new ArrayList<Caret>(myCarets);
@@ -452,7 +452,7 @@ public class CaretModelImpl implements CaretModel, PrioritizedDocumentListener, 
   }
 
   @Override
-  public void setCarets(@NotNull final List<LogicalPosition> caretPositions, @NotNull final List<? extends Segment> selections) {
+  public void setCaretsAndSelections(@NotNull final List<LogicalPosition> caretPositions, @NotNull final List<? extends Segment> selections) {
     myEditor.assertIsDispatchThread();
     if (caretPositions.isEmpty()) {
       throw new IllegalArgumentException("At least one caret should exist");
@@ -475,7 +475,9 @@ public class CaretModelImpl implements CaretModel, PrioritizedDocumentListener, 
           }
           else {
             caret = new CaretImpl(myEditor);
-            caret.moveToLogicalPosition(caretPosition, false, null, false);
+            if (caretPosition != null) {
+              caret.moveToLogicalPosition(caretPosition, false, null, false);
+            }
             synchronized (myCarets) {
               myCarets.add(caret);
             }

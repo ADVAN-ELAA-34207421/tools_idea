@@ -29,7 +29,6 @@ import com.intellij.psi.infos.MethodCandidateInfo;
 import com.intellij.psi.scope.PsiConflictResolver;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.util.*;
-import com.intellij.util.ArrayUtilRt;
 import com.intellij.util.containers.HashSet;
 import gnu.trove.THashMap;
 import gnu.trove.THashSet;
@@ -37,7 +36,10 @@ import gnu.trove.TIntArrayList;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Created by IntelliJ IDEA.
@@ -121,8 +123,7 @@ public class JavaMethodsConflictResolver implements PsiConflictResolver{
             if (methodParameters.length == 0) continue;
             final PsiParameter param = i < methodParameters.length ? methodParameters[i] : methodParameters[methodParameters.length - 1];
             final PsiType paramType = param.getType();
-            if (!LambdaUtil.isAcceptable(lambdaExpression, ((MethodCandidateInfo)conflict).getSubstitutor(false).substitute(paramType),
-                                         lambdaExpression.hasFormalParameterTypes())) {
+            if (!lambdaExpression.isAcceptable(((MethodCandidateInfo)conflict).getSubstitutor(false).substitute(paramType), lambdaExpression.hasFormalParameterTypes())) {
               iterator.remove();
             }
           }
@@ -368,7 +369,7 @@ public class JavaMethodsConflictResolver implements PsiConflictResolver{
     boolean toFilter = false;
     for (CandidateInfo conflict : conflicts) {
       ProgressManager.checkCanceled();
-      @MethodCandidateInfo.ApplicabilityLevelConstant final int level = preferVarargs((MethodCandidateInfo)conflict);
+      @MethodCandidateInfo.ApplicabilityLevelConstant final int level = ((MethodCandidateInfo)conflict).getPertinentApplicabilityLevel();
       if (maxApplicabilityLevel > 0 && maxApplicabilityLevel != level) {
         toFilter = true;
       }
@@ -381,7 +382,7 @@ public class JavaMethodsConflictResolver implements PsiConflictResolver{
       for (Iterator<CandidateInfo> iterator = conflicts.iterator(); iterator.hasNext();) {
         ProgressManager.checkCanceled();
         CandidateInfo info = iterator.next();
-        final int level = preferVarargs((MethodCandidateInfo)info);
+        final int level = ((MethodCandidateInfo)info).getPertinentApplicabilityLevel();
         if (level < maxApplicabilityLevel) {
           iterator.remove();
         }
@@ -389,17 +390,6 @@ public class JavaMethodsConflictResolver implements PsiConflictResolver{
     }
 
     return maxApplicabilityLevel;
-  }
-
-  private static int preferVarargs(MethodCandidateInfo info) {
-    final int level = info.getPertinentApplicabilityLevel();
-    if (level == MethodCandidateInfo.ApplicabilityLevel.FIXED_ARITY) {
-      final PsiMethod psiMethod = info.getElement();
-      if (psiMethod != null && psiMethod.isVarArgs() && JavaVersionService.getInstance().isAtLeast(psiMethod, JavaSdkVersion.JDK_1_7)) {
-        return level + 1;
-      }
-    }
-    return level;
   }
 
   private static int getCheckAccessLevel(MethodCandidateInfo method){
@@ -416,9 +406,13 @@ public class JavaMethodsConflictResolver implements PsiConflictResolver{
   private PsiType[] getActualParameterTypes() {
     if (myActualParameterTypes == null) {
       LOG.assertTrue(myArgumentsList instanceof PsiExpressionList, myArgumentsList);
-      myActualParameterTypes = ((PsiExpressionList)myArgumentsList).getExpressionTypes();
+      myActualParameterTypes = getArgumentTypes();
     }
     return myActualParameterTypes;
+  }
+
+  protected PsiType[] getArgumentTypes() {
+    return ((PsiExpressionList)myArgumentsList).getExpressionTypes();
   }
 
   private enum Specifics {
@@ -541,7 +535,8 @@ public class JavaMethodsConflictResolver implements PsiConflictResolver{
           return Specifics.FIRST;
         }
       }
-      if (languageLevel.isAtLeast(LanguageLevel.JDK_1_8) && myArgumentsList instanceof PsiExpressionList) {
+
+      if (languageLevel.isAtLeast(LanguageLevel.JDK_1_8) && myArgumentsList instanceof PsiExpressionList && (typeParameters1.length == 0 || typeParameters2.length == 0)) {
         boolean toCompareFunctional = false;
         for (int i = 0; i < myActualParameterTypes.length; i++) {
           if (types1.length > 0 && LambdaUtil.isFunctionalType(types1[Math.min(i, types1.length - 1)]) &&
@@ -641,7 +636,7 @@ public class JavaMethodsConflictResolver implements PsiConflictResolver{
                                  PsiMethod method2, 
                                  PsiSubstitutor siteSubstitutor1) {
     if (languageLevel.isAtLeast(LanguageLevel.JDK_1_8) && method2 != null && method1.getTypeParameters().length > 0 && myArgumentsList instanceof PsiExpressionList) {
-      return InferenceSession.isMoreSpecific(method2, method1, siteSubstitutor1, ((PsiExpressionList)myArgumentsList).getExpressions(), null, varargsPosition);
+      return InferenceSession.isMoreSpecific(method2, method1, siteSubstitutor1, ((PsiExpressionList)myArgumentsList).getExpressions(), myArgumentsList, varargsPosition);
     }
     final int applicabilityLevel = PsiUtil.getApplicabilityLevel(method1, methodSubstitutor1, types2AtSite, languageLevel, false, varargsPosition);
     return applicabilityLevel > MethodCandidateInfo.ApplicabilityLevel.NOT_APPLICABLE;
@@ -651,58 +646,8 @@ public class JavaMethodsConflictResolver implements PsiConflictResolver{
     final PsiType[] types = PsiType.createArray(types1.length);
     for (int i = 0; i < types1.length; i++) {
       types[i] = siteSubstitutor1.substitute(types1[i]);
-      if (types[i] instanceof PsiClassType) {
-        final PsiClass aClass = ((PsiClassType)types[i]).resolve();
-        if (aClass instanceof PsiTypeParameter) {
-          final List<PsiType> resultBounds = new ArrayList<PsiType>();
-          for (PsiType bound : aClass.getExtendsListTypes()) {
-            bound = siteSubstitutor1.substitute(bound);
-            if (!dependsOnOtherTypeParams(bound, typeParameters1)) {
-              resultBounds.add(bound);
-            } else {
-              resultBounds.clear();
-              break;
-            }
-          }
-          if (!resultBounds.isEmpty()) {
-            types[i] = PsiIntersectionType.createIntersection(resultBounds);
-          }
-        }
-      }
     }
     return types;
-  }
-
-  private static boolean dependsOnOtherTypeParams(PsiType type, final PsiTypeParameter[] params) {
-    return type.accept(new PsiTypeVisitor<Boolean>(){
-      @Nullable
-      @Override
-      public Boolean visitClassType(PsiClassType classType) {
-        for (PsiType psiType : classType.getParameters()) {
-          if (psiType.accept(this)) return true;
-        }
-        return ArrayUtilRt.find(params, classType.resolve()) > -1;
-      }
-
-      @Nullable
-      @Override
-      public Boolean visitArrayType(PsiArrayType arrayType) {
-        return arrayType.getComponentType().accept(this);
-      }
-
-      @Nullable
-      @Override
-      public Boolean visitWildcardType(PsiWildcardType wildcardType) {
-        final PsiType bound = wildcardType.getBound();
-        return bound != null && bound.accept(this);
-      }
-
-      @Nullable
-      @Override
-      public Boolean visitType(PsiType type) {
-        return false;
-      }
-    });
   }
 
   private static PsiSubstitutor calculateMethodSubstitutor(final PsiTypeParameter[] typeParameters,
@@ -722,6 +667,14 @@ public class JavaMethodsConflictResolver implements PsiConflictResolver{
           type = TypeConversionUtil.erasure(type, substitutor);
         }
         substitutor = substitutor.put(typeParameter, type);
+      } else {
+        final PsiType type = substitutor.substitute(typeParameter);
+        if (type instanceof PsiClassType) {
+          final PsiClass aClass = ((PsiClassType)type).resolve();
+          if (aClass instanceof PsiTypeParameter) {
+            substitutor = substitutor.put(typeParameter, JavaPsiFacade.getElementFactory(aClass.getProject()).createType(aClass, siteSubstitutor));
+          }
+        }
       }
     }
     return substitutor;

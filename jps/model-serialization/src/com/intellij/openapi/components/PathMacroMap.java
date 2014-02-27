@@ -48,6 +48,7 @@ public abstract class PathMacroMap {
                        ? substituteRecursively(oldText, caseSensitive)
                        : substitute(oldText, caseSensitive);
           if (oldText != newText) {
+            // it is faster to call 'setText' right away than perform additional 'equals' check
             t.setText(newText);
           }
         }
@@ -64,6 +65,7 @@ public abstract class PathMacroMap {
                        ? substituteRecursively(oldValue, caseSensitive)
                        : substitute(oldValue, caseSensitive);
         if (oldValue != newValue) {
+          // it is faster to call 'setValue' right away than perform additional 'equals' check
           attribute.setValue(newValue);
         }
       }

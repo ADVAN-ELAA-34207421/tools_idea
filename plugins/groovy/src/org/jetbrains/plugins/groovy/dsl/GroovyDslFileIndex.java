@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,7 +110,7 @@ public class GroovyDslFileIndex extends ScalarIndexExtension<String> {
     VirtualFileManager.getInstance().addVirtualFileListener(new VirtualFileAdapter() {
 
       @Override
-      public void contentsChanged(VirtualFileEvent event) {
+      public void contentsChanged(@NotNull VirtualFileEvent event) {
         if (event.getFileName().endsWith(".gdsl")) {
           disableFile(event.getFile(), MODIFIED);
         }
@@ -432,6 +432,7 @@ public class GroovyDslFileIndex extends ScalarIndexExtension<String> {
   }
 
   private static final Key<CachedValue<List<GroovyDslScript>>> SCRIPTS_CACHE = Key.create("GdslScriptCache");
+
   private static List<GroovyDslScript> getDslScripts(final Project project) {
     return CachedValuesManager.getManager(project).getCachedValue(project, SCRIPTS_CACHE, new CachedValueProvider<List<GroovyDslScript>>() {
       @Override
@@ -445,9 +446,6 @@ public class GroovyDslFileIndex extends ScalarIndexExtension<String> {
         List<GroovyDslScript> result = new ArrayList<GroovyDslScript>();
 
         List<Pair<File, GroovyDslExecutor>> standardScripts = getStandardScripts();
-        if (ourGdslStopped) {
-          return Result.create(Collections.<GroovyDslScript>emptyList(), Collections.emptyList());
-        }
         assert standardScripts != null;
         for (Pair<File, GroovyDslExecutor> pair : standardScripts) {
           result.add(new GroovyDslScript(project, null, pair.second, pair.first.getPath()));
@@ -457,7 +455,8 @@ public class GroovyDslFileIndex extends ScalarIndexExtension<String> {
           new LinkedBlockingQueue<Pair<VirtualFile, GroovyDslExecutor>>();
 
         final ProjectFileIndex fileIndex = ProjectRootManager.getInstance(project).getFileIndex();
-        for (VirtualFile vfile : FileBasedIndex.getInstance().getContainingFiles(NAME, OUR_KEY, GlobalSearchScope.allScope(project))) {
+        final GlobalSearchScope scope = GlobalSearchScope.allScope(project);
+        for (VirtualFile vfile : FileBasedIndex.getInstance().getContainingFiles(NAME, OUR_KEY, scope)) {
           if (!vfile.isValid()) {
             continue;
           }

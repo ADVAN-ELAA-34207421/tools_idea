@@ -22,15 +22,19 @@ class ClassFieldsManager extends FieldsManager {
     super(true);
   }
 
+  @Override
+  public boolean hasConflict(@NotNull final PyTargetExpression member, @NotNull final PyClass aClass) {
+    return NamePredicate.hasElementWithSameName(member, aClass.getClassAttributes());
+  }
 
   @Override
   protected Collection<PyElement> moveAssignments(@NotNull final PyClass from,
-                                 @NotNull final Collection<PyAssignmentStatement> statements,
-                                 @NotNull final PyClass... to) {
+                                                  @NotNull final Collection<PyAssignmentStatement> statements,
+                                                  @NotNull final PyClass... to) {
     //TODO: Copy/paste with InstanceFieldsManager. Move to parent?
     final List<PyElement> result = new ArrayList<PyElement>();
     for (final PyClass destClass : to) {
-      result.addAll(PyClassRefactoringUtil.copyFieldDeclarationToStatement(statements, destClass.getStatementList()));
+      result.addAll(PyClassRefactoringUtil.copyFieldDeclarationToStatement(statements, destClass.getStatementList(), destClass));
     }
     deleteElements(statements);
     PyClassRefactoringUtil.insertPassIfNeeded(from);

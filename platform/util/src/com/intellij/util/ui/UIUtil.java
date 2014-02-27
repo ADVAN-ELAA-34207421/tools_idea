@@ -224,6 +224,8 @@ public class UIUtil {
   }
 
   public static boolean isRetina() {
+    if (GraphicsEnvironment.isHeadless()) return false;
+
     //Temporary workaround for HiDPI on Windows/Linux
     if ("true".equalsIgnoreCase(System.getProperty("is.hidpi"))) {
       return true;
@@ -2741,5 +2743,39 @@ public class UIUtil {
       catch (InvocationTargetException e) { LOG.debug(e); }
       catch (IllegalAccessException e) { LOG.debug(e); }
     }
+  }
+
+  //May have no usages but it's useful in runtime (Debugger "watches", some logging etc.)
+  public static String getDebugText(Component c) {
+    StringBuilder builder  = new StringBuilder();
+    getAllTextsRecursivelyImpl(c, builder);
+    return builder.toString();
+  }
+
+  private static void getAllTextsRecursivelyImpl(Component component, StringBuilder builder) {
+    String candidate = "";
+    int limit = builder.length() > 60 ? 20 : 40;
+    if (component instanceof JLabel) candidate = ((JLabel)component).getText();
+    if (component instanceof JTextComponent) candidate = ((JTextComponent)component).getText();
+    if (component instanceof AbstractButton) candidate = ((AbstractButton)component).getText();
+    if (StringUtil.isNotEmpty(candidate)) {
+      builder.append(candidate.length() > limit ? (candidate.substring(0, limit - 3) + "...") : candidate).append('|');
+    }
+    if (component instanceof Container) {
+      Component[] components = ((Container)component).getComponents();
+      for (Component child : components) {
+        getAllTextsRecursivelyImpl(child, builder);
+      }
+    }
+  }
+
+  public static boolean isAncestor(@NotNull Component ancestor, @Nullable Component descendant) {
+    while (descendant != null) {
+      if (descendant == ancestor) {
+        return true;
+      }
+      descendant = descendant.getParent();
+    }
+    return false;
   }
 }
