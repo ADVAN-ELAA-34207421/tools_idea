@@ -67,7 +67,7 @@ public class RecentProjectPanel extends JPanel {
 
     new ClickListener(){
       @Override
-      public boolean onClick(MouseEvent event, int clickCount) {
+      public boolean onClick(@NotNull MouseEvent event, int clickCount) {
         int selectedIndex = myList.getSelectedIndex();
         if (selectedIndex >= 0) {
           if (myList.getCellBounds(selectedIndex, selectedIndex).contains(event.getPoint())) {
@@ -111,7 +111,7 @@ public class RecentProjectPanel extends JPanel {
                                                      "' from recent projects list?",
                                                      "Remove Recent Project",
                                                      Messages.getQuestionIcon());
-          if (rc == 0) {
+          if (rc == Messages.OK) {
             final RecentProjectsManagerBase manager = RecentProjectsManagerBase.getInstance();
             for (Object projectAction : selection) {
               manager.removePath(((ReopenProjectAction)projectAction).getProjectPath());

@@ -43,11 +43,15 @@ import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.HashMap;
 import com.intellij.util.containers.HashSet;
 import com.intellij.util.containers.StringInterner;
+import com.intellij.util.containers.hash.EqualityPolicy;
+import com.intellij.util.containers.hash.LinkedHashMap;
 import com.intellij.util.graph.CachingSemiGraph;
 import com.intellij.util.graph.DFSTBuilder;
 import com.intellij.util.graph.Graph;
 import com.intellij.util.graph.GraphGenerator;
+import com.intellij.util.io.URLUtil;
 import com.intellij.util.messages.MessageBus;
+import com.intellij.util.text.FilePathHashingStrategy;
 import gnu.trove.THashMap;
 import gnu.trove.TObjectHashingStrategy;
 import org.jdom.Element;
@@ -367,7 +371,7 @@ public abstract class ModuleManagerImpl extends ModuleManager implements Project
     public final void writeExternal(Element parentElement) {
       Element moduleElement = new Element(ELEMENT_MODULE);
       final String moduleFilePath = getModuleFilePath();
-      final String url = VirtualFileManager.constructUrl(StandardFileSystems.FILE_PROTOCOL, moduleFilePath);
+      final String url = VirtualFileManager.constructUrl(URLUtil.FILE_PROTOCOL, moduleFilePath);
       moduleElement.setAttribute(ATTRIBUTE_FILEURL, url);
       // [dsl] support for older builds
       moduleElement.setAttribute(ATTRIBUTE_FILEPATH, moduleFilePath);
@@ -602,7 +606,7 @@ public abstract class ModuleManagerImpl extends ModuleManager implements Project
   protected abstract ModuleEx createAndLoadModule(String filePath) throws IOException;
 
   class ModuleModelImpl implements ModifiableModuleModel {
-    final Map<String, Module> myPathToModule = new LinkedHashMap<String, Module>();
+    final Map<String, Module> myPathToModule = new LinkedHashMap<String, Module>(new EqualityPolicy.ByHashingStrategy<String>(FilePathHashingStrategy.create()));
     private Module[] myModulesCache;
 
     private final List<Module> myModulesToDispose = new ArrayList<Module>();
@@ -726,13 +730,7 @@ public abstract class ModuleManagerImpl extends ModuleManager implements Project
 
     @Nullable
     private ModuleEx getModuleByFilePath(String filePath) {
-      final Collection<Module> modules = myPathToModule.values();
-      for (Module module : modules) {
-        if (FileUtil.pathsEqual(filePath, module.getModuleFilePath())) {
-          return (ModuleEx)module;
-        }
-      }
-      return null;
+      return (ModuleEx)myPathToModule.get(filePath);
     }
 
     @Override

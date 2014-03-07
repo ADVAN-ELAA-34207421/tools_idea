@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -100,6 +100,8 @@ public abstract class TokenSets {
   public static final TokenSet REFERENCE_NAMES = TokenSet.orSet(KEYWORDS, PROPERTY_NAMES, NUMBERS);
   public static final TokenSet REFERENCE_NAMES_WITHOUT_NUMBERS = TokenSet.orSet(KEYWORDS, PROPERTY_NAMES);
 
+  public static final TokenSet REFERENCE_NAME_PREFIXES = TokenSet.orSet(NUMBERS, KEYWORDS, TokenSet.create(mIDENT, mSTRING_LITERAL, mGSTRING_LITERAL, mGSTRING_BEGIN, mREGEX_BEGIN, mDOLLAR_SLASH_REGEX_BEGIN, mAT));
+
 
   public static final TokenSet VISIBILITY_MODIFIERS = TokenSet.create(
       kPRIVATE,
@@ -171,6 +173,9 @@ public abstract class TokenSets {
                                                                mMOD, mPLUS, mSTAR, mSTAR_STAR, mNOT_EQUAL, mCOMPARE_TO, mLAND, kINSTANCEOF,
                                                                COMPOSITE_LSHIFT_SIGN, COMPOSITE_RSHIFT_SIGN, COMPOSITE_TRIPLE_SHIFT_SIGN,
                                                                mREGEX_FIND, mREGEX_MATCH, mRANGE_INCLUSIVE, mRANGE_EXCLUSIVE);
+
+  public static final TokenSet ASSOCIATIVE_BINARY_OP_SET = TokenSet.create(mBAND, mBOR, mBXOR, mEQUAL, mLOR, mPLUS, mSTAR, mNOT_EQUAL, mLAND);
+
 
   public static final TokenSet BINARY_EXPRESSIONS = TokenSet.create(ADDITIVE_EXPRESSION, MULTIPLICATIVE_EXPRESSION, POWER_EXPRESSION,
                                                                     POWER_EXPRESSION_SIMPLE, LOGICAL_OR_EXPRESSION, LOGICAL_AND_EXPRESSION,

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,9 @@ package org.jetbrains.plugins.groovy.console;
 
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.JavaParameters;
-import com.intellij.execution.console.ConsoleHistoryController;
-import com.intellij.execution.console.LanguageConsoleImpl;
-import com.intellij.execution.console.LanguageConsoleView;
-import com.intellij.execution.console.LanguageConsoleViewImpl;
+import com.intellij.execution.console.*;
 import com.intellij.execution.process.OSProcessHandler;
 import com.intellij.execution.runners.AbstractConsoleRunnerWithHistory;
-import com.intellij.execution.runners.ConsoleExecuteActionHandler;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -45,8 +41,10 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.PopupStep;
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep;
+import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.Key;
 import com.intellij.util.PlatformIcons;
+import com.intellij.util.containers.ContainerUtil;
 import icons.JetgroovyIcons;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.groovy.lang.psi.impl.GroovyFileImpl;
@@ -60,13 +58,14 @@ import java.util.*;
 public abstract class GroovyShellActionBase extends DumbAwareAction {
   private static final Logger LOG = Logger.getInstance(GroovyShellActionBase.class);
 
+  public static final String GROOVY_SHELL_EXECUTE = "Groovy.Shell.Execute";
   public static final Key<Boolean> GROOVY_SHELL_FILE = Key.create("GROOVY_SHELL_FILE");
   private static final String GROOVY_SHELL_LAST_MODULE = "Groovy.Shell.LastModule";
 
-  private static List<Module> getGroovyCompatibleModules(Project project) {
+  private List<Module> getGroovyCompatibleModules(Project project) {
     ArrayList<Module> result = new ArrayList<Module>();
     for (Module module : ModuleManager.getInstance(project).getModules()) {
-      if (GroovyUtils.isSuitableModule(module)) {
+      if (isSuitableModule(module)) {
         Sdk sdk = ModuleRootManager.getInstance(module).getSdk();
         if (sdk != null && sdk.getSdkType() instanceof JavaSdkType) {
           result.add(module);
@@ -74,6 +73,10 @@ public abstract class GroovyShellActionBase extends DumbAwareAction {
       }
     }
     return result;
+  }
+
+  protected boolean isSuitableModule(Module module) {
+    return GroovyUtils.isSuitableModule(module);
   }
 
   @Override
@@ -112,7 +115,7 @@ public abstract class GroovyShellActionBase extends DumbAwareAction {
     final Map<Module, String> versions = new HashMap<Module, String>();
 
     for (Module module : getGroovyCompatibleModules(project)) {
-      GroovyShellRunner runner = GroovyShellRunner.getAppropriateRunner(module);
+      GroovyShellRunner runner = getRunner(module);
       if (runner != null) {
         modules.add(module);
         versions.put(module, runner.getTitle(module));
@@ -152,13 +155,19 @@ public abstract class GroovyShellActionBase extends DumbAwareAction {
         }
       };
 
-    for (int i = 0; i < modules.size(); i++) {
-      Module module = modules.get(i);
-      if (module.getName().equals(PropertiesComponent.getInstance(project).getValue(GROOVY_SHELL_LAST_MODULE))) {
-        step.setDefaultOptionIndex(i);
-        break;
+    final String lastModuleName = PropertiesComponent.getInstance(project).getValue(GROOVY_SHELL_LAST_MODULE);
+    if (lastModuleName != null) {
+      int defaultOption = ContainerUtil.indexOf(modules, new Condition<Module>() {
+        @Override
+        public boolean value(Module module) {
+          return module.getName().equals(lastModuleName);
+        }
+      });
+      if (defaultOption >= 0) {
+        step.setDefaultOptionIndex(defaultOption);
       }
     }
+
     JBPopupFactory.getInstance().createListPopup(step).showCenteredInCurrentWindow(project);
   }
 
@@ -166,7 +175,7 @@ public abstract class GroovyShellActionBase extends DumbAwareAction {
     final GroovyShellRunner shellRunner = getRunner(module);
     if (shellRunner == null) return;
 
-    AbstractConsoleRunnerWithHistory<LanguageConsoleView> runner = new GroovyConsoleRunner(getTitle(), shellRunner, module, "Groovy.Shell.Execute");
+    AbstractConsoleRunnerWithHistory<LanguageConsoleView> runner = new GroovyConsoleRunner(getTitle(), shellRunner, module);
     try {
       runner.initAndRun();
     }
@@ -183,18 +192,15 @@ public abstract class GroovyShellActionBase extends DumbAwareAction {
   protected abstract LanguageConsoleImpl createConsole(Project project, String title);
 
   private class GroovyConsoleRunner extends AbstractConsoleRunnerWithHistory<LanguageConsoleView> {
-    private final String myEmptyExecuteAction;
     private GroovyShellRunner myShellRunner;
     private Module myModule;
 
     private GroovyConsoleRunner(@NotNull String consoleTitle,
                                 @NotNull GroovyShellRunner shellRunner,
-                                @NotNull Module module,
-                                @NotNull String emptyExecuteAction) {
+                                @NotNull Module module) {
       super(module.getProject(), consoleTitle, shellRunner.getWorkingDirectory(module));
       myShellRunner = shellRunner;
       myModule = module;
-      myEmptyExecuteAction = emptyExecuteAction;
     }
 
     @Override
@@ -230,16 +236,16 @@ public abstract class GroovyShellActionBase extends DumbAwareAction {
 
     @NotNull
     @Override
-    protected ConsoleExecuteActionHandler createConsoleExecuteActionHandler() {
-      ConsoleExecuteActionHandler handler = new ConsoleExecuteActionHandler(getProcessHandler(), false) {
+    protected ProcessBackedConsoleExecuteActionHandler createExecuteActionHandler() {
+      ProcessBackedConsoleExecuteActionHandler handler = new ProcessBackedConsoleExecuteActionHandler(getProcessHandler(), false) {
         @Override
-        public void processLine(String line) {
+        public void processLine(@NotNull String line) {
           super.processLine(myShellRunner.transformUserInput(line));
         }
 
         @Override
         public String getEmptyExecuteAction() {
-          return myEmptyExecuteAction;
+          return GROOVY_SHELL_EXECUTE;
         }
       };
       new ConsoleHistoryController(getConsoleTitle(), null, getLanguageConsole(), handler.getConsoleHistoryModel()).install();

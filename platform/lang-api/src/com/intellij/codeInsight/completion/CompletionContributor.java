@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -141,8 +141,9 @@ public abstract class CompletionContributor {
    *
    * If you want to implement this functionality directly by overriding this method, the following is for you.
    * Always check that parameters match your situation, and that completion type ({@link CompletionParameters#getCompletionType()}
-   * is of your favourite kind. This method is run outside of read action, so you have to manage this manually
-   * ({@link com.intellij.openapi.application.Application#runReadAction(Runnable)}). Don't take read actions for too long.<p>
+   * is of your favourite kind. This method is run inside a read action. If you do any long activity non-related to PSI in it, please
+   * ensure you call {@link com.intellij.openapi.progress.ProgressManager#checkCanceled()} often enough so that the completion process 
+   * can be cancelled smoothly when the user begins to type in the editor. 
    *
    * @param parameters
    * @param result
@@ -253,8 +254,9 @@ public abstract class CompletionContributor {
       super("com.intellij.completion.contributor");
     }
 
+    @NotNull
     @Override
-    protected List<CompletionContributor> buildExtensions(String stringKey, Language key) {
+    protected List<CompletionContributor> buildExtensions(@NotNull String stringKey, @NotNull Language key) {
       final THashSet<String> allowed = new THashSet<String>();
       while (key != null) {
         allowed.add(keyToString(key));
@@ -264,8 +266,9 @@ public abstract class CompletionContributor {
       return buildExtensions(allowed);
     }
 
+    @NotNull
     @Override
-    protected String keyToString(Language key) {
+    protected String keyToString(@NotNull Language key) {
       return key.getID();
     }
   }

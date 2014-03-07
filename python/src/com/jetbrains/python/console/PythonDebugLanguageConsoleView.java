@@ -63,7 +63,7 @@ public class PythonDebugLanguageConsoleView extends JPanel implements ConsoleVie
 
   public PythonDebugLanguageConsoleView(final Project project, Sdk sdk, ConsoleView consoleView) {
     super(new CardLayout());
-    myPydevConsoleView = createConsoleView(project, sdk);
+    myPydevConsoleView = new PythonConsoleView(project, "Python Console", sdk);
     myTextConsole = consoleView;
 
     add(myTextConsole.getComponent(), TEXT_CONSOLE_PANEL);
@@ -83,10 +83,6 @@ public class PythonDebugLanguageConsoleView extends JPanel implements ConsoleVie
   public void executeCode(@NotNull String code, @Nullable Editor e) {
     showDebugConsole(true);
     getPydevConsoleView().executeCode(code, e);
-  }
-
-  private static PythonConsoleView createConsoleView(Project project, Sdk sdk) {
-    return new PythonConsoleView(project, "Python Console", sdk);
   }
 
   private void doShowConsole(String type) {
@@ -141,7 +137,7 @@ public class PythonDebugLanguageConsoleView extends JPanel implements ConsoleVie
   }
 
   @Override
-  public void print(String s, ConsoleViewContentType contentType) {
+  public void print(@NotNull String s, @NotNull ConsoleViewContentType contentType) {
     myPydevConsoleView.print(s, contentType);
     myTextConsole.print(s, contentType);
   }
@@ -242,19 +238,23 @@ public class PythonDebugLanguageConsoleView extends JPanel implements ConsoleVie
       myConsole = console;
     }
 
+    @Override
     public boolean isSelected(final AnActionEvent event) {
       return myConsole.isDebugConsole();
     }
 
+    @Override
     public void setSelected(final AnActionEvent event, final boolean flag) {
       myConsole.showDebugConsole(flag);
       ApplicationManager.getApplication().invokeLater(new Runnable() {
+        @Override
         public void run() {
           update(event);
         }
       });
     }
 
+    @Override
     public void update(final AnActionEvent event) {
       super.update(event);
       final Presentation presentation = event.getPresentation();

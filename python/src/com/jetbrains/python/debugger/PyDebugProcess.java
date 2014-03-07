@@ -77,6 +77,7 @@ public class PyDebugProcess extends XDebugProcess implements IPyDebugProcess, Pr
   private final List<PyThreadInfo> mySuspendedThreads = Collections.synchronizedList(Lists.<PyThreadInfo>newArrayList());
   private final Map<String, XValueChildrenList> myStackFrameCache = Maps.newHashMap();
   private final Map<String, PyDebugValue> myNewVariableValue = Maps.newHashMap();
+  private boolean myDownloadSources = false;
 
   private boolean myClosing = false;
 
@@ -185,6 +186,7 @@ public class PyDebugProcess extends XDebugProcess implements IPyDebugProcess, Pr
     return myPositionConverter;
   }
 
+  @NotNull
   @Override
   public XBreakpointHandler<?>[] getBreakpointHandlers() {
     return myBreakpointHandlers;
@@ -422,8 +424,17 @@ public class PyDebugProcess extends XDebugProcess implements IPyDebugProcess, Pr
     cleanUp();
   }
 
+  public boolean isDownloadSources() {
+    return myDownloadSources;
+  }
+
+  public void setDownloadSources(boolean downloadSources) {
+    myDownloadSources = downloadSources;
+  }
+
   protected void cleanUp() {
     mySuspendedThreads.clear();
+    myDownloadSources = false;
   }
 
   @Override
@@ -662,7 +673,7 @@ public class PyDebugProcess extends XDebugProcess implements IPyDebugProcess, Pr
   }
 
   public PyStackFrame createStackFrame(PyStackFrameInfo frameInfo) {
-    return new PyStackFrame(this.getSession().getProject(), this, frameInfo,
+    return new PyStackFrame(getSession().getProject(), this, frameInfo,
                             getPositionConverter().convertFromPython(frameInfo.getPosition()));
   }
 

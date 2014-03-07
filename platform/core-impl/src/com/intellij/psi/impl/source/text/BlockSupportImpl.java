@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package com.intellij.psi.impl.source.text;
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.Language;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.diagnostic.Attachment;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.ex.DocumentBulkUpdateListener;
@@ -106,11 +107,13 @@ public class BlockSupportImpl extends BlockSupport {
         if (baseLanguage.isKindOf(reparseable.getLanguage())) {
           final int start = textRange.getStartOffset();
           final int end = start + textRange.getLength() + lengthShift;
-          assertFileLength(file, newFileText, node, elementType, start, end);
+          if (!assertFileLength(file, newFileText, node, elementType, start, end)) {
+            break;
+          }
 
           CharSequence newTextStr = newFileText.subSequence(start, end);
 
-          if (reparseable.isParsable(newTextStr, baseLanguage, project)) {
+          if (reparseable.isParsable(node.getTreeParent(), newTextStr, baseLanguage, project)) {
             ASTNode chameleon = reparseable.createNode(newTextStr);
             if (chameleon != null) {
               DummyHolder holder = DummyHolderFactory.createHolder(fileImpl.getManager(), null, node.getPsi(), charTable);
@@ -134,22 +137,28 @@ public class BlockSupportImpl extends BlockSupport {
     return makeFullParse(node, newFileText, textLength, fileImpl, indicator);
   }
 
-  private static void assertFileLength(PsiFile file, CharSequence newFileText, ASTNode node, IElementType elementType, int start, int end) {
-    if (end > newFileText.length() && ApplicationManager.getApplication().isInternal()) {
+  private static boolean assertFileLength(PsiFile file, CharSequence newFileText, ASTNode node, IElementType elementType, int start, int end) {
+    if (end > newFileText.length() || start > end) {
+      String message = "IOOBE: type=" + elementType +
+                       "; file=" + file +
+                       "; file.class=" + file.getClass() +
+                       "; start=" + start +
+                       "; end=" + end +
+                       "; length=" + node.getTextLength();
       String newTextBefore = newFileText.subSequence(0, start).toString();
       String oldTextBefore = file.getText().subSequence(0, start).toString();
-      String message = "IOOBE: type=" + elementType +
-                       "; oldText=" + node.getText() +
-                       "; newText=" + newFileText.subSequence(start, newFileText.length()) +
-                       "; length=" + node.getTextLength();
       if (oldTextBefore.equals(newTextBefore)) {
         message += "; oldTextBefore==newTextBefore";
-      } else {
-        message += "; oldTextBefore=" + oldTextBefore +
-                   "; newTextBefore=" + newTextBefore;
       }
-      throw new AssertionError(message);
+      LOG.error(message,
+                new Attachment(file.getName() + "_oldText.txt", node.getText()),
+                new Attachment(file.getName() + "_newText.txt", node.getText()),
+                new Attachment(file.getName() + "_oldTextBefore.txt", oldTextBefore),
+                new Attachment(file.getName() + "_newTextBefore.txt", newTextBefore)
+      );
+      return false;
     }
+    return true;
   }
 
   @NotNull

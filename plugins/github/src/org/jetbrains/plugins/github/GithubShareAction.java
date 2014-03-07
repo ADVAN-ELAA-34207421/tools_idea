@@ -23,7 +23,9 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.FileIndexFacade;
 import com.intellij.openapi.ui.Splitter;
+import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.vcs.VcsDataKeys;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vcs.changes.ChangeListManager;
@@ -50,7 +52,7 @@ import icons.GithubIcons;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.github.api.*;
-import org.jetbrains.plugins.github.exceptions.GithubAuthenticationCanceledException;
+import org.jetbrains.plugins.github.exceptions.GithubOperationCanceledException;
 import org.jetbrains.plugins.github.ui.GithubShareDialog;
 import org.jetbrains.plugins.github.util.GithubAuthData;
 import org.jetbrains.plugins.github.util.GithubNotifications;
@@ -71,7 +73,7 @@ public class GithubShareAction extends DumbAwareAction {
   private static final Logger LOG = GithubUtil.LOG;
 
   public GithubShareAction() {
-    super("Share project on GitHub", "Easily share project on GitHub", GithubIcons.Github_icon);
+    super("Share Project on GitHub", "Easily share project on GitHub", GithubIcons.Github_icon);
   }
 
   public void update(AnActionEvent e) {
@@ -226,7 +228,7 @@ public class GithubShareAction extends DumbAwareAction {
           }
         });
     }
-    catch (GithubAuthenticationCanceledException e) {
+    catch (GithubOperationCanceledException e) {
       return null;
     }
     catch (IOException e) {
@@ -284,7 +286,10 @@ public class GithubShareAction extends DumbAwareAction {
 
       // ask for files to add
       final List<VirtualFile> trackedFiles = ChangeListManager.getInstance(project).getAffectedFiles();
-      final Collection<VirtualFile> untrackedFiles = repository.getUntrackedFilesHolder().retrieveUntrackedFiles();
+      final Collection<VirtualFile> untrackedFiles = filterOutIgnored(project,
+                                                                      repository.getUntrackedFilesHolder().retrieveUntrackedFiles());
+      trackedFiles.removeAll(untrackedFiles); // fix IDEA-119855
+
       final List<VirtualFile> allFiles = new ArrayList<VirtualFile>();
       allFiles.addAll(trackedFiles);
       allFiles.addAll(untrackedFiles);
@@ -335,6 +340,18 @@ public class GithubShareAction extends DumbAwareAction {
     }
     LOG.info("Successfully created initial commit");
     return true;
+  }
+
+  @NotNull
+  private static Collection<VirtualFile> filterOutIgnored(@NotNull Project project, @NotNull Collection<VirtualFile> files) {
+    final ChangeListManager changeListManager = ChangeListManager.getInstance(project);
+    final FileIndexFacade fileIndex = FileIndexFacade.getInstance(project);
+    return ContainerUtil.filter(files, new Condition<VirtualFile>() {
+      @Override
+      public boolean value(VirtualFile file) {
+        return !changeListManager.isIgnoredFile(file) && !fileIndex.isExcludedFile(file);
+      }
+    });
   }
 
   private static boolean pushCurrentBranch(@NotNull Project project,

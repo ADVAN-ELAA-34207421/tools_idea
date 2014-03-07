@@ -6,6 +6,7 @@ import com.intellij.execution.configurations.RunConfiguration;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.util.Urls;
 import com.intellij.util.net.NetUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -30,7 +31,7 @@ public class BrowserStarter {
   }
 
   public void start() {
-    if (!mySettings.isSelected() || StringUtil.isEmptyOrSpaces(mySettings.getUrl())) {
+    if (!mySettings.isSelected() || mySettings.getUrl() == null) {
       return;
     }
 

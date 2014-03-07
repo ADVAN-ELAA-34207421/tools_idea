@@ -838,13 +838,7 @@ public class BuildManager implements ApplicationComponent{
     cmdLine.setExePath(vmExecutablePath);
     //cmdLine.addParameter("-XX:MaxPermSize=150m");
     //cmdLine.addParameter("-XX:ReservedCodeCacheSize=64m");
-    int heapSize = config.COMPILER_PROCESS_HEAP_SIZE;
-
-    // todo: remove when old make implementation is removed
-    if (heapSize == CompilerWorkspaceConfiguration.DEFAULT_COMPILE_PROCESS_HEAP_SIZE) {
-      // check if javac is set to use larger heap, and if so, use it.
-      heapSize = Math.max(heapSize, JavacConfiguration.getOptions(project, JavacConfiguration.class).MAXIMUM_HEAP_SIZE);
-    }
+    final int heapSize = config.getProcessHeapSize(JavacConfiguration.getOptions(project, JavacConfiguration.class).MAXIMUM_HEAP_SIZE);
 
     cmdLine.addParameter("-Xmx" + heapSize + "m");
 
@@ -883,7 +877,11 @@ public class BuildManager implements ApplicationComponent{
         cmdLine.addParameter(option);
       }
     }
-
+    
+    if (isProfilingMode) {
+      cmdLine.addParameter("-agentlib:yjpagent=disablej2ee,disablealloc,delay=10000,sessionname=ExternalBuild");
+    }
+    
     // debugging
     final int debugPort = Registry.intValue("compiler.process.debug.port");
     if (debugPort > 0) {
@@ -904,7 +902,8 @@ public class BuildManager implements ApplicationComponent{
       cmdLine.addParameter("-D" + CharsetToolkit.FILE_ENCODING_PROPERTY + "=" + mySystemCharset.name());
     }
     cmdLine.addParameter("-D" + JpsGlobalLoader.FILE_TYPES_COMPONENT_NAME_KEY + "=" + FileTypeManagerImpl.getFileTypeComponentName());
-    for (String name : new String[]{"user.language", "user.country", "user.region", PathManager.PROPERTY_HOME_PATH}) {
+    for (String name : new String[]{"user.language", "user.country", "user.region", PathManager.PROPERTY_HOME_PATH,
+                                    PathManager.PROPERTY_CONFIG_PATH, PathManager.PROPERTY_PLUGINS_PATH, PathManager.PROPERTY_PATHS_SELECTOR}) {
       final String value = System.getProperty(name);
       if (value != null) {
         cmdLine.addParameter("-D" + name + "=" + value);
@@ -929,8 +928,6 @@ public class BuildManager implements ApplicationComponent{
     launcherCp.add(ClasspathBootstrap.getResourcePath(launcherClass));
     launcherCp.add(compilerPath);
     ClasspathBootstrap.appendJavaCompilerClasspath(launcherCp);
-    // this will disable standard extensions to ensure javac is loaded from the right tools.jar
-    cmdLine.addParameter("-Djava.ext.dirs=");
     cmdLine.addParameter("-classpath");
     cmdLine.addParameter(classpathToString(launcherCp));
     
@@ -940,7 +937,6 @@ public class BuildManager implements ApplicationComponent{
     cp.addAll(myClasspathManager.getBuildProcessPluginsClasspath(project));
     if (isProfilingMode) {
       cp.add(new File(workDirectory, "yjp-controller-api-redist.jar").getPath());
-      cmdLine.addParameter("-agentlib:yjpagent=disablej2ee,disablealloc,delay=10000,sessionname=ExternalBuild");
     }
     cmdLine.addParameter(classpathToString(cp));
 

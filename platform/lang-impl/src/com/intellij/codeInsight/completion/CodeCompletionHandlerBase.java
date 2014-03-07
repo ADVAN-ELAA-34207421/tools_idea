@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,9 +30,7 @@ import com.intellij.injected.editor.DocumentWindow;
 import com.intellij.lang.Language;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.actionSystem.DataContext;
-import com.intellij.openapi.application.AccessToken;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.*;
@@ -45,8 +43,8 @@ import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.Key;
-import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Ref;
+import com.intellij.openapi.util.Trinity;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
@@ -60,6 +58,7 @@ import com.intellij.psi.impl.source.tree.injected.InjectedLanguageUtil;
 import com.intellij.psi.util.PsiUtilBase;
 import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.reference.SoftReference;
+import com.intellij.util.DocumentUtil;
 import com.intellij.util.ThreeState;
 import com.intellij.util.concurrency.Semaphore;
 import org.jetbrains.annotations.NotNull;
@@ -109,28 +108,24 @@ public class CodeCompletionHandlerBase {
   }
 
   public final void invokeCompletion(@NotNull final Project project, @NotNull final Editor editor, int time, boolean hasModifiers, boolean restarted) {
-    final PsiFile psiFile = PsiUtilBase.getPsiFileInEditor(editor, project);
-    assert psiFile != null : "no PSI file: " + FileDocumentManager.getInstance().getFile(editor.getDocument());
+    if (invokedExplicitly) {
+      CompletionLookupArranger.applyLastCompletionStatisticsUpdate();
+    }
 
     checkNoWriteAccess();
 
     CompletionAssertions.checkEditorValid(editor);
 
-    if (editor.isViewer()) {
+    int offset = editor.getCaretModel().getOffset();
+    if (editor.isViewer() || editor.getDocument().getRangeGuard(offset, offset) != null) {
       editor.getDocument().fireReadOnlyModificationAttempt();
+      CodeInsightUtilBase.showReadOnlyViewWarning(editor);
       return;
     }
 
-    if (invokedExplicitly) {
-      CompletionLookupArranger.applyLastCompletionStatisticsUpdate();
-    }
-
-    if (!CodeInsightUtilBase.prepareEditorForWrite(editor) ||
-        !FileDocumentManager.getInstance().requestWriting(editor.getDocument(), project)) {
+    if (!FileDocumentManager.getInstance().requestWriting(editor.getDocument(), project)) {
       return;
     }
-
-    psiFile.putUserData(PsiFileEx.BATCH_REFERENCE_PROCESSING, Boolean.TRUE);
 
     CompletionPhase phase = CompletionServiceImpl.getCompletionPhase();
     boolean repeated = phase.indicator != null && phase.indicator.isRepeatedInvocation(myCompletionType, editor);
@@ -166,9 +161,12 @@ public class CodeCompletionHandlerBase {
           public void run() {
             EditorUtil.fillVirtualSpaceUntilCaret(editor);
             PsiDocumentManager.getInstance(project).commitAllDocuments();
-
-            CompletionAssertions.assertCommitSuccessful(editor, psiFile);
             CompletionAssertions.checkEditorValid(editor);
+
+            final PsiFile psiFile = PsiUtilBase.getPsiFileInEditor(editor, project);
+            assert psiFile != null : "no PSI file: " + FileDocumentManager.getInstance().getFile(editor.getDocument());
+            psiFile.putUserData(PsiFileEx.BATCH_REFERENCE_PROCESSING, Boolean.TRUE);
+            CompletionAssertions.assertCommitSuccessful(editor, psiFile);
 
             initializationContext[0] = runContributorsBeforeCompletion(editor, psiFile);
           }
@@ -178,7 +176,7 @@ public class CodeCompletionHandlerBase {
     };
     if (autopopup) {
       CommandProcessor.getInstance().runUndoTransparentAction(initCmd);
-      if (!restarted && shouldSkipAutoPopup(editor, psiFile)) {
+      if (!restarted && shouldSkipAutoPopup(editor, initializationContext[0].getFile())) {
         CompletionServiceImpl.setCompletionPhase(CompletionPhase.NoCompletion);
         return;
       }
@@ -452,16 +450,10 @@ public class CodeCompletionHandlerBase {
     final OffsetMap hostMap = translateOffsetMapToHost(initContext, originalFile, hostFile, hostEditor);
 
     final PsiFile[] hostCopy = {null};
-    CommandProcessor.getInstance().runUndoTransparentAction(new Runnable() {
+    DocumentUtil.writeInRunUndoTransparentAction(new Runnable() {
       @Override
       public void run() {
-        AccessToken token = WriteAction.start();
-        try {
-          hostCopy[0] = createFileCopy(hostFile);
-        }
-        finally {
-          token.finish();
-        }
+        hostCopy[0] = createFileCopy(hostFile, initContext.getStartOffset(), initContext.getSelectionEndOffset());
       }
     });
 
@@ -582,11 +574,11 @@ public class CodeCompletionHandlerBase {
 
   }
 
-  private static CompletionAssertions.WatchingInsertionContext insertItemHonorBlockSelection(CompletionProgressIndicator indicator,
-                                                                        LookupElement item,
-                                                                        char completionChar,
-                                                                        List<LookupElement> items,
-                                                                        CompletionLookupArranger.StatisticsUpdate update) {
+  private static CompletionAssertions.WatchingInsertionContext insertItemHonorBlockSelection(final CompletionProgressIndicator indicator,
+                                                                        final LookupElement item,
+                                                                        final char completionChar,
+                                                                        final List<LookupElement> items,
+                                                                        final CompletionLookupArranger.StatisticsUpdate update) {
     final Editor editor = indicator.getEditor();
 
     final int caretOffset = editor.getCaretModel().getOffset();
@@ -594,6 +586,7 @@ public class CodeCompletionHandlerBase {
     if (idEndOffset < 0) {
       idEndOffset = CompletionInitializationContext.calcDefaultIdentifierEnd(editor, caretOffset);
     }
+    final int idEndOffsetDelta = idEndOffset - caretOffset;
 
     CompletionAssertions.WatchingInsertionContext context = null;
     if (editor.getSelectionModel().hasBlockSelection() && editor.getSelectionModel().getBlockSelectionEnds().length > 0) {
@@ -630,7 +623,19 @@ public class CodeCompletionHandlerBase {
       }
 
     } else {
-      context = insertItem(indicator, item, completionChar, items, update, editor, caretOffset, idEndOffset);
+      final Ref<CompletionAssertions.WatchingInsertionContext> contextRef = new Ref<CompletionAssertions.WatchingInsertionContext>();
+      final Caret primaryCaret = editor.getCaretModel().getPrimaryCaret();
+      editor.getCaretModel().runForEachCaret(new CaretAction() {
+        @Override
+        public void perform(Caret caret) {
+          CompletionAssertions.WatchingInsertionContext currentContext = insertItem(indicator, item, completionChar, items, update, editor,
+                                                                                    caret.getOffset(), caret.getOffset() + idEndOffsetDelta);
+          if (caret == primaryCaret) {
+            contextRef.set(currentContext);
+          }
+        }
+      });
+      context = contextRef.get();
     }
     return context;
   }
@@ -748,7 +753,7 @@ public class CodeCompletionHandlerBase {
     }
   }
 
-  public static final Key<SoftReference<Pair<PsiFile, Document>>> FILE_COPY_KEY = Key.create("CompletionFileCopy");
+  private static final Key<SoftReference<Trinity<PsiFile, Document, Long>>> FILE_COPY_KEY = Key.create("CompletionFileCopy");
 
   private static boolean isCopyUpToDate(Document document, @NotNull PsiFile file) {
     if (!file.isValid()) {
@@ -760,31 +765,42 @@ public class CodeCompletionHandlerBase {
     return current != null && current.getViewProvider().getPsi(file.getLanguage()) == file;
   }
 
-  private static PsiFile createFileCopy(PsiFile file) {
+  private static PsiFile createFileCopy(PsiFile file, long caret, long selEnd) {
     final VirtualFile virtualFile = file.getVirtualFile();
-    if (file.isPhysical() && virtualFile != null && virtualFile.isInLocalFileSystem()
-        // must not cache injected file copy, since it does not reflect changes in host document
-        && !InjectedLanguageManager.getInstance(file.getProject()).isInjectedFragment(file)) {
-      final SoftReference<Pair<PsiFile, Document>> reference = file.getUserData(FILE_COPY_KEY);
-      if (reference != null) {
-        final Pair<PsiFile, Document> pair = reference.get();
-        if (pair != null && pair.first.getClass().equals(file.getClass()) && isCopyUpToDate(pair.second, pair.first)) {
-          final PsiFile copy = pair.first;
-          if (copy.getViewProvider().getModificationStamp() > file.getViewProvider().getModificationStamp()) {
-            ((PsiModificationTrackerImpl) file.getManager().getModificationTracker()).incCounter();
-          }
-          final Document document = pair.second;
-          assert document != null;
-          document.setText(file.getText());
-          return copy;
+    boolean mayCacheCopy = file.isPhysical() &&
+                           // we don't want to cache code fragment copies even if they appear to be physical
+                           virtualFile != null && virtualFile.isInLocalFileSystem();
+    long combinedOffsets = caret + (selEnd << 32);
+    if (mayCacheCopy) {
+      final Trinity<PsiFile, Document, Long> cached = SoftReference.dereference(file.getUserData(FILE_COPY_KEY));
+      if (cached != null && cached.first.getClass().equals(file.getClass()) && isCopyUpToDate(cached.second, cached.first)) {
+        final PsiFile copy = cached.first;
+        if (copy.getViewProvider().getModificationStamp() > file.getViewProvider().getModificationStamp() && 
+            cached.third.longValue() != combinedOffsets) {
+          // the copy PSI might have some caches that are not cleared on its modification because there are no events in the copy
+          //   so, clear all the caches
+          // hopefully it's a rare situation that the user invokes completion in different parts of the file 
+          //   without modifying anything physical in between
+          ((PsiModificationTrackerImpl) file.getManager().getModificationTracker()).incCounter();
         }
+        final Document document = cached.second;
+        assert document != null;
+        file.putUserData(FILE_COPY_KEY, new SoftReference<Trinity<PsiFile,Document, Long>>(Trinity.create(copy, document, combinedOffsets)));
+
+        Document originalDocument = file.getViewProvider().getDocument();
+        assert originalDocument != null;
+        assert originalDocument.getTextLength() == file.getTextLength() : originalDocument;
+        document.setText(originalDocument.getImmutableCharSequence());
+        return copy;
       }
     }
 
     final PsiFile copy = (PsiFile)file.copy();
-    final Document document = copy.getViewProvider().getDocument();
-    assert document != null;
-    file.putUserData(FILE_COPY_KEY, new SoftReference<Pair<PsiFile,Document>>(Pair.create(copy, document)));
+    if (mayCacheCopy) {
+      final Document document = copy.getViewProvider().getDocument();
+      assert document != null;
+      file.putUserData(FILE_COPY_KEY, new SoftReference<Trinity<PsiFile,Document, Long>>(Trinity.create(copy, document, combinedOffsets)));
+    }
     return copy;
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.members.GrEn
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.members.GrMethod;
 import org.jetbrains.plugins.groovy.lang.psi.api.types.GrTypeParameter;
 import org.jetbrains.plugins.groovy.lang.psi.api.types.GrTypeParameterList;
-import org.jetbrains.plugins.groovy.lang.psi.impl.auxiliary.annotation.GrAnnotationImpl;
 import org.jetbrains.plugins.groovy.lang.psi.impl.statements.GrVariableDeclarationImpl;
 import org.jetbrains.plugins.groovy.lang.psi.impl.statements.blocks.GrBlockImpl;
 import org.jetbrains.plugins.groovy.lang.psi.impl.statements.blocks.GrClosableBlockImpl;
@@ -181,7 +180,7 @@ public interface GroovyElementTypes extends GroovyTokenTypes, GroovyDocElementTy
       return new GrEnumConstantListImpl(stub);
     }
   };
-  GroovyElementType IMPORT_STATEMENT = new GroovyElementType("Import statement");
+  GrImportStatementElementType IMPORT_STATEMENT = new GrImportStatementElementType("Import statement");
   //Branch statements
   GroovyElementType BREAK_STATEMENT = new GroovyElementType("Break statement");
   GroovyElementType CONTINUE_STATEMENT = new GroovyElementType("Continue statement");
@@ -257,7 +256,7 @@ public interface GroovyElementTypes extends GroovyTokenTypes, GroovyDocElementTy
   GroovyElementType REFERENCE_ELEMENT = new GroovyElementType("reference element");
   GroovyElementType ARRAY_DECLARATOR = new GroovyElementType("array declarator");
 
-  GroovyElementType TYPE_ARGUMENTS = new GroovyElementType("type arguments");
+  GroovyElementType TYPE_ARGUMENTS = new GroovyElementType("type arguments", true);
   GroovyElementType TYPE_ARGUMENT = new GroovyElementType("type argument");
   EmptyStubElementType<GrTypeParameterList> TYPE_PARAMETER_LIST = new EmptyStubElementType<GrTypeParameterList>("type parameter list", GroovyFileType.GROOVY_LANGUAGE) {
     @Override
@@ -302,35 +301,13 @@ public interface GroovyElementTypes extends GroovyTokenTypes, GroovyDocElementTy
   GroovyElementType EXPLICIT_CONSTRUCTOR = new GroovyElementType("explicit constructor invokation");
 
   //throws
-  GroovyElementType THROW_CLAUSE = new GroovyElementType("throw clause");
+  GroovyElementType THROW_CLAUSE = new GroovyElementType("throw clause", true);
   //annotation
   GroovyElementType ANNOTATION_ARRAY_INITIALIZER = new GroovyElementType("annotation array initializer");
-  GroovyElementType ANNOTATION_ARGUMENTS = new GroovyElementType("annotation arguments");
+  GroovyElementType ANNOTATION_ARGUMENTS = new GroovyElementType("annotation arguments", true);
   GroovyElementType ANNOTATION_MEMBER_VALUE_PAIR = new GroovyElementType("annotation member value pair");
 
-  GrStubElementType<GrAnnotationStub, GrAnnotation> ANNOTATION = new GrStubElementType<GrAnnotationStub, GrAnnotation>("annotation") {
-
-    @Override
-    public GrAnnotation createPsi(@NotNull GrAnnotationStub stub) {
-      return new GrAnnotationImpl(stub);
-    }
-
-    @Override
-    public GrAnnotationStub createStub(@NotNull GrAnnotation psi, StubElement parentStub) {
-      return new GrAnnotationStub(parentStub, psi);
-    }
-
-    @Override
-    public void serialize(@NotNull GrAnnotationStub stub, @NotNull StubOutputStream dataStream) throws IOException {
-      dataStream.writeName(stub.getAnnotationName());
-    }
-
-    @NotNull
-    @Override
-    public GrAnnotationStub deserialize(@NotNull StubInputStream dataStream, StubElement parentStub) throws IOException {
-      return new GrAnnotationStub(parentStub, dataStream.readName());
-    }
-  };
+  GrStubElementType<GrAnnotationStub, GrAnnotation> ANNOTATION = new GrAnnotationElementType("annotation");
   //parameters
   EmptyStubElementType<GrParameterList> PARAMETERS_LIST = new EmptyStubElementType<GrParameterList>("parameters list", GroovyFileType.GROOVY_LANGUAGE) {
     @Override

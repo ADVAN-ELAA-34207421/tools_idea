@@ -33,10 +33,11 @@
     <attribute name="test.patterns" default="" />
     <sequential>
       <java failonerror="true" jar="${project.home}/lib/ant/lib/ant-launcher.jar" fork="true">
-        <jvmarg line="-Xmx768m -XX:MaxPermSize=152m"/>
+        <jvmarg line="-Xmx1424m -XX:MaxPermSize=352m"/>
         <jvmarg value="-Dout=${out.dir}" />
         <jvmarg value="-DbuildNumber=${buildId}" />
-
+        <jvmarg line="-Xmx612m -XX:MaxPermSize=152m"/>
+        <sysproperty key="java.awt.headless" value="true"/>
         <arg line="&quot;-Dgant.script=@{script}&quot;"/>
         <arg line="&quot;-Dteamcity.build.tempDir=${tmp.dir}&quot;"/>
         <arg line="&quot;-Didea.test.patterns=@{test.patterns}&quot;"/>
@@ -52,8 +53,17 @@
   </target>
 
   <target name="test" depends="init">
-    <call_gant script="${project.home}/build/scripts/tests.gant" test.patterns="org.jetbrains.android.*;com.android.tools.idea.*"/>
+    <call_gant script="${project.home}/build/scripts/tests.gant" test.patterns="org.jetbrains.android.*;com.android.tools.idea.*;com.google.gct.*"/>
   </target>
 
-  <target name="all" depends="cleanup,build"/>
+  <!-- The build task creates an updater.jar in ${out.dir}. This task bundles log4j & the updater into a single jar -->
+  <taskdef name="jarjar" classname="com.tonicsystems.jarjar.JarJarTask" classpath="${project.home}/build/lib/jarjar-1.0.jar"/>
+  <target name="fullupdater" depends="build">
+    <jarjar jarfile="${out.dir}/updater-full.jar">
+        <zipfileset src="${out.dir}/updater.jar" />
+        <zipfileset src="lib/log4j.jar" />
+    </jarjar>
+  </target>
+
+  <target name="all" depends="cleanup,build,fullupdater"/>
 </project>

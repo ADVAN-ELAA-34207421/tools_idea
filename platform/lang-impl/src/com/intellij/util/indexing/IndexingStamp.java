@@ -18,18 +18,21 @@ package com.intellij.util.indexing;
 
 import com.intellij.openapi.vfs.InvalidVirtualFileAccessException;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.openapi.vfs.VirtualFileWithId;
 import com.intellij.openapi.vfs.newvfs.FileAttribute;
 import com.intellij.openapi.vfs.newvfs.NewVirtualFile;
+import com.intellij.util.SmartList;
 import com.intellij.util.containers.ConcurrentHashMap;
 import com.intellij.util.io.DataInputOutputUtil;
 import gnu.trove.TObjectLongHashMap;
 import gnu.trove.TObjectLongProcedure;
+import gnu.trove.TObjectProcedure;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.ArrayBlockingQueue;
 
 /**
@@ -47,6 +50,10 @@ public class IndexingStamp {
     private static final FileAttribute PERSISTENCE = new FileAttribute("__index_stamps__", 1, false);
     private TObjectLongHashMap<ID<?, ?>> myIndexStamps;
     private boolean myIsDirty = false;
+
+    private Timestamps() {
+      myIsDirty = true;
+    }
 
     private Timestamps(@Nullable DataInputStream stream) throws IOException {
       if (stream != null) {
@@ -178,9 +185,38 @@ public class IndexingStamp {
     }
   }
 
+  public static void removeAllIndexedState(VirtualFile file) {
+    synchronized (getStripedLock(file)) {
+      if (file instanceof NewVirtualFile && file.isValid()) {
+        myTimestampsCache.put(file, new Timestamps());
+      }
+    }
+  }
+
+  public static Collection<ID<?,?>> getIndexedIds(final VirtualFile file) {
+    synchronized (getStripedLock(file)) {
+      try {
+        Timestamps stamp = createOrGetTimeStamp(file);
+        if (stamp != null && stamp.myIndexStamps != null && !stamp.myIndexStamps.isEmpty()) {
+          final SmartList<ID<?, ?>> retained = new SmartList<ID<?, ?>>();
+          stamp.myIndexStamps.forEach(new TObjectProcedure<ID<?, ?>>() {
+            @Override
+            public boolean execute(ID<?, ?> object) {
+              retained.add(object);
+              return true;
+            }
+          });
+          return retained;
+        }
+      }
+      catch (InvalidVirtualFileAccessException ignored /*ok to ignore it here*/) {
+      }
+    }
+    return Collections.emptyList();
+  }
+
   public static void flushCaches() {
     flushCache(null);
-    myTimestampsCache.clear();
   }
 
   public static void flushCache(@Nullable VirtualFile finishedFile) {

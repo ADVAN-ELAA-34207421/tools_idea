@@ -3,6 +3,8 @@
 
   <resource-bundle>com.jetbrains.python.PyBundle</resource-bundle>
 
+  <module value="com.intellij.modules.python"/>
+
   <extensions defaultExtensionNs="com.intellij">
     <nameSuggestionProvider implementation="com.jetbrains.python.refactoring.PyNameSuggestionProvider"/>
     <methodNavigationOffsetProvider implementation="com.jetbrains.python.codeInsight.PyMethodNavigationOffsetProvider"/>
@@ -18,6 +20,7 @@
     <lang.foldingBuilder language="Python" implementationClass="com.jetbrains.python.PythonFoldingBuilder"/>
     <lang.findUsagesProvider language="Python" implementationClass="com.jetbrains.python.findUsages.PythonFindUsagesProvider"/>
     <lang.formatter language="Python" implementationClass="com.jetbrains.python.formatter.PythonFormattingModelBuilder"/>
+    <preFormatProcessor implementation="com.jetbrains.python.formatter.PyPreFormatProcessor"/>
     <lang.whiteSpaceFormattingStrategy language="Python"
                                        implementationClass="com.jetbrains.python.formatter.PyWhiteSpaceFormattingStrategy"/>
     <lang.lineWrapStrategy language="Python" implementationClass="com.jetbrains.python.formatter.PyLineWrapPositionStrategy"/>
@@ -76,7 +79,7 @@
     <applicationService serviceInterface="com.jetbrains.python.module.PyModuleService"
                         serviceImplementation="com.jetbrains.python.module.PyModuleServiceImpl"/>
 
-    <typedHandler implementation="com.jetbrains.python.codeInsight.KeywordTypedHandler" id="pyCommaAfterKwd"/>
+    <typedHandler implementation="com.jetbrains.python.codeInsight.PyKeywordTypedHandler" id="pyCommaAfterKwd"/>
     <typedHandler implementation="com.jetbrains.python.codeInsight.PyMethodNameTypedHandler" id="pyMethodNameTypedHandler"/>
     <typedHandler implementation="com.jetbrains.python.editor.PythonSpaceHandler"/>
 
@@ -86,6 +89,7 @@
     <stubIndex implementation="com.jetbrains.python.psi.stubs.PySuperClassIndex"/>
     <stubIndex implementation="com.jetbrains.python.psi.stubs.PyVariableNameIndex"/>
     <stubIndex implementation="com.jetbrains.python.psi.stubs.PyInstanceAttributeIndex"/>
+    <fileBasedIndex implementation="com.jetbrains.python.psi.stubs.PyModuleNameIndex"/>
 
     <declarationRangeHandler key="com.jetbrains.python.psi.PyClass"
                              implementationClass="com.jetbrains.python.codeInsight.PyDeclarationRangeHandler"/>
@@ -114,6 +118,8 @@
 
     <runConfigurationProducer implementation="com.jetbrains.python.testing.unittest.PythonUnitTestConfigurationProducer"/>
     <testSrcLocator implementation="com.jetbrains.python.testing.PythonUnitTestTestIdUrlProvider"/>
+    
+    <testSrcLocator implementation="com.jetbrains.python.testing.nosetest.PythonNoseTestUrlProvider"/>
 
     <runConfigurationProducer implementation="com.jetbrains.python.testing.pytest.PyTestConfigurationProducer"/>
     <runConfigurationProducer implementation="com.jetbrains.python.testing.doctest.PythonDocTestConfigurationProducer"/>
@@ -129,7 +135,6 @@
     <highlightUsagesHandlerFactory implementation="com.jetbrains.python.codeInsight.highlighting.PyHighlightExitPointsHandlerFactory"/>
 
     <joinLinesHandler implementation="com.jetbrains.python.editor.PyJoinLinesHandler"/>
-    <duplicates.profile implementation="com.jetbrains.python.duplocator.PyDuplicatesProfile"/>
 
     <intentionAction>
       <className>com.jetbrains.python.codeInsight.intentions.PyConvertMethodToPropertyIntention</className>
@@ -328,11 +333,13 @@
     <localInspection language="Python" shortName="PyShadowingNamesInspection" displayName="Shadowing names from outer scopes" groupKey="INSP.GROUP.python" enabledByDefault="true"  level="WEAK WARNING" implementationClass="com.jetbrains.python.inspections.PyShadowingNamesInspection"/>
     <localInspection language="Python" shortName="PyAbstractClassInspection" displayName="Class must implement all abstract methods" groupKey="INSP.GROUP.python" enabledByDefault="true"  level="WARNING" implementationClass="com.jetbrains.python.inspections.PyAbstractClassInspection"/>
     <localInspection language="Python" shortName="PyPep8NamingInspection" displayName="PEP 8 naming convention violation" groupKey="INSP.GROUP.python" enabledByDefault="true"  level="WEAK WARNING" implementationClass="com.jetbrains.python.inspections.PyPep8NamingInspection"/>
+    <localInspection language="Python" shortName="PyAssignmentToLoopOrWithParameterInspection" displayName="Assignment to 'for' loop or 'with' statement parameter" groupKey="INSP.GROUP.python" enabledByDefault="true"  level="WEAK WARNING" implementationClass="com.jetbrains.python.inspections.PyAssignmentToLoopOrWithParameterInspection"/>
 
     <liveTemplateContext implementation="com.jetbrains.python.codeInsight.liveTemplates.PythonTemplateContextType"/>
     <liveTemplateMacro implementation="com.jetbrains.python.codeInsight.liveTemplates.CollectionElementNameMacro"/>
     <liveTemplateMacro implementation="com.jetbrains.python.codeInsight.liveTemplates.PyClassNameMacro"/>
     <liveTemplateMacro implementation="com.jetbrains.python.codeInsight.liveTemplates.PyFunctionNameMacro"/>
+    <liveTemplateMacro implementation="com.jetbrains.python.codeInsight.liveTemplates.PyIterableVariableMacro"/>
 
     <codeInsight.overrideMethod language="Python" implementationClass="com.jetbrains.python.codeInsight.override.PyOverrideMethodsHandler"/>
     <lang.refactoringSupport language="Python" implementationClass="com.jetbrains.python.refactoring.PyRefactoringProvider"/>
@@ -363,12 +370,16 @@
 
     <applicationService serviceInterface="com.jetbrains.python.codeInsight.PyCodeInsightSettings"
                         serviceImplementation="com.jetbrains.python.codeInsight.PyCodeInsightSettings"/>
+    <applicationService serviceInterface="com.jetbrains.python.testing.PyTestFrameworkService"
+                        serviceImplementation="com.jetbrains.python.testing.PyTestFrameworkService"/>
     <autoImportOptionsProvider instance="com.jetbrains.python.codeInsight.imports.PyAutoImportOptions"/>
 
     <defaultLiveTemplatesProvider implementation="com.jetbrains.python.codeInsight.liveTemplates.PyDefaultLiveTemplatesProvider"/>
 
     <completion.contributor language="Python"
                             implementationClass="com.jetbrains.python.codeInsight.completion.PyClassNameCompletionContributor"/>
+    <completion.contributor language="Python"
+                            implementationClass="com.jetbrains.python.codeInsight.completion.PyBracketProtectingCompletionContributor"/>
     <weigher key="completion" implementationClass="com.jetbrains.python.codeInsight.completion.PythonCompletionWeigher" order="first"/>
     <completion.confidence language="Python" implementationClass="com.jetbrains.python.codeInsight.completion.PyCompletionConfidence"/>
     <typedHandler implementation="com.jetbrains.python.console.completion.PythonConsoleAutopopupBlockingHandler" id="pydevBlockAutoPopup"
@@ -511,6 +522,7 @@
 
   <extensionPoints>
     <extensionPoint qualifiedName="Pythonid.importResolver" interface="com.jetbrains.python.psi.impl.PyImportResolver"/>
+    <extensionPoint qualifiedName="Pythonid.resolveResultRater" interface="com.jetbrains.python.psi.impl.PyResolveResultRater"/>
     <extensionPoint qualifiedName="Pythonid.typeProvider" interface="com.jetbrains.python.psi.impl.PyTypeProvider"/>
     <extensionPoint qualifiedName="Pythonid.pySuperMethodsSearch" interface="com.intellij.util.QueryExecutor"/>
     <extensionPoint qualifiedName="Pythonid.pyClassInheritorsSearch" interface="com.intellij.util.QueryExecutor"/>
@@ -544,7 +556,6 @@
     <pySuperMethodsSearch implementation="com.jetbrains.python.psi.search.PySuperMethodsSearchExecutor"/>
     <pyClassInheritorsSearch implementation="com.jetbrains.python.psi.search.PyClassInheritorsSearchExecutor"/>
     <pyOverridingMethodsSearch implementation="com.jetbrains.python.psi.search.PyOverridingMethodsSearchExecutor"/>
-    <runnableScriptFilter implementation="com.jetbrains.python.testing.pytest.PyTestRunnableScriptFilter"/>
     <runnableScriptFilter implementation="com.jetbrains.python.testing.PythonUnitTestRunnableScriptFilter"/>
     <dumbAnnotator implementation="com.jetbrains.python.validation.DocStringAnnotator"/>
     <dumbAnnotator implementation="com.jetbrains.python.validation.PyDefinitionsAnnotator"/>

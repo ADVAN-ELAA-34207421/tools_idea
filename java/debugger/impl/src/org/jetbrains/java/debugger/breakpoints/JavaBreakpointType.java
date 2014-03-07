@@ -2,11 +2,8 @@ package org.jetbrains.java.debugger.breakpoints;
 
 import com.intellij.debugger.DebuggerBundle;
 import com.intellij.debugger.engine.DebuggerUtils;
-import com.intellij.facet.FacetManager;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.StdFileTypes;
-import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
@@ -16,6 +13,7 @@ import com.intellij.xdebugger.XDebuggerUtil;
 import com.intellij.xdebugger.breakpoints.XBreakpointProperties;
 import com.intellij.xdebugger.breakpoints.XLineBreakpoint;
 import com.intellij.xdebugger.breakpoints.XLineBreakpointTypeBase;
+import com.intellij.xdebugger.breakpoints.ui.XBreakpointCustomPropertiesPanel;
 import com.intellij.xdebugger.breakpoints.ui.XBreakpointGroupingRule;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
@@ -31,18 +29,8 @@ public class JavaBreakpointType extends XLineBreakpointTypeBase {
 
   @Override
   public boolean canPutAt(@NotNull final VirtualFile file, final int line, @NotNull Project project) {
-    if (SystemProperties.getBooleanProperty("java.debugger.xBreakpoint", false)) {
-      boolean result = doCanPutAt(PsiManager.getInstance(project).findFile(file));
-
-      // todo now applicable only if modules has facets, remove this check when java xbreakpoint will work
-      if (result && SystemProperties.getBooleanProperty("java.debugger.xBreakpoint.onlyIfHasFacets", false)) {
-        Module module = ModuleUtilCore.findModuleForFile(file, project);
-        return module != null && FacetManager.getInstance(module).getAllFacets().length > 0;
-      }
-
-      return result;
-    }
-    return false;
+    return SystemProperties.getBooleanProperty("java.debugger.xBreakpoint", false) &&
+           doCanPutAt(PsiManager.getInstance(project).findFile(file));
   }
 
   @Override
@@ -65,4 +53,24 @@ public class JavaBreakpointType extends XLineBreakpointTypeBase {
     FileType fileType = psiFile.getFileType();
     return StdFileTypes.CLASS.equals(fileType) || DebuggerUtils.supportsJVMDebugging(fileType) || DebuggerUtils.supportsJVMDebugging(psiFile);
   }
+
+  @Nullable
+  @Override
+  public XBreakpointProperties createProperties() {
+    return new JavaBreakpointProperties();
+  }
+
+  @Nullable
+  @Override
+  public XBreakpointProperties createBreakpointProperties(@NotNull VirtualFile file, int line) {
+    return new JavaBreakpointProperties();
+  }
+
+  @Nullable
+  @Override
+  public XBreakpointCustomPropertiesPanel<XLineBreakpoint<XBreakpointProperties>> createCustomRightPropertiesPanel(@NotNull Project project) {
+    return new JavaBreakpointPropertiesPanel(project);
+  }
+
+
 }

@@ -53,12 +53,25 @@ import java.util.*;
  */
 public class ArrangementEngine {
 
+  /**
+   * Arranges given PSI root contents that belong to the given ranges.
+   * <b>Note:</b> After arrangement editor foldings we'll be preserved.
+   *
+   * @param editor
+   * @param file   target PSI root
+   * @param ranges target ranges to use within the given root
+   */
   public void arrange(@NotNull final Editor editor, @NotNull PsiFile file, Collection<TextRange> ranges) {
-    arrange(file, ranges, null);
-    // This should be uncommented as soon as cdr pushed fixes for range markers processing.
-    //arrange(file, ranges, new RestoreFoldArrangementCallback(editor));
+    arrange(file, ranges, new RestoreFoldArrangementCallback(editor));
   }
 
+  /**
+   * Arranges given PSI root contents that belong to the given ranges.
+   * <b>Note:</b> Editor foldings are not expected to be preserved.
+   *
+   * @param file   target PSI root
+   * @param ranges target ranges to use within the given root
+   */
   public void arrange(@NotNull PsiFile file, @NotNull Collection<TextRange> ranges) {
     arrange(file, ranges, null);
   }
@@ -273,14 +286,18 @@ public class ArrangementEngine {
 
     for (int i = 0; i < arranged.size() && !dependent.isEmpty(); i++) {
       E e = arranged.get(i);
+      List<E> shouldBeAddedAfterCurrentElement = ContainerUtil.newArrayList();
+
       for (Iterator<Pair<Set<ArrangementEntry>, E>> iterator = dependent.iterator(); iterator.hasNext(); ) {
         Pair<Set<ArrangementEntry>, E> pair = iterator.next();
         pair.first.remove(e);
         if (pair.first.isEmpty()) {
           iterator.remove();
-          arranged.add(i + 1, pair.second);
+          shouldBeAddedAfterCurrentElement.add(pair.second);
         }
       }
+
+      arranged.addAll(i + 1, shouldBeAddedAfterCurrentElement);
     }
 
     return arranged;
@@ -351,7 +368,17 @@ public class ArrangementEngine {
     for (int i = arranged.size() - 1; i >= 0; i--) {
       ArrangementEntryWrapper<E> arrangedWrapper = map.get(arranged.get(i));
       ArrangementEntryWrapper<E> initialWrapper = wrappers.get(i);
-      context.changer.replace(arrangedWrapper, initialWrapper, i > 0 ? map.get(arranged.get(i - 1)) : null, context);
+
+      ArrangementEntryWrapper<E> previous = i > 0 ? map.get(arranged.get(i - 1)) : null;
+      ArrangementEntryWrapper<E> previousInitial = i > 0 ? wrappers.get(i - 1) : null;
+
+      if (arrangedWrapper.equals(initialWrapper)) {
+        if (previous != null && previous.equals(previousInitial) || previous == null && previousInitial == null) {
+          continue;
+        }
+      }
+
+      context.changer.replace(arrangedWrapper, initialWrapper, previous, context);
     }
   }
 

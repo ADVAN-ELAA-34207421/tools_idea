@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -441,7 +441,7 @@ public abstract class DomInvocationHandler<T extends AbstractDomChildDescription
   private Converter createConverter(final JavaMethod method) {
     final Type returnType = method.getGenericReturnType();
     final Type type = returnType == void.class ? method.getGenericParameterTypes()[0] : returnType;
-    final Class parameter = ReflectionUtil.substituteGenericType(type, myType);
+    final Class parameter = DomUtil.substituteGenericType(type, myType);
     if (parameter == null) {
       LOG.error(type + " " + myType);
     }
@@ -514,7 +514,7 @@ public abstract class DomInvocationHandler<T extends AbstractDomChildDescription
     if (proxy == null) {
       Class<?> rawType = getRawType();
       Class<? extends DomElement> implementation = myManager.getApplicationComponent().getImplementation(rawType);
-      final boolean isInterface = ReflectionCache.isInterface(rawType);
+      final boolean isInterface = rawType.isInterface();
       if (implementation == null && !isInterface) {
         //noinspection unchecked
         implementation = (Class<? extends DomElement>)rawType;
@@ -690,7 +690,7 @@ public abstract class DomInvocationHandler<T extends AbstractDomChildDescription
   }
 
   public final String toString() {
-    if (ReflectionCache.isAssignable(GenericValue.class, getRawType())) {
+    if (ReflectionUtil.isAssignable(GenericValue.class, getRawType())) {
       return ((GenericValue)getProxy()).getStringValue();
     }
     return myType.toString() + " @" + hashCode();

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,15 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.util.ArrayUtil;
+import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.groovy.lang.lexer.TokenSets;
+import org.jetbrains.plugins.groovy.lang.psi.GroovyPsiElementFactory;
+import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrBinaryExpression;
+import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrExpression;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.GrLiteral;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.GrString;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.GrStringInjection;
@@ -31,6 +36,8 @@ import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.literal
 
 import java.util.Collections;
 import java.util.List;
+
+import static org.jetbrains.plugins.groovy.lang.psi.util.GrStringUtil.*;
 
 /**
  * @author Max Medvedev
@@ -40,30 +47,29 @@ public class StringPartInfo {
   private final TextRange myRange;
   private final List<GrStringInjection> myInjections;
 
+  private final String myText;
+  private final String myStartQuote;
+  private final String myEndQuote;
+
   @Nullable
   public static StringPartInfo findStringPart(@NotNull PsiFile file, int startOffset, int endOffset) {
     final PsiElement start = file.findElementAt(startOffset);
     final PsiElement fin = file.findElementAt(endOffset - 1);
     if (start == null || fin == null) return null;
 
-    final PsiElement parent = PsiTreeUtil.findCommonParent(start, fin);
+    final PsiElement psi = PsiTreeUtil.findCommonParent(start, fin);
+    if (psi == null) return null;
 
-    if (parent != null && isStringLiteral(parent.getParent()) && !parent.getParent().getTextRange().equalsToRange(startOffset, endOffset)) {
-      return new StringPartInfo((GrLiteral)parent.getParent(), new TextRange(startOffset, endOffset));
+    GrLiteral literal = findLiteral(psi);
+    if (literal != null && checkSelectedRange(startOffset, endOffset, literal)) {
+      return new StringPartInfo(literal, new TextRange(startOffset, endOffset));
     }
-    if (parent instanceof GrString && !parent.getTextRange().equalsToRange(startOffset, endOffset)) {
-      return new StringPartInfo((GrLiteral)parent, new TextRange(startOffset, endOffset));
-    }
+
     return null;
-  }
-
-  private static boolean isStringLiteral(final PsiElement psi) {
-    return psi instanceof GrLiteral && TokenSets.STRING_LITERAL_SET.contains(GrLiteralImpl.getLiteralType((GrLiteral)psi));
   }
 
   public StringPartInfo(@NotNull GrLiteral literal, @NotNull final TextRange range) {
     myLiteral = literal;
-    myRange = range.shiftRight(-literal.getTextRange().getStartOffset());
 
     if (literal instanceof GrString) {
       final GrStringInjection[] injections = ((GrString)literal).getInjections();
@@ -77,6 +83,188 @@ public class StringPartInfo {
     else {
       myInjections = Collections.emptyList();
     }
+
+    myText = myLiteral.getText();
+
+    myStartQuote = getStartQuote(myText);
+    myEndQuote = getEndQuote(myText);
+
+    TextRange dataRange = new TextRange(myStartQuote.length(), myText.length() - myEndQuote.length());
+    myRange = range.shiftRight(-literal.getTextRange().getStartOffset()).intersection(dataRange);
+  }
+
+  private static boolean checkSelectedRange(int startOffset, int endOffset, GrLiteral literal) {
+    if (isWholeLiteralContentSelected(literal, startOffset, endOffset)) {
+      return false;
+    }
+
+    if (literal instanceof GrString) {
+      if (areInjectionsCut((GrString)literal, startOffset, endOffset)) {
+        return false;
+      }
+    }
+
+    if (isEscapesCut(literal, startOffset, endOffset)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private static boolean isEscapesCut(GrLiteral literal, int startOffset, int endOffset) {
+    String rawContent = removeQuotes(literal.getText());
+    int[] offsets = new int[rawContent.length() + 1];
+
+    if (isSingleQuoteString(literal) || isDoubleQuoteString(literal)) {
+      parseStringCharacters(rawContent, new StringBuilder(), offsets);
+    }
+    else if (isSlashyString(literal)) {
+      parseRegexCharacters(rawContent, new StringBuilder(), offsets, true);
+    }
+    else if (isDollarSlashyString(literal)) {
+      parseRegexCharacters(rawContent, new StringBuilder(), offsets, false);
+    }
+
+    int contentStart = literal.getTextRange().getStartOffset() + getStartQuote(literal.getText()).length();
+
+    int relativeStart = startOffset - contentStart;
+    int relativeEnd = endOffset - contentStart;
+
+    return ArrayUtil.find(offsets, relativeStart) < 0 ||
+           ArrayUtil.find(offsets, relativeEnd) < 0;
+  }
+
+  public static boolean isWholeLiteralContentSelected(GrLiteral literal, int startOffset, int endOffset) {
+    TextRange literalRange = literal.getTextRange();
+    String literalText = literal.getText();
+    String startQuote = getStartQuote(literalText);
+    String endQuote = getEndQuote(literalText);
+
+    return literalRange.getStartOffset()                    <= startOffset && startOffset <= literalRange.getStartOffset() + startQuote.length() &&
+           literalRange.getEndOffset() - endQuote.length()  <= endOffset   && endOffset   <= literalRange.getEndOffset();
+  }
+
+  private static boolean areInjectionsCut(GrString literal, int startOffset, int endOffset) {
+    TextRange selectionRange = new TextRange(startOffset, endOffset);
+
+    GrStringInjection[] injections = literal.getInjections();
+    for (GrStringInjection injection : injections) {
+      TextRange range = injection.getTextRange();
+      if (!selectionRange.contains(range) && !range.contains(selectionRange) && range.intersects(selectionRange)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Nullable
+  private static GrLiteral findLiteral(@NotNull PsiElement psi) {
+    if (isStringLiteral(psi.getParent())) {
+      return (GrLiteral)psi.getParent();
+    }
+
+    if (isStringLiteral(psi.getParent().getParent())) {
+      return (GrLiteral)psi.getParent().getParent();
+    }
+
+    if (psi instanceof GrString) {
+      return (GrLiteral)psi;
+    }
+
+    return null;
+  }
+
+  private static boolean isStringLiteral(final PsiElement psi) {
+    return psi instanceof GrLiteral && TokenSets.STRING_LITERAL_SET.contains(GrLiteralImpl.getLiteralType((GrLiteral)psi)) || psi instanceof GrString;
+  }
+
+  @NotNull
+  public GrExpression replaceLiteralWithConcatenation(@Nullable String varName) {
+
+    String prefix = preparePrefix();
+    String suffix = prepareSuffix();
+
+    StringBuilder buffer = new StringBuilder();
+    boolean prefixExists = !removeQuotes(prefix).isEmpty();
+    if (prefixExists) {
+      buffer.append(prefix).append('+');
+    }
+
+    buffer.append(varName != null ? varName : prepareSelected());
+
+    boolean suffixExists = !removeQuotes(suffix).isEmpty();
+    if (suffixExists) {
+      buffer.append('+').append(suffix);
+    }
+
+    final GrExpression concatenation = GroovyPsiElementFactory.getInstance(myLiteral.getProject()).createExpressionFromText(buffer);
+
+    final GrExpression replaced = getLiteral().replaceWithExpression(concatenation, false);
+
+    try {
+      if (prefixExists && suffixExists) {
+        return ((GrBinaryExpression)((GrBinaryExpression)replaced).getLeftOperand()).getRightOperand();
+      }
+      if (!prefixExists && suffixExists) {
+        return ((GrBinaryExpression)replaced).getLeftOperand();
+      }
+      if (prefixExists && !suffixExists) {
+        return ((GrBinaryExpression)replaced).getRightOperand();
+      }
+      if (!prefixExists && !suffixExists) {
+        return replaced;
+      }
+    }
+    catch (ClassCastException c) {
+      throw new IncorrectOperationException(buffer.toString());
+    }
+
+    throw new IncorrectOperationException(buffer.toString());
+  }
+
+  private String prepareSelected() {
+    String content = myRange.substring(myLiteral.getText());
+    return prepareLiteral(content);
+  }
+
+  private String prepareSuffix() {
+    return myStartQuote + myText.substring(myRange.getEndOffset());
+  }
+
+  private String preparePrefix() {
+    String prefix = myText.substring(0, myRange.getStartOffset());
+    String content = removeQuotes(prefix);
+
+    return prepareLiteral(content);
+  }
+
+  private String prepareLiteral(String content) {
+
+    if (isSlashyString(myLiteral)) {
+      if (content.endsWith("\\")) {
+        String unescaped = unescapeSlashyString(content);
+        return prepareGString(unescaped);
+      }
+    }
+    else if (isDollarSlashyString(myLiteral)) {
+      if (content.endsWith("$")) {
+        String unescaped = unescapeDollarSlashyString(content);
+        return prepareGString(unescaped);
+      }
+    }
+
+    return myStartQuote + content + myEndQuote;
+  }
+
+  @NotNull
+  private static String prepareGString(@NotNull String content) {
+    StringBuilder buffer = new StringBuilder();
+    boolean multiline = content.contains("\n");
+    buffer.append(multiline ? TRIPLE_DOUBLE_QUOTES : DOUBLE_QUOTES);
+    escapeSymbolsForGString(content, multiline, false, buffer);
+    buffer.append(multiline ? TRIPLE_DOUBLE_QUOTES : DOUBLE_QUOTES);
+
+    return buffer.toString();
   }
 
   @NotNull
@@ -92,5 +280,10 @@ public class StringPartInfo {
   @NotNull
   public List<GrStringInjection> getInjections() {
     return myInjections;
+  }
+
+  @NotNull
+  public GrLiteral createLiteralFromSelected() {
+    return (GrLiteral)GroovyPsiElementFactory.getInstance(myLiteral.getProject()).createExpressionFromText(prepareSelected());
   }
 }

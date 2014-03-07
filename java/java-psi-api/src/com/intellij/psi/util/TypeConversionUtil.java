@@ -71,6 +71,7 @@ public class TypeConversionUtil {
       return true;
     }
 
+    @NotNull
     @Override
     @NonNls
     public String getPresentableText() {
@@ -104,6 +105,12 @@ public class TypeConversionUtil {
       final int toTypeRank = getTypeRank(toType);
       if (!toIsPrimitive) {
         if (fromTypeRank == toTypeRank) return true;
+        if (toType instanceof PsiIntersectionType) {
+          for (PsiType type : ((PsiIntersectionType)toType).getConjuncts()) {
+            if (!areTypesConvertible(fromType, type)) return false;
+          }
+          return true;
+        }
         // JLS 5.5: A value of a primitive type can be cast to a reference type by boxing conversion(see 5.1.7)
         if (!(toType instanceof PsiClassType)) return false;
         PsiClass toClass = ((PsiClassType)toType).resolve();
@@ -699,7 +706,7 @@ public class TypeConversionUtil {
         final PsiType lType = ((PsiMethodReferenceType)left).getExpression().getFunctionalInterfaceType();
         return Comparing.equal(rType, lType);
       }
-      return PsiMethodReferenceUtil.isAcceptable(methodReferenceExpression, left);
+      return methodReferenceExpression.isAcceptable(left);
     }
     if (right instanceof PsiLambdaExpressionType) {
       final PsiLambdaExpression rLambdaExpression = ((PsiLambdaExpressionType)right).getExpression();
@@ -709,7 +716,7 @@ public class TypeConversionUtil {
         final PsiType lType = lLambdaExpression.getFunctionalInterfaceType();
         return Comparing.equal(rType, lType);
       }
-      return !(left instanceof PsiArrayType) && LambdaUtil.isAcceptable(rLambdaExpression, left, false);
+      return !(left instanceof PsiArrayType) && rLambdaExpression.isAcceptable(left, false);
     }
 
     if (left instanceof PsiIntersectionType) {
@@ -993,16 +1000,8 @@ public class TypeConversionUtil {
     }
   }
 
-  private static boolean containsWildcards(@NotNull PsiType leftBound) {
-    final WildcardDetector wildcardDetector = new WildcardDetector();
-    if (leftBound instanceof PsiIntersectionType) {
-      for (PsiType conjunctType :((PsiIntersectionType)leftBound).getConjuncts()) {
-        if (!conjunctType.accept(wildcardDetector)) return false;
-      }
-      return true;
-    }
-
-    return leftBound.accept(wildcardDetector);
+  public static boolean containsWildcards(@NotNull PsiType leftBound) {
+    return leftBound.accept(new WildcardDetector());
   }
 
   @Nullable
@@ -1031,7 +1030,7 @@ public class TypeConversionUtil {
    * <code>InheritanceUtil.isInheritor(derivedClass, superClass, true)</code>
    *
    * @return substitutor (never returns <code>null</code>)
-   * @see InheritanceUtil#isInheritor(PsiClass, PsiClass, boolean)
+   * @see PsiClass#isInheritor(PsiClass, boolean)
    */
   @NotNull
   public static PsiSubstitutor getSuperClassSubstitutor(@NotNull PsiClass superClass,
@@ -1065,7 +1064,7 @@ public class TypeConversionUtil {
       substitutor = getSuperClassSubstitutorInner(superClass, derivedClass, derivedSubstitutor, visited, manager);
     }
     if (substitutor == null) {
-      if (ourReportedSuperClassSubstitutorExceptions.add(derivedClass.getQualifiedName())) {
+      if (ourReportedSuperClassSubstitutorExceptions.add(derivedClass.getQualifiedName() + "/" + superClass.getQualifiedName())) {
         final StringBuilder msg = new StringBuilder("Super: " + classInfo(superClass));
         msg.append("visited:\n");
         for (PsiClass aClass : visited) {
@@ -1846,9 +1845,17 @@ public class TypeConversionUtil {
       return arrayType.getComponentType().accept(this);
     }
 
+    @Nullable
+    @Override
+    public Boolean visitIntersectionType(PsiIntersectionType intersectionType) {
+      for (PsiType psiType : intersectionType.getConjuncts()) {
+        if (psiType.accept(this)) return true;
+      }
+      return false;
+    }
+
     @Override
     public Boolean visitType(PsiType type) {
-      //todo intersection types
       return false;
     }
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.intellij.history.integration;
 
 import com.intellij.history.core.LocalHistoryFacade;
@@ -31,10 +30,7 @@ import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.roots.ProjectRootManager;
-import com.intellij.openapi.util.Clock;
-import com.intellij.openapi.util.Comparing;
-import com.intellij.openapi.util.Key;
-import com.intellij.openapi.util.Pair;
+import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.*;
 import com.intellij.openapi.vfs.encoding.EncodingRegistry;
@@ -81,7 +77,7 @@ public class IdeaGateway {
 
   public boolean ensureFilesAreWritable(@NotNull Project p, @NotNull List<VirtualFile> ff) {
     ReadonlyStatusHandler h = ReadonlyStatusHandler.getInstance(p);
-    return !h.ensureFilesWritable(VfsUtil.toVirtualFileArray(ff)).hasReadonlyFiles();
+    return !h.ensureFilesWritable(VfsUtilCore.toVirtualFileArray(ff)).hasReadonlyFiles();
   }
 
   @Nullable
@@ -151,16 +147,22 @@ public class IdeaGateway {
   public RootEntry createTransientRootEntry() {
     ApplicationManager.getApplication().assertReadAccessAllowed();
     RootEntry root = new RootEntry();
-    doCreateChildren(root, Arrays.asList(ManagingFS.getInstance().getLocalRoots()), false);
+    doCreateChildren(root, getLocalRoots(), false);
     return root;
   }
+
   @NotNull
   public RootEntry createTransientRootEntryForPathOnly(@NotNull String path) {
     ApplicationManager.getApplication().assertReadAccessAllowed();
     RootEntry root = new RootEntry();
-    doCreateChildrenForPathOnly(root, path, Arrays.asList(ManagingFS.getInstance().getLocalRoots()));
+    doCreateChildrenForPathOnly(root, path, getLocalRoots());
     return root;
   }
+
+  private static List<VirtualFile> getLocalRoots() {
+    return Arrays.asList(ManagingFS.getInstance().getLocalRoots());
+  }
+
   private void doCreateChildrenForPathOnly(@NotNull DirectoryEntry parent,
                                            @NotNull String path,
                                            @NotNull Collection<VirtualFile> children) {

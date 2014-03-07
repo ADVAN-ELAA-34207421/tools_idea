@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import junit.framework.Assert;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.jps.model.JpsElement;
 import org.jetbrains.jps.model.java.JavaSourceRootType;
 import org.jetbrains.jps.model.module.JpsModuleSourceRootType;
 
@@ -148,14 +149,21 @@ public class PsiTestUtil {
     addSourceRoot(module, vDir, isTestSource ? JavaSourceRootType.TEST_SOURCE : JavaSourceRootType.SOURCE);
   }
 
-  public static void addSourceRoot(Module module, final VirtualFile vDir, @NotNull final JpsModuleSourceRootType rootType) {
+  public static <P extends JpsElement> void addSourceRoot(Module module,
+                                                          final VirtualFile vDir,
+                                                          @NotNull final JpsModuleSourceRootType<P> rootType) {
+    addSourceRoot(module, vDir, rootType, rootType.createDefaultProperties());
+  }
+
+  public static <P extends JpsElement> void addSourceRoot(Module module, final VirtualFile vDir,
+                                                          @NotNull final JpsModuleSourceRootType<P> rootType, final P properties) {
     updateModel(module, new Consumer<ModifiableRootModel>() {
       @SuppressWarnings("unchecked")
       @Override
       public void consume(ModifiableRootModel model) {
         ContentEntry entry = findContentEntry(model, vDir);
         if (entry == null) entry = model.addContentEntry(vDir);
-        entry.addSourceFolder(vDir, rootType);
+        entry.addSourceFolder(vDir, rootType, properties);
       }
     });
   }
@@ -393,6 +401,15 @@ public class PsiTestUtil {
       @Override
       public void consume(ModifiableRootModel model) {
         model.getModuleExtension(CompilerModuleExtension.class).setExcludeOutput(exclude);
+      }
+    });
+  }
+
+  public static void setJavadocUrls(Module module, final String... urls) {
+    updateModel(module, new Consumer<ModifiableRootModel>() {
+      @Override
+      public void consume(ModifiableRootModel model) {
+        model.getModuleExtension(JavaModuleExternalPaths.class).setJavadocUrls(urls);
       }
     });
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 package org.jetbrains.plugins.github.api;
 
 import com.google.gson.*;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.util.ThrowableConvertor;
 import com.intellij.util.net.HttpConfigurable;
 import org.apache.commons.httpclient.*;
 import org.apache.commons.httpclient.auth.AuthScope;
@@ -27,14 +27,21 @@ import org.apache.commons.httpclient.params.HttpConnectionManagerParams;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.github.exceptions.*;
-import org.jetbrains.plugins.github.util.*;
+import org.jetbrains.plugins.github.util.GithubAuthData;
+import org.jetbrains.plugins.github.util.GithubSettings;
+import org.jetbrains.plugins.github.util.GithubUrlUtil;
+import org.jetbrains.plugins.github.util.GithubUtil;
+import sun.security.validator.ValidatorException;
 
+import javax.net.ssl.SSLHandshakeException;
+import java.awt.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URLEncoder;
 import java.util.*;
+import java.util.List;
 
 /**
  * @author Kirill Likhodedov
@@ -87,6 +94,10 @@ public class GithubApiUtil {
                                       @Nullable String requestBody,
                                       @NotNull Collection<Header> headers,
                                       @NotNull HttpVerb verb) throws IOException {
+    if (EventQueue.isDispatchThread() && !ApplicationManager.getApplication().isUnitTestMode()) {
+      LOG.warn("Network operation in EDT");
+    }
+
     HttpMethod method = null;
     try {
       String uri = GithubUrlUtil.getApiUrl(auth.getHost()) + path;
@@ -133,40 +144,46 @@ public class GithubApiUtil {
                                    @NotNull final Collection<Header> headers,
                                    @NotNull final HttpVerb verb) throws IOException {
     HttpClient client = getHttpClient(auth.getBasicAuth(), auth.isUseProxy());
-    return GithubSslSupport.getInstance()
-      .executeSelfSignedCertificateAwareRequest(client, uri, new ThrowableConvertor<String, HttpMethod, IOException>() {
-        @Override
-        public HttpMethod convert(String uri) throws IOException {
-          HttpMethod method;
-          switch (verb) {
-            case POST:
-              method = new PostMethod(uri);
-              if (requestBody != null) {
-                ((PostMethod)method).setRequestEntity(new StringRequestEntity(requestBody, "application/json", "UTF-8"));
-              }
-              break;
-            case GET:
-              method = new GetMethod(uri);
-              break;
-            case DELETE:
-              method = new DeleteMethod(uri);
-              break;
-            case HEAD:
-              method = new HeadMethod(uri);
-              break;
-            default:
-              throw new IllegalStateException("Wrong HttpVerb: unknown method: " + verb.toString());
-          }
-          GithubAuthData.TokenAuth tokenAuth = auth.getTokenAuth();
-          if (tokenAuth != null) {
-            method.addRequestHeader("Authorization", "token " + tokenAuth.getToken());
-          }
-          for (Header header : headers) {
-            method.addRequestHeader(header);
-          }
-          return method;
+    HttpMethod method;
+    switch (verb) {
+      case POST:
+        method = new PostMethod(uri);
+        if (requestBody != null) {
+          ((PostMethod)method).setRequestEntity(new StringRequestEntity(requestBody, "application/json", "UTF-8"));
         }
-      });
+        break;
+      case GET:
+        method = new GetMethod(uri);
+        break;
+      case DELETE:
+        method = new DeleteMethod(uri);
+        break;
+      case HEAD:
+        method = new HeadMethod(uri);
+        break;
+      default:
+        throw new IllegalStateException("Wrong HttpVerb: unknown method: " + verb.toString());
+    }
+
+    GithubAuthData.TokenAuth tokenAuth = auth.getTokenAuth();
+    if (tokenAuth != null) {
+      method.addRequestHeader("Authorization", "token " + tokenAuth.getToken());
+    }
+    for (Header header : headers) {
+      method.addRequestHeader(header);
+    }
+
+    try {
+      client.executeMethod(method);
+    }
+    catch (SSLHandshakeException e) { // User canceled operation from CertificatesManager
+      if (e.getCause() instanceof ValidatorException) {
+        LOG.info("Host SSL certificate is not trusted", e);
+        throw new GithubOperationCanceledException("Host SSL certificate is not trusted", e);
+      }
+      throw e;
+    }
+    return method;
   }
 
   @NotNull
@@ -208,9 +225,18 @@ public class GithubApiUtil {
       case HttpStatus.SC_PAYMENT_REQUIRED:
       case HttpStatus.SC_FORBIDDEN:
         String message = getErrorMessage(method);
+
+        Header headerOTP = method.getResponseHeader("X-GitHub-OTP");
+        if (headerOTP != null) {
+          if (headerOTP.getValue().startsWith("required")) {
+            throw new GithubTwoFactorAuthenticationException(message);
+          }
+        }
+
         if (message.contains("API rate limit exceeded")) {
           throw new GithubRateLimitExceededException(message);
         }
+
         throw new GithubAuthenticationException("Request response: " + message);
       default:
         throw new GithubStatusCodeException(code + ": " + getErrorMessage(method), code);
@@ -421,10 +447,21 @@ public class GithubApiUtil {
   }
 
   @NotNull
+  public static String getMasterToken(@NotNull GithubAuthData auth, @Nullable String note) throws IOException {
+    List<String> scopes = new ArrayList<String>();
+
+    scopes.add("repo"); // read/write access to public/private repositories
+    scopes.add("gist"); // create/delete gists
+
+    return getScopedToken(auth, scopes, note);
+  }
+
+  @NotNull
   public static String getReadOnlyToken(@NotNull GithubAuthData auth, @NotNull String user, @NotNull String repo, @Nullable String note)
     throws IOException {
     GithubRepo repository = getDetailedRepoInfo(auth, user, repo);
 
+    // TODO: use read-only token for private repos when it will be available
     List<String> scopes = repository.isPrivate() ? Collections.singletonList("repo") : Collections.<String>emptyList();
 
     return getScopedToken(auth, scopes, note);
@@ -490,8 +527,15 @@ public class GithubApiUtil {
       List<GithubRepo> repos = new ArrayList<GithubRepo>();
 
       repos.addAll(getUserRepos(auth));
-      repos.addAll(getMembershipRepos(auth));
-      repos.addAll(getWatchedRepos(auth));
+
+      // We already can return something useful from getUserRepos, so let's ignore errors.
+      // One of this may not exist in GitHub enterprise
+      try {
+        repos.addAll(getMembershipRepos(auth));
+      } catch (GithubStatusCodeException ignore) {}
+      try {
+        repos.addAll(getWatchedRepos(auth));
+      } catch (GithubStatusCodeException ignore) {}
 
       return repos;
     }

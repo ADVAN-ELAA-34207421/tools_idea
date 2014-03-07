@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.idea.svn.SvnVcs;
 import org.jetbrains.idea.svn.add.AddClient;
 import org.jetbrains.idea.svn.annotate.AnnotateClient;
+import org.jetbrains.idea.svn.browse.BrowseClient;
 import org.jetbrains.idea.svn.change.ChangeListClient;
 import org.jetbrains.idea.svn.checkin.ImportClient;
 import org.jetbrains.idea.svn.checkout.CheckoutClient;
@@ -13,6 +14,7 @@ import org.jetbrains.idea.svn.conflict.ConflictClient;
 import org.jetbrains.idea.svn.content.ContentClient;
 import org.jetbrains.idea.svn.copy.CopyMoveClient;
 import org.jetbrains.idea.svn.delete.DeleteClient;
+import org.jetbrains.idea.svn.diff.DiffClient;
 import org.jetbrains.idea.svn.history.HistoryClient;
 import org.jetbrains.idea.svn.integrate.MergeClient;
 import org.jetbrains.idea.svn.lock.LockClient;
@@ -53,6 +55,8 @@ public abstract class ClientFactory {
   protected ImportClient myImportClient;
   protected ExportClient myExportClient;
   protected UpgradeClient myUpgradeClient;
+  protected BrowseClient myBrowseClient;
+  protected DiffClient myDiffClient;
 
   protected ClientFactory(@NotNull SvnVcs vcs) {
     myVcs = vcs;
@@ -171,6 +175,16 @@ public abstract class ClientFactory {
   @NotNull
   public UpgradeClient createUpgradeClient() {
     return prepare(myUpgradeClient);
+  }
+
+  @NotNull
+  public BrowseClient createBrowseClient() {
+    return prepare(myBrowseClient);
+  }
+
+  @NotNull
+  public DiffClient createDiffClient() {
+    return prepare(myDiffClient);
   }
 
   @NotNull

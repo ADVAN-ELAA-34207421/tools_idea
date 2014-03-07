@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,7 +53,6 @@ String patchAppDescriptor(String targetDirectory) {
 def layoutFull(String home, String targetDirectory, String patchedDescriptorDir = null) {
   projectBuilder.stage("layout to $targetDirectory")
 
-  //noinspection GroovyAssignabilityCheck
   List<String> openapiModules = [platformApiModules,
     "compiler-openapi",
     "debugger-openapi",
@@ -68,10 +67,8 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
     "remote-servers-api",
     "remote-servers-java-api",
     "testFramework-java",
-    "xml-analysis-api",
   ].flatten()
 
-  //noinspection GroovyAssignabilityCheck
   List<String> implementationModules = [platformImplementationModules,
     "compiler-impl",
     "debugger-impl",
@@ -84,6 +81,7 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
     "java-indexing-impl",
     "java-impl",
     "java-psi-impl",
+    "java-structure-view",
     "jsp-spi",
     "manifest",
     "platform-main",
@@ -91,7 +89,6 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
     "remote-servers-java-impl",
     "testFramework",
     "tests_bootstrap",
-    "xml-analysis-impl",
           ].flatten()
 
   ant.patternset(id: "resources.included") {
@@ -118,12 +115,6 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
     dir("lib") {
       dir("rt") {
         fileset(dir: "${home}/lib/rt", includesfile: "${home}/lib/rt/required_for_dist.txt")
-      }
-
-      dir("groovy") {
-        dir("lib") {
-          fileset(dir:"$home/lib/groovy/lib")
-        }
       }
 
       dir("libpty") {
@@ -233,6 +224,8 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
             module("common-javaFX-plugin")
           }
         }
+
+        fileset(dir: "${home}/plugins/javaFX/FxBuilderEmbedder/lib", includes: "embedder.jar");
       }
     }
 
@@ -263,7 +256,7 @@ public def layoutCommunityPlugins(String home) {
   layoutCloud()
 
   dir("plugins") {
-    def simplePlugins = ["commander", "copyright", "properties", "java-i18n", "hg4idea", "github", "ui-designer-core"] //, "tasks-time-tracking"]
+    def simplePlugins = ["commander", "copyright", "java-i18n", "hg4idea", "github", "ui-designer-core"] //, "tasks-time-tracking"]
 
     simplePlugins.each {
       layoutPlugin it
@@ -284,6 +277,16 @@ public def layoutCommunityPlugins(String home) {
     //     }
     //   }
     // }
+
+    pluginDir("properties") {
+      dir("lib") {
+        jar("properties.jar") {
+          module("properties-psi-api")
+          module("properties-psi-impl")
+          module("properties")
+        }
+      }
+    }
 
     layoutPlugin("maven") {
       jar("maven-jps-plugin.jar") {
@@ -310,6 +313,13 @@ public def layoutCommunityPlugins(String home) {
         }
       }
 
+      jar("artifact-resolver-m31.jar") {
+        module("maven-artifact-resolver-m31")
+        module("maven-artifact-resolver-m2") {
+          include(name: 'org/jetbrains/idea/maven/artifactResolver/common/*')
+        }
+      }
+
       dir("maven3") {
         fileset(dir: "$home/plugins/maven/maven3-server-impl/lib") {include(name: "*.jar")}
         fileset(dir: "$home/plugins/maven/maven3-server-impl/lib/maven3/lib") {include(name: "*.jar")}
@@ -328,6 +338,15 @@ public def layoutCommunityPlugins(String home) {
     layoutPlugin("gradle") {
       jar("gradle.jar") {
         module("gradle")
+      }
+      jar("gradle-tooling-extension.jar") {
+        module("gradle-tooling-extension")
+      }
+      def gradleToolingVersions = ["1.9", "1.11", "1.12"]
+      gradleToolingVersions.each { ver ->
+        jar("gradle-tooling-extension-v" + ver + ".jar") {
+          module("gradle-tooling-extension-v" + ver)
+        }
       }
       fileset(dir: "$home/plugins/gradle/lib") { include(name: "*.jar") }
     }
@@ -469,7 +488,9 @@ public def layoutCommunityPlugins(String home) {
     pluginDir("tasks") {
       dir("lib") {
         jar("tasks-api.jar") { module("tasks-api") }
+        jar("jira.jar") { module("jira") }
         jar("tasks-core.jar") { module("tasks-core") }
+        jar("jira.jar") { module("jira") }
         jar("tasks-java.jar") { moduleOptional("tasks-java") }
         fileset(dir: "${home}/plugins/tasks/tasks-core/lib") {
           include(name: "**/*.jar")
@@ -635,6 +656,7 @@ def layoutAndroid() {
               "ddmlib",
               "draw9patch",
               "dvlib",
+              "gradle-import",
               "layoutlib-api",
               "lint-api",
               "lint-checks",
@@ -701,6 +723,9 @@ def layoutCloud() {
     layoutPlugin("google-cloud-tools") {
       jar("google-cloud-tools.jar") {
         module("google-cloud-tools")
+      }
+      dir("templates") {
+        fileset(dir: "$home/../studio/cloud/resources/templates")
       }
       dir("sdktemplates") {
         fileset(dir: "$home/../studio/cloud/resources/sdktemplates")
@@ -782,11 +807,13 @@ def layoutCommunityJps(String home, String target) {
       include(name: "nanoxml-*.jar")
       include(name: "protobuf-*.jar")
       include(name: "cli-parser-*.jar")
-      include(name: "optimizedFileManager.jar")
       include(name: "log4j.jar")
       include(name: "jgoodies-forms.jar")
       include(name: "ecj*.jar")
       include(name: "jsr166e.jar")
+    }
+    fileset(dir: "$home/jps/lib") {
+      include(name: "optimizedFileManager.jar")
     }
     dir("test") {
       jar("jps-build-test.jar") {

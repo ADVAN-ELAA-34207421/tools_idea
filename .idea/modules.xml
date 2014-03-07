@@ -58,8 +58,8 @@
       <module fileurl="file://$PROJECT_DIR$/../base/device_validator/dvlib/dvlib.iml" filepath="$PROJECT_DIR$/../base/device_validator/dvlib/dvlib.iml" group="plugins/Android/android-sdk" />
       <module fileurl="file://$PROJECT_DIR$/plugins/eclipse/eclipse.iml" filepath="$PROJECT_DIR$/plugins/eclipse/eclipse.iml" group="plugins" />
       <module fileurl="file://$PROJECT_DIR$/plugins/eclipse/jps-plugin/eclipse-jps-plugin.iml" filepath="$PROJECT_DIR$/plugins/eclipse/jps-plugin/eclipse-jps-plugin.iml" group="plugins" />
-      <module fileurl="file://$PROJECT_DIR$/platform/editor-ui-api/editor-ui-api.iml" filepath="$PROJECT_DIR$/platform/editor-ui-api/editor-ui-api.iml" />
-      <module fileurl="file://$PROJECT_DIR$/platform/editor-ui-ex/editor-ui-ex.iml" filepath="$PROJECT_DIR$/platform/editor-ui-ex/editor-ui-ex.iml" />
+      <module fileurl="file://$PROJECT_DIR$/platform/editor-ui-api/editor-ui-api.iml" filepath="$PROJECT_DIR$/platform/editor-ui-api/editor-ui-api.iml" group="platform" />
+      <module fileurl="file://$PROJECT_DIR$/platform/editor-ui-ex/editor-ui-ex.iml" filepath="$PROJECT_DIR$/platform/editor-ui-ex/editor-ui-ex.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/java/execution/impl/execution-impl.iml" filepath="$PROJECT_DIR$/java/execution/impl/execution-impl.iml" group="java" />
       <module fileurl="file://$PROJECT_DIR$/java/execution/openapi/execution-openapi.iml" filepath="$PROJECT_DIR$/java/execution/openapi/execution-openapi.iml" group="java" />
       <module fileurl="file://$PROJECT_DIR$/platform/extensions/extensions.iml" filepath="$PROJECT_DIR$/platform/extensions/extensions.iml" group="platform" />
@@ -73,8 +73,12 @@
       <module fileurl="file://$PROJECT_DIR$/plugins/google-app-engine/google-app-engine.iml" filepath="$PROJECT_DIR$/plugins/google-app-engine/google-app-engine.iml" group="plugins/GAE" />
       <module fileurl="file://$PROJECT_DIR$/plugins/google-app-engine/jps-plugin/google-app-engine-jps-plugin.iml" filepath="$PROJECT_DIR$/plugins/google-app-engine/jps-plugin/google-app-engine-jps-plugin.iml" group="plugins/GAE" />
       <module fileurl="file://$PROJECT_DIR$/../studio/cloud/google-cloud-tools.iml" filepath="$PROJECT_DIR$/../studio/cloud/google-cloud-tools.iml" group="plugins/Google" />
-      <module fileurl="file://$PROJECT_DIR$/plugins/gradle/gradle.iml" filepath="$PROJECT_DIR$/plugins/gradle/gradle.iml" group="plugins" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/gradle/gradle.iml" filepath="$PROJECT_DIR$/plugins/gradle/gradle.iml" group="community/plugins/gradle" />
       <module fileurl="file://$PROJECT_DIR$/../base/gradle-import/gradle-import.iml" filepath="$PROJECT_DIR$/../base/gradle-import/gradle-import.iml" group="plugins/Android/android-sdk" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/gradle/tooling-extension/gradle-tooling-extension.iml" filepath="$PROJECT_DIR$/plugins/gradle/tooling-extension/gradle-tooling-extension.iml" group="community/plugins/gradle" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/gradle/tooling-extension-v1.11/gradle-tooling-extension-v1.11.iml" filepath="$PROJECT_DIR$/plugins/gradle/tooling-extension-v1.11/gradle-tooling-extension-v1.11.iml" group="community/plugins/gradle" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/gradle/tooling-extension-v1.12/gradle-tooling-extension-v1.12.iml" filepath="$PROJECT_DIR$/plugins/gradle/tooling-extension-v1.12/gradle-tooling-extension-v1.12.iml" group="community/plugins/gradle" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/gradle/tooling-extension-v1.9/gradle-tooling-extension-v1.9.iml" filepath="$PROJECT_DIR$/plugins/gradle/tooling-extension-v1.9/gradle-tooling-extension-v1.9.iml" group="community/plugins/gradle" />
       <module fileurl="file://$PROJECT_DIR$/plugins/groovy/jps-plugin/groovy-jps-plugin.iml" filepath="$PROJECT_DIR$/plugins/groovy/jps-plugin/groovy-jps-plugin.iml" group="plugins/Groovy" />
       <module fileurl="file://$PROJECT_DIR$/plugins/groovy/rt-constants/groovy-rt-constants.iml" filepath="$PROJECT_DIR$/plugins/groovy/rt-constants/groovy-rt-constants.iml" group="plugins/Groovy" />
       <module fileurl="file://$PROJECT_DIR$/plugins/groovy/rt/groovy_rt.iml" filepath="$PROJECT_DIR$/plugins/groovy/rt/groovy_rt.iml" group="plugins/Groovy" />
@@ -95,6 +99,7 @@
       <module fileurl="file://$PROJECT_DIR$/java/java-psi-api/java-psi-api.iml" filepath="$PROJECT_DIR$/java/java-psi-api/java-psi-api.iml" group="java" />
       <module fileurl="file://$PROJECT_DIR$/java/java-psi-impl/java-psi-impl.iml" filepath="$PROJECT_DIR$/java/java-psi-impl/java-psi-impl.iml" group="java" />
       <module fileurl="file://$PROJECT_DIR$/java/java-runtime/java-runtime.iml" filepath="$PROJECT_DIR$/java/java-runtime/java-runtime.iml" group="java" />
+      <module fileurl="file://$PROJECT_DIR$/java/java-structure-view/java-structure-view.iml" filepath="$PROJECT_DIR$/java/java-structure-view/java-structure-view.iml" group="java" />
       <module fileurl="file://$PROJECT_DIR$/java/java-tests/java-tests.iml" filepath="$PROJECT_DIR$/java/java-tests/java-tests.iml" group="java" />
       <module fileurl="file://$PROJECT_DIR$/plugins/javaFX/javaFX.iml" filepath="$PROJECT_DIR$/plugins/javaFX/javaFX.iml" group="plugins/JavaFX" />
       <module fileurl="file://$PROJECT_DIR$/plugins/javaFX/javaFX-CE/javaFX-CE.iml" filepath="$PROJECT_DIR$/plugins/javaFX/javaFX-CE/javaFX-CE.iml" group="plugins/JavaFX" />
@@ -102,6 +107,7 @@
       <module fileurl="file://$PROJECT_DIR$/java/compiler/javac2/javac2.iml" filepath="$PROJECT_DIR$/java/compiler/javac2/javac2.iml" group="java/compiler" />
       <module fileurl="file://$PROJECT_DIR$/plugins/cvs/javacvs-src/javacvs-src.iml" filepath="$PROJECT_DIR$/plugins/cvs/javacvs-src/javacvs-src.iml" group="plugins/VCS/cvs" />
       <module fileurl="file://$PROJECT_DIR$/plugins/groovy/jetgroovy.iml" filepath="$PROJECT_DIR$/plugins/groovy/jetgroovy.iml" group="plugins/Groovy" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/tasks/tasks-core/jira/jira.iml" filepath="$PROJECT_DIR$/plugins/tasks/tasks-core/jira/jira.iml" group="plugins/tasks" />
       <module fileurl="file://$PROJECT_DIR$/jps/jps-builders/jps-builders.iml" filepath="$PROJECT_DIR$/jps/jps-builders/jps-builders.iml" group="jps" />
       <module fileurl="file://$PROJECT_DIR$/jps/jps-launcher/jps-launcher.iml" filepath="$PROJECT_DIR$/jps/jps-launcher/jps-launcher.iml" group="java" />
       <module fileurl="file://$PROJECT_DIR$/jps/model-api/jps-model-api.iml" filepath="$PROJECT_DIR$/jps/model-api/jps-model-api.iml" group="jps" />
@@ -118,7 +124,6 @@
       <module fileurl="file://$PROJECT_DIR$/../base/layoutlib-api/layoutlib-api.iml" filepath="$PROJECT_DIR$/../base/layoutlib-api/layoutlib-api.iml" group="plugins/Android/android-sdk" />
       <module fileurl="file://$PROJECT_DIR$/../base/lint/libs/lint-api/lint-api.iml" filepath="$PROJECT_DIR$/../base/lint/libs/lint-api/lint-api.iml" group="plugins/Android/android-sdk/lint" />
       <module fileurl="file://$PROJECT_DIR$/../base/lint/libs/lint-checks/lint-checks.iml" filepath="$PROJECT_DIR$/../base/lint/libs/lint-checks/lint-checks.iml" group="plugins/Android/android-sdk/lint" />
-      <module fileurl="file://$PROJECT_DIR$/../base/lint/cli/lint-cli.iml" filepath="$PROJECT_DIR$/../base/lint/cli/lint-cli.iml" group="plugins/Android/android-sdk/lint" />
       <module fileurl="file://$PROJECT_DIR$/platform/lvcs-api/lvcs-api.iml" filepath="$PROJECT_DIR$/platform/lvcs-api/lvcs-api.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/platform/lvcs-impl/lvcs-impl.iml" filepath="$PROJECT_DIR$/platform/lvcs-impl/lvcs-impl.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/python/main_idea_python_plugin.iml" filepath="$PROJECT_DIR$/python/main_idea_python_plugin.iml" group="python" />
@@ -128,6 +133,7 @@
       <module fileurl="file://$PROJECT_DIR$/plugins/maven/maven.iml" filepath="$PROJECT_DIR$/plugins/maven/maven.iml" group="plugins/maven" />
       <module fileurl="file://$PROJECT_DIR$/plugins/maven/artifact-resolver-m2/maven-artifact-resolver-m2.iml" filepath="$PROJECT_DIR$/plugins/maven/artifact-resolver-m2/maven-artifact-resolver-m2.iml" group="plugins/maven" />
       <module fileurl="file://$PROJECT_DIR$/plugins/maven/artifact-resolver-m3/maven-artifact-resolver-m3.iml" filepath="$PROJECT_DIR$/plugins/maven/artifact-resolver-m3/maven-artifact-resolver-m3.iml" group="plugins/maven" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/maven/artifact-resolver-m31/maven-artifact-resolver-m31.iml" filepath="$PROJECT_DIR$/plugins/maven/artifact-resolver-m31/maven-artifact-resolver-m31.iml" group="plugins/maven" />
       <module fileurl="file://$PROJECT_DIR$/plugins/maven/jps-plugin/maven-jps-plugin.iml" filepath="$PROJECT_DIR$/plugins/maven/jps-plugin/maven-jps-plugin.iml" group="plugins/maven" />
       <module fileurl="file://$PROJECT_DIR$/plugins/maven/maven-server-api/maven-server-api.iml" filepath="$PROJECT_DIR$/plugins/maven/maven-server-api/maven-server-api.iml" group="plugins/maven" />
       <module fileurl="file://$PROJECT_DIR$/plugins/maven/maven2-server-impl/maven2-server-impl.iml" filepath="$PROJECT_DIR$/plugins/maven/maven2-server-impl/maven2-server-impl.iml" group="plugins/maven" />
@@ -144,6 +150,8 @@
       <module fileurl="file://$PROJECT_DIR$/platform/projectModel-api/projectModel-api.iml" filepath="$PROJECT_DIR$/platform/projectModel-api/projectModel-api.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/platform/projectModel-impl/projectModel-impl.iml" filepath="$PROJECT_DIR$/platform/projectModel-impl/projectModel-impl.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/plugins/properties/properties.iml" filepath="$PROJECT_DIR$/plugins/properties/properties.iml" group="plugins" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/properties/properties-psi-api/properties-psi-api.iml" filepath="$PROJECT_DIR$/plugins/properties/properties-psi-api/properties-psi-api.iml" group="plugins" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/properties/properties-psi-impl/properties-psi-impl.iml" filepath="$PROJECT_DIR$/plugins/properties/properties-psi-impl/properties-psi-impl.iml" group="plugins" />
       <module fileurl="file://$PROJECT_DIR$/python/python-community.iml" filepath="$PROJECT_DIR$/python/python-community.iml" group="python" />
       <module fileurl="file://$PROJECT_DIR$/python/build/python-community-build.iml" filepath="$PROJECT_DIR$/python/build/python-community-build.iml" group="python" />
       <module fileurl="file://$PROJECT_DIR$/python/pluginSrc/python-community-plugin.iml" filepath="$PROJECT_DIR$/python/pluginSrc/python-community-plugin.iml" group="python" />
@@ -156,8 +164,9 @@
       <module fileurl="file://$PROJECT_DIR$/python/python-pydev.iml" filepath="$PROJECT_DIR$/python/python-pydev.iml" group="python" />
       <module fileurl="file://$PROJECT_DIR$/python/python-rest/python-rest.iml" filepath="$PROJECT_DIR$/python/python-rest/python-rest.iml" group="python" />
       <module fileurl="file://$PROJECT_DIR$/xml/relaxng/relaxng.iml" filepath="$PROJECT_DIR$/xml/relaxng/relaxng.iml" group="plugins" />
-      <module fileurl="file://$PROJECT_DIR$/platform/remote-servers/agent-rt/remote-servers-agent-rt.iml" filepath="$PROJECT_DIR$/platform/remote-servers/agent-rt/remote-servers-agent-rt.iml" />
+      <module fileurl="file://$PROJECT_DIR$/platform/remote-servers/agent-rt/remote-servers-agent-rt.iml" filepath="$PROJECT_DIR$/platform/remote-servers/agent-rt/remote-servers-agent-rt.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/platform/remote-servers/api/remote-servers-api.iml" filepath="$PROJECT_DIR$/platform/remote-servers/api/remote-servers-api.iml" group="platform" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/git4idea/remote-servers-git/remote-servers-git.iml" filepath="$PROJECT_DIR$/plugins/git4idea/remote-servers-git/remote-servers-git.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/platform/remote-servers/impl/remote-servers-impl.iml" filepath="$PROJECT_DIR$/platform/remote-servers/impl/remote-servers-impl.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/java/remote-servers/api/remote-servers-java-api.iml" filepath="$PROJECT_DIR$/java/remote-servers/api/remote-servers-java-api.iml" group="java" />
       <module fileurl="file://$PROJECT_DIR$/java/remote-servers/impl/remote-servers-java-impl.iml" filepath="$PROJECT_DIR$/java/remote-servers/impl/remote-servers-java-impl.iml" group="java" />
@@ -169,6 +178,8 @@
       <module fileurl="file://$PROJECT_DIR$/platform/smRunner/smRunner.iml" filepath="$PROJECT_DIR$/platform/smRunner/smRunner.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/plugins/cvs/smartcvs-src/smartcvs-src.iml" filepath="$PROJECT_DIR$/plugins/cvs/smartcvs-src/smartcvs-src.iml" group="plugins/VCS/cvs" />
       <module fileurl="file://$PROJECT_DIR$/spellchecker/spellchecker.iml" filepath="$PROJECT_DIR$/spellchecker/spellchecker.iml" group="plugins" />
+      <module fileurl="file://$PROJECT_DIR$/platform/structure-view-api/structure-view-api.iml" filepath="$PROJECT_DIR$/platform/structure-view-api/structure-view-api.iml" group="platform" />
+      <module fileurl="file://$PROJECT_DIR$/platform/structure-view-impl/structure-view-impl.iml" filepath="$PROJECT_DIR$/platform/structure-view-impl/structure-view-impl.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/plugins/svn4idea/svn4idea.iml" filepath="$PROJECT_DIR$/plugins/svn4idea/svn4idea.iml" group="plugins/VCS" />
       <module fileurl="file://$PROJECT_DIR$/plugins/svn4idea/svn4idea-tests.iml" filepath="$PROJECT_DIR$/plugins/svn4idea/svn4idea-tests.iml" group="plugins/VCS" />
       <module fileurl="file://$PROJECT_DIR$/plugins/tasks/tasks-api/tasks-api.iml" filepath="$PROJECT_DIR$/plugins/tasks/tasks-api/tasks-api.iml" group="plugins/tasks" />
@@ -203,6 +214,8 @@
       <module fileurl="file://$PROJECT_DIR$/xml/openapi/xml-openapi.iml" filepath="$PROJECT_DIR$/xml/openapi/xml-openapi.iml" group="xml" />
       <module fileurl="file://$PROJECT_DIR$/xml/xml-psi-api/xml-psi-api.iml" filepath="$PROJECT_DIR$/xml/xml-psi-api/xml-psi-api.iml" group="xml" />
       <module fileurl="file://$PROJECT_DIR$/xml/xml-psi-impl/xml-psi-impl.iml" filepath="$PROJECT_DIR$/xml/xml-psi-impl/xml-psi-impl.iml" group="xml" />
+      <module fileurl="file://$PROJECT_DIR$/xml/xml-structure-view-api/xml-structure-view-api.iml" filepath="$PROJECT_DIR$/xml/xml-structure-view-api/xml-structure-view-api.iml" group="xml" />
+      <module fileurl="file://$PROJECT_DIR$/xml/xml-structure-view-impl/xml-structure-view-impl.iml" filepath="$PROJECT_DIR$/xml/xml-structure-view-impl/xml-structure-view-impl.iml" group="xml" />
       <module fileurl="file://$PROJECT_DIR$/xml/tests/xml-tests.iml" filepath="$PROJECT_DIR$/xml/tests/xml-tests.iml" group="xml" />
       <module fileurl="file://$PROJECT_DIR$/plugins/xpath/xpath.iml" filepath="$PROJECT_DIR$/plugins/xpath/xpath.iml" group="plugins" />
       <module fileurl="file://$PROJECT_DIR$/plugins/xslt-debugger/xslt-debugger.iml" filepath="$PROJECT_DIR$/plugins/xslt-debugger/xslt-debugger.iml" group="plugins" />

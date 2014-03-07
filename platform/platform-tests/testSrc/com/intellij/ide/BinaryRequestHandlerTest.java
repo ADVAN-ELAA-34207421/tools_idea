@@ -8,8 +8,8 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.util.CharsetUtil;
 import org.jetbrains.annotations.NotNull;
@@ -31,7 +31,7 @@ public class BinaryRequestHandlerTest extends LightPlatformTestCase {
       protected void initChannel(Channel channel) throws Exception {
         channel.pipeline().addLast(new Decoder() {
           @Override
-          protected void channelRead0(ChannelHandlerContext context, ByteBuf message) throws Exception {
+          protected void messageReceived(ChannelHandlerContext context, ByteBuf message) throws Exception {
             int requiredLength = 4 + text.length();
             ByteBuf buffer = getBufferIfSufficient(message, requiredLength, context);
             if (buffer == null) {
@@ -87,7 +87,7 @@ public class BinaryRequestHandlerTest extends LightPlatformTestCase {
     }
 
     @Override
-    public ChannelInboundHandler getInboundHandler() {
+    public ChannelHandler getInboundHandler() {
       return new MyDecoder();
     }
 
@@ -100,7 +100,7 @@ public class BinaryRequestHandlerTest extends LightPlatformTestCase {
       }
 
       @Override
-      protected void channelRead0(ChannelHandlerContext context, ByteBuf message) throws Exception {
+      protected void messageReceived(ChannelHandlerContext context, ByteBuf message) throws Exception {
         while (true) {
           switch (state) {
             case HEADER: {

@@ -188,8 +188,8 @@ public class CompletionProgressIndicator extends ProgressIndicatorBase implement
       else if (FeatureUsageTracker.getInstance()
         .isToBeAdvertisedInLookup(CodeCompletionFeatures.EDITING_COMPLETION_CONTROL_ENTER, getProject())) {
         myLookup.addAdvertisement("Press " +
-                                      CompletionContributor.getActionShortcut(IdeActions.ACTION_CHOOSE_LOOKUP_ITEM_ALWAYS) +
-                                      " to choose the selected (or first) suggestion", null);
+                                  CompletionContributor.getActionShortcut(IdeActions.ACTION_CHOOSE_LOOKUP_ITEM_ALWAYS) +
+                                  " to choose the selected (or first) suggestion", null);
       }
       if (!myEditor.isOneLineMode() &&
           FeatureUsageTracker.getInstance()
@@ -199,7 +199,7 @@ public class CompletionProgressIndicator extends ProgressIndicatorBase implement
                                   " will move caret down and up in the editor", null);
       }
     } else if (DumbService.isDumb(getProject())) {
-      myLookup.addAdvertisement("Completion results might be incomplete until indexing is complete", MessageType.WARNING.getPopupBackground());
+      myLookup.addAdvertisement("The results might be incomplete while indexing is in progress", MessageType.WARNING.getPopupBackground());
     }
 
     ProgressManager.checkCanceled();
@@ -209,11 +209,7 @@ public class CompletionProgressIndicator extends ProgressIndicatorBase implement
         final int selectionEndOffset = initContext.getSelectionEndOffset();
         final PsiReference reference = initContext.getFile().findReferenceAt(selectionEndOffset);
         if (reference != null) {
-          int referenceStart = reference.getElement().getTextRange().getStartOffset();
-          if (referenceStart + reference.getRangeInElement().getStartOffset() != selectionEndOffset ||
-              referenceStart == initContext.getStartOffset()) {
-            initContext.setReplacementOffset(findReplacementOffset(selectionEndOffset, reference));
-          }
+          initContext.setReplacementOffset(findReplacementOffset(selectionEndOffset, reference));
         }
       }
       catch (IndexNotReadyException ignored) {
@@ -709,6 +705,10 @@ public class CompletionProgressIndicator extends ProgressIndicatorBase implement
   }
 
   private static boolean shouldPreselectFirstSuggestion(CompletionParameters parameters) {
+    if (!Registry.is("ide.completion.autopopup.choose.by.enter")) {
+      return false;
+    }
+
     if (!ApplicationManager.getApplication().isUnitTestMode()) {
       return true;
     }

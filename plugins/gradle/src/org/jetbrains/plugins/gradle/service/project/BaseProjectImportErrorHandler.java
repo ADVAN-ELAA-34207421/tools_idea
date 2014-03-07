@@ -15,7 +15,6 @@
  */
 package org.jetbrains.plugins.gradle.service.project;
 
-import com.google.common.base.Strings;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.model.ExternalSystemException;
 import com.intellij.openapi.util.Pair;
@@ -24,6 +23,8 @@ import org.gradle.tooling.UnsupportedVersionException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
 
@@ -52,7 +53,7 @@ public class BaseProjectImportErrorHandler extends AbstractProjectImportErrorHan
     Throwable rootCause = rootCauseAndLocation.getFirst();
 
     String location = rootCauseAndLocation.getSecond();
-    if (location == null && !Strings.isNullOrEmpty(buildFilePath)) {
+    if (location == null && !StringUtil.isEmpty(buildFilePath)) {
       location = String.format("Build file: '%1$s'", buildFilePath);
     }
 
@@ -129,6 +130,15 @@ public class BaseProjectImportErrorHandler extends AbstractProjectImportErrorHan
       }
     }
 
-    return createUserFriendlyError(rootCause.getMessage(), location);
+    final String errMessage;
+    if (rootCause.getMessage() == null) {
+      StringWriter writer = new StringWriter();
+      rootCause.printStackTrace(new PrintWriter(writer));
+      errMessage = writer.toString();
+    }
+    else {
+      errMessage = rootCause.getMessage();
+    }
+    return createUserFriendlyError(errMessage, location);
   }
 }

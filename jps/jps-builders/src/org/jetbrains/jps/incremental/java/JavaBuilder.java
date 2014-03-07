@@ -25,6 +25,7 @@ import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.SystemProperties;
 import com.intellij.util.concurrency.SequentialTaskExecutor;
+import com.intellij.util.io.PersistentEnumeratorBase;
 import gnu.trove.THashMap;
 import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
@@ -42,6 +43,7 @@ import org.jetbrains.jps.builders.java.JavaSourceRootDescriptor;
 import org.jetbrains.jps.builders.java.dependencyView.Callbacks;
 import org.jetbrains.jps.builders.java.dependencyView.Mappings;
 import org.jetbrains.jps.builders.logging.ProjectBuilderLogger;
+import org.jetbrains.jps.builders.storage.BuildDataCorruptedException;
 import org.jetbrains.jps.cmdline.ProjectDescriptor;
 import org.jetbrains.jps.incremental.*;
 import org.jetbrains.jps.incremental.messages.BuildMessage;
@@ -59,8 +61,7 @@ import org.jetbrains.jps.model.module.JpsModule;
 import org.jetbrains.jps.model.module.JpsModuleType;
 import org.jetbrains.jps.service.JpsServiceManager;
 
-import javax.tools.Diagnostic;
-import javax.tools.JavaFileObject;
+import javax.tools.*;
 import java.io.*;
 import java.net.ServerSocket;
 import java.util.*;
@@ -80,6 +81,7 @@ public class JavaBuilder extends ModuleLevelBuilder {
   public static final boolean USE_EMBEDDED_JAVAC = System.getProperty(GlobalOptions.USE_EXTERNAL_JAVAC_OPTION) == null;
   private static final Key<Integer> JAVA_COMPILER_VERSION_KEY = Key.create("_java_compiler_version_");
   public static final Key<Boolean> IS_ENABLED = Key.create("_java_compiler_enabled_");
+  private static final Key<Boolean> IS_COMPILER_API_SUPPORTED = Key.create("_java_compiler_api_supported_");
   private static final Key<AtomicReference<String>> COMPILER_VERSION_INFO = Key.create("_java_compiler_version_info_");
 
   private static final Set<String> FILTERED_OPTIONS = new HashSet<String>(Arrays.<String>asList(
@@ -137,7 +139,7 @@ public class JavaBuilder extends ModuleLevelBuilder {
     }
     final boolean isJavac = JavaCompilers.JAVAC_ID.equalsIgnoreCase(compilerId) || JavaCompilers.JAVAC_API_ID.equalsIgnoreCase(compilerId);
     final boolean isEclipse = JavaCompilers.ECLIPSE_ID.equalsIgnoreCase(compilerId) || JavaCompilers.ECLIPSE_EMBEDDED_ID.equalsIgnoreCase(compilerId);
-    IS_ENABLED.set(context, isJavac || isEclipse);
+    IS_COMPILER_API_SUPPORTED.set(context, isJavac || isEclipse);
     String messageText = null;
     if (isJavac) {
       messageText = "Using javac " + System.getProperty("java.version") + " to compile java sources";
@@ -157,7 +159,7 @@ public class JavaBuilder extends ModuleLevelBuilder {
                         @NotNull ModuleChunk chunk,
                         @NotNull DirtyFilesHolder<JavaSourceRootDescriptor, ModuleBuildTarget> dirtyFilesHolder,
                         @NotNull OutputConsumer outputConsumer) throws ProjectBuildException, IOException {
-    if (!IS_ENABLED.get(context, Boolean.TRUE)) {
+    if (!IS_ENABLED.get(context, Boolean.TRUE) || !IS_COMPILER_API_SUPPORTED.get(context, Boolean.TRUE)) {
       return ExitCode.NOTHING_DONE;
     }
     return doBuild(context, chunk, dirtyFilesHolder, outputConsumer);
@@ -190,7 +192,13 @@ public class JavaBuilder extends ModuleLevelBuilder {
 
       return compile(context, chunk, dirtyFilesHolder, filesToCompile, outputConsumer);
     }
+    catch (BuildDataCorruptedException e) {
+      throw e;
+    }
     catch (ProjectBuildException e) {
+      throw e;
+    }
+    catch (PersistentEnumeratorBase.CorruptedException e) {
       throw e;
     }
     catch (Exception e) {

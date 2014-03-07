@@ -27,7 +27,6 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.font.FontRenderContext;
 import java.awt.image.BufferedImage;
 import java.util.Collection;
 
@@ -39,32 +38,32 @@ import static com.intellij.vcs.log.graph.render.PrintParameters.WIDTH_NODE;
  */
 public class GraphCommitCellRender extends AbstractPaddingCellRender {
 
+  // In case of diagonal edges, one node can be at most 3 "arrows" + 2 nodes at the left from another - that is enough for sure
+  private static final int IMAGE_WIDTH_RESERVE = 5 * WIDTH_NODE;
+
   @NotNull private final GraphCellPainter graphPainter;
   @NotNull private final VcsLogDataHolder myDataHolder;
-  @NotNull private final RefPainter refPainter;
 
   public GraphCommitCellRender(@NotNull GraphCellPainter graphPainter, @NotNull VcsLogDataHolder logDataHolder,
                                @NotNull VcsLogColorManager colorManager) {
-    super(logDataHolder.getProject());
+    super(logDataHolder.getProject(), colorManager);
     this.graphPainter = graphPainter;
     myDataHolder = logDataHolder;
-    refPainter = new RefPainter(colorManager, false);
   }
 
   @Override
   protected int getLeftPadding(JTable table, @Nullable Object value) {
     GraphCommitCell cell = (GraphCommitCell)value;
-
     if (cell == null) {
       return 0;
     }
+    return calcPaddingBeforeText(cell, (Graphics2D)table.getGraphics());
+  }
 
-    FontRenderContext fontContext = ((Graphics2D)table.getGraphics()).getFontRenderContext();
-    int refPadding = refPainter.padding(cell.getRefsToThisCommit(), fontContext);
-
+  private int calcPaddingBeforeText(GraphCommitCell cell, Graphics2D g) {
+    int refPadding = calcRefsPadding(cell.getRefsToThisCommit(), g);
     int countCells = cell.getPrintCell().countCell();
     int graphPadding = countCells * WIDTH_NODE;
-
     return refPadding + graphPadding;
   }
 
@@ -86,9 +85,9 @@ public class GraphCommitCellRender extends AbstractPaddingCellRender {
       return;
     }
 
-    BufferedImage image = UIUtil.createImage(1000, HEIGHT_CELL, BufferedImage.TYPE_INT_ARGB);
+    int width = calcPaddingBeforeText(cell, (Graphics2D)g) + IMAGE_WIDTH_RESERVE;
+    BufferedImage image = UIUtil.createImage(width, HEIGHT_CELL, BufferedImage.TYPE_INT_ARGB);
     Graphics2D g2 = image.createGraphics();
-    g2.setBackground(new Color(0, 0, 0, 0));
 
     graphPainter.draw(g2, cell.getPrintCell());
 
@@ -99,7 +98,7 @@ public class GraphCommitCellRender extends AbstractPaddingCellRender {
       VirtualFile root = refs.iterator().next().getRoot(); // all refs are from the same commit => they have the same root
       refs = myDataHolder.getLogProvider(root).getReferenceManager().sort(refs);
     }
-    refPainter.draw(g2, refs, padding, -1); // TODO think how to behave if there are too many refs here (even if tags are collapsed)
+    drawRefs(g2, refs, padding);
 
     UIUtil.drawImage(g, image, 0, 0, null);
   }

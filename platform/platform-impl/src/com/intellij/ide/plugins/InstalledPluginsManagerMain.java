@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import com.intellij.openapi.fileChooser.FileChooser;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.options.ex.SingleConfigurableEditor;
 import com.intellij.openapi.project.DumbAware;
-import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.updateSettings.impl.PluginDownloader;
 import com.intellij.openapi.util.Comparing;
@@ -75,7 +74,7 @@ public class InstalledPluginsManagerMain extends PluginManagerMain {
     installPluginFromFileSystem.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent e) {
-        final FileChooserDescriptor descriptor = new FileChooserDescriptor(true, false, true, true, false, false){
+        final FileChooserDescriptor descriptor = new FileChooserDescriptor(false, false, true, true, false, false){
           @Override
           public boolean isFileSelectable(VirtualFile file) {
             final String extension = file.getExtension();
@@ -178,7 +177,7 @@ public class InstalledPluginsManagerMain extends PluginManagerMain {
                        }, ", ") +
                        ". Enable " + disabledPluginsMessage.trim() + "?";
       if (Messages.showOkCancelDialog(myActionsPanel, message, CommonBundle.getWarningTitle(), Messages.getWarningIcon()) ==
-          DialogWrapper.OK_EXIT_CODE) {
+          Messages.OK) {
         ((InstalledPluginsTableModel)pluginsModel).enableRows(dependencies.toArray(new IdeaPluginDescriptor[dependencies.size()]), Boolean.TRUE);
       }
     }
@@ -207,7 +206,8 @@ public class InstalledPluginsManagerMain extends PluginManagerMain {
     pluginTable = new PluginTable(pluginsModel);
     pluginTable.setTableHeader(null);
 
-    JScrollPane installedScrollPane = ScrollPaneFactory.createScrollPane(pluginTable);
+    JScrollPane installedScrollPane = ScrollPaneFactory.createScrollPane(pluginTable, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                                                                         ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
     pluginTable.registerKeyboardAction(new ActionListener() {
       public void actionPerformed(ActionEvent e) {
         final int column = InstalledPluginsTableModel.getCheckboxColumn();
@@ -228,20 +228,33 @@ public class InstalledPluginsManagerMain extends PluginManagerMain {
         pluginTable.repaint();
       }
     }, KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), JComponent.WHEN_FOCUSED);
+    pluginTable.setExpandableItemsEnabled(false);
     return installedScrollPane;
+  }
+
+  @Override
+  protected PluginManagerMain getAvailable() {
+    return this;
+  }
+
+  @Override
+  protected PluginManagerMain getInstalled() {
+    return this;
   }
 
   @Override
   protected ActionGroup getActionGroup(boolean inToolbar) {
     final DefaultActionGroup actionGroup = new DefaultActionGroup();
-    actionGroup.add(new RefreshAction());
-    actionGroup.add(Separator.getInstance());
-    actionGroup.add(new ActionInstallPlugin(this, this));
-    actionGroup.add(new ActionUninstallPlugin(this, pluginTable));
     if (inToolbar) {
-      actionGroup.add(new SortByStatusAction("Sort by Status"));
+      //actionGroup.add(new SortByStatusAction("Sort by Status"));
       actionGroup.add(new MyFilterEnabledAction());
       //actionGroup.add(new MyFilterBundleAction());
+    } else {
+      actionGroup.add(new RefreshAction());
+      actionGroup.addAction(new SortByStatusAction("Sort by Status"));
+      actionGroup.add(Separator.getInstance());
+      actionGroup.add(new ActionInstallPlugin(getAvailable(), getInstalled()));
+      actionGroup.add(new UninstallPluginAction(this, pluginTable));
     }
     return actionGroup;
   }

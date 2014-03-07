@@ -238,10 +238,6 @@ class Foo<A, B> {
     doBasicTest();
   }
 
-  public void testGStringConcatenationCompletion() {
-    myFixture.testCompletionVariants(getTestName(false) + ".groovy", "substring", "substring", "subSequence");
-  }
-
   public void testPropertyWithSecondUpperLetter() {
     myFixture.testCompletionVariants(getTestName(false) + ".groovy", "geteMail", "getePost");
   }
@@ -1874,5 +1870,27 @@ foooo ()<caret>
       settings.SPACE_BEFORE_METHOD_CALL_PARENTHESES = old
 
     }
+  }
+
+  void testNoClassNamesInComments() {
+    doVariantableTest("""\
+class drop{}
+class dropX{}
+
+class A {
+/*
+    print dr<caret>
+*/
+}
+""", "o", CompletionType.BASIC, CompletionResult.equal, 0)
+  }
+
+  void testIntellijIdeaRulezzzNotInCompletion() {
+    doVariantableTest('''\
+def foo() {
+  def var
+  va<caret>r = 'abc'
+}
+''', '', CompletionType.BASIC, CompletionResult.notContain, 1, 'vaIntellijIdeaRulezzzr')
   }
 }

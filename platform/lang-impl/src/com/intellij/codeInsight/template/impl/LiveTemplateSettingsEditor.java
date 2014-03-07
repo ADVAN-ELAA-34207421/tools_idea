@@ -51,6 +51,7 @@ import com.intellij.util.ui.UIUtil;
 import com.intellij.util.ui.tree.TreeUtil;
 import com.intellij.util.ui.update.Activatable;
 import com.intellij.util.ui.update.UiNotifyConnector;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
@@ -129,9 +130,9 @@ public class LiveTemplateSettingsEditor extends JPanel {
     return myTemplate;
   }
 
-  public void dispose() {
+  void dispose() {
     final Project project = myTemplateEditor.getProject();
-    if (project != null) {
+    if (project != null && !project.isDisposed()) {
       final PsiFile psiFile = PsiDocumentManager.getInstance(project).getPsiFile(myTemplateEditor.getDocument());
       if (psiFile != null) {
         DaemonCodeAnalyzer.getInstance(project).setHighlightingEnabled(psiFile, true);
@@ -233,7 +234,7 @@ public class LiveTemplateSettingsEditor extends JPanel {
 
     gbConstraints.gridx = 1;
     gbConstraints.insets = new Insets(0, 4, 0, 0);
-    myExpandByCombo = new ComboBox(new Object[]{myDefaultShortcutItem, SPACE, TAB, ENTER}, -1);
+    myExpandByCombo = new ComboBox(new String[]{myDefaultShortcutItem, SPACE, TAB, ENTER});
     myExpandByCombo.addItemListener(new ItemListener() {
       @Override
       public void itemStateChanged(ItemEvent e) {
@@ -344,7 +345,7 @@ public class LiveTemplateSettingsEditor extends JPanel {
 
     new ClickListener() {
       @Override
-      public boolean onClick(MouseEvent e, int clickCount) {
+      public boolean onClick(@NotNull MouseEvent e, int clickCount) {
         if (disposeContextPopup()) return false;
 
         final JPanel content = createPopupContextPanel(updateLabel, myContext);
@@ -381,12 +382,7 @@ public class LiveTemplateSettingsEditor extends JPanel {
   static JPanel createPopupContextPanel(final Runnable onChange, final Map<TemplateContextType, Boolean> context) {
     JPanel panel = new JPanel(new BorderLayout());
 
-    MultiMap<TemplateContextType, TemplateContextType> hierarchy = new MultiMap<TemplateContextType, TemplateContextType>() {
-      @Override
-      protected Map<TemplateContextType, Collection<TemplateContextType>> createMap() {
-        return new LinkedHashMap<TemplateContextType, Collection<TemplateContextType>>();
-      }
-    };
+    MultiMap<TemplateContextType, TemplateContextType> hierarchy = MultiMap.createLinked();
     for (TemplateContextType type : context.keySet()) {
       hierarchy.putValue(type.getBaseContextType(), type);
     }

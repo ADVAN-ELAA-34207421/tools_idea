@@ -89,6 +89,8 @@
       <action id="EditorMoveDownAndScroll" class="com.intellij.openapi.editor.actions.MoveDownAndScrollAction"/>
       <action id="EditorMoveUpAndScrollWithSelection" class="com.intellij.openapi.editor.actions.MoveUpWithSelectionAndScrollAction"/>
       <action id="EditorMoveDownAndScrollWithSelection" class="com.intellij.openapi.editor.actions.MoveDownWithSelectionAndScrollAction"/>
+      <action id="EditorCloneCaretBelow" class="com.intellij.openapi.editor.actions.CloneCaretBelow"/>
+      <action id="EditorCloneCaretAbove" class="com.intellij.openapi.editor.actions.CloneCaretAbove"/>
       <action id="EditorToggleStickySelection" class="com.intellij.openapi.editor.actions.ToggleStickySelectionModeAction"/>
       <action id="EditorSwapSelectionBoundaries" class="com.intellij.openapi.editor.actions.SwapSelectionBoundariesAction"/>
       <action id="EditorLineStart" class="com.intellij.openapi.editor.actions.LineStartAction"/>
@@ -189,7 +191,7 @@
         
         <action id="ChangeFileEncodingAction" class="com.intellij.openapi.vfs.encoding.ChangeFileEncodingAction"/>
         
-        <group id="ChangeLineSeparators" text="Line Separators" popup="true">
+        <group id="ChangeLineSeparators" text="Line Separators" popup="true" class="com.intellij.ide.actions.NonTrivialActionGroup">
           <action id="ConvertToWindowsLineSeparators" class="com.intellij.codeStyle.ConvertToWindowsLineSeparatorsAction"/>
           <action id="ConvertToUnixLineSeparators" class="com.intellij.codeStyle.ConvertToUnixLineSeparatorsAction"/>
           <action id="ConvertToMacLineSeparators" class="com.intellij.codeStyle.ConvertToMacLineSeparatorsAction"/>
@@ -223,6 +225,8 @@
           <action id="FindNext" class="com.intellij.ide.actions.SearchAgainAction"/>
           <action id="FindPrevious" class="com.intellij.ide.actions.SearchBackAction"/>
           <action id="FindWordAtCaret" class="com.intellij.openapi.editor.actions.FindWordAtCaretAction"/>
+          <action id="SelectNextOccurrence" class="com.intellij.openapi.editor.actions.SelectNextOccurrenceAction"/>
+          <action id="UnselectLastOccurrence" class="com.intellij.openapi.editor.actions.UnselectLastOccurrenceAction"/>
           <separator/>
           <action id="FindInPath" class="com.intellij.find.actions.FindInPathAction"/>
           <action id="ReplaceInPath" class="com.intellij.find.actions.ReplaceInPathAction"/>
@@ -372,6 +376,8 @@
           <action id="ReopenClosedTab" class="com.intellij.openapi.fileEditor.impl.ReopenClosedTabAction" />
           <action id="SplitVertically" class="com.intellij.ide.actions.SplitVerticallyAction" icon="AllIcons.Actions.SplitVertically"/>
           <action id="SplitHorizontally" class="com.intellij.ide.actions.SplitHorizontallyAction" icon="AllIcons.Actions.SplitHorizontally"/>
+          <action id="MoveTabRight" class="com.intellij.ide.actions.MoveTabRightAction"/>
+          <action id="MoveTabDown" class="com.intellij.ide.actions.MoveTabDownAction"/>
           <action id="ChangeSplitOrientation" class="com.intellij.ide.actions.ChangeSplitterOrientationAction"/>
           <action id="Unsplit" class="com.intellij.ide.actions.UnsplitAction"/>
           <action id="UnsplitAll" class="com.intellij.ide.actions.UnsplitAllAction"/>
@@ -409,6 +415,7 @@
         <separator/>
         <action id="TechnicalSupport" class="com.intellij.ide.actions.TechnicalSupportAction"/>
         <action id="SendFeedback" class="com.intellij.ide.actions.SendFeedbackAction"/>
+        <action id="LogDebugConfigure" class="com.intellij.ide.actions.DebugLogConfigureAction"/>
         <action id="ShowLog" class="com.intellij.ide.actions.ShowLogAction"/>
         <separator/>
         <action id="OnlineDocAction" class="com.intellij.ide.actions.OnlineDocAction"/>
@@ -444,6 +451,8 @@
       <reference ref="HelpTopics"/>
     </group>
 
+    <group id="NavBarVcsGroup"/>
+
     <group id="EditorPopupMenu" configurable="true">
       <reference ref="$Cut"/>
       <reference ref="$Copy"/>
@@ -471,6 +480,8 @@
       <separator/>
       <reference ref="SplitVertically"/>
       <reference ref="SplitHorizontally"/>
+      <reference ref="MoveTabRight"/>
+      <reference ref="MoveTabDown"/>
       <action id="MoveEditorToOppositeTabGroup" class="com.intellij.openapi.fileEditor.impl.MoveEditorToOppositeTabGroupAction"/>
       <action id="OpenEditorInOppositeTabGroup" class="com.intellij.openapi.fileEditor.impl.OpenEditorInOppositeTabGroupAction"/>
       <reference ref="ChangeSplitOrientation"/>
@@ -547,6 +558,8 @@
       <reference ref="NextDiff"/>
       <separator/>
       <action id="Diff.IgnoreWhitespace" class="com.intellij.openapi.diff.actions.IgnoreWhiteSpacesAction" text=""/>
+      <separator/>
+      <action id="Diff.HighlightMode" class="com.intellij.openapi.diff.actions.HighlightModeAction" text=""/>
     </group>
 
     <group id="ChangeScheme">
@@ -612,6 +625,7 @@
       </group>
       <group id="TopAnomalies" internal="true" class="com.intellij.internal.anomalies.TopAnomaliesAction" text="Top Anomalies" popup="true"/>
       <action id="ImageDuplicates" internal="true" class="com.intellij.internal.ShowImageDuplicatesAction" text="Find Image Duplicates"/>
+      <action id="ShowNonRetinaImages" internal="true" class="com.intellij.internal.ShowNonRetinaImagesActions" text="Show Non Retina Images"/>
       <separator/>
       <reference ref="MaintenanceGroup"/>
 

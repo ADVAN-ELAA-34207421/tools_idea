@@ -17,7 +17,6 @@ package com.intellij.ui;
 
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.fileChooser.FileChooser;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
@@ -389,9 +388,11 @@ public class GuiUtils {
     }
   }
 
-  /** @deprecated call {@link Application#invokeAndWait(Runnable, ModalityState)} directly (to remove in IDEA 13). */
-  @SuppressWarnings("UnusedDeclaration")
-  public static void invokeAndWaitIfNeeded(@NotNull Runnable runnable, @NotNull ModalityState modalityState) {
-    ApplicationManager.getApplication().invokeAndWait(runnable, modalityState);
+  public static JTextField createUndoableTextField() {
+    JTextField field = new JTextField();
+    if (ApplicationManager.getApplication() != null) {
+      new TextComponentUndoProvider(field);
+    }
+    return field;
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -906,7 +906,7 @@ class A {
 
     def resolved = ref.resolve()
     assertInstanceOf resolved, PsiMethod
-    assertEquals 'Other', resolved.containingClass.name
+    assertEquals 'A', resolved.containingClass.name
   }
 
   public void testInapplicableStaticallyImportedMethodsVsCurrentClassMethod() {
@@ -1872,11 +1872,11 @@ def bar(Object o) {
   void testBinaryWithQualifiedRefsInArgs() {
     GrBinaryExpression expr = configureByText('_.groovy', '''\
 class Base {
-    public static final int SHOW_NAME = 0x0001; // variable, method, class
-    public static final int SHOW_TYPE = 0x0002; // variable, method
-    public static final int TYPE_AFTER = 0x0004; // variable, method
-    public static final int SHOW_MODIFIERS = 0x0008; // variable, method, class
-    public static final int MODIFIERS_AFTER = 0x0010; // variable, method, class
+    def or(String s) {}
+    def or(Base b) {}
+
+    public static Base SHOW_NAME = new Base()
+    public static Base SHOW_TYPE = new Base()
 }
 
 class GrTypeDefinition  {
@@ -1891,4 +1891,16 @@ class GrTypeDefinition  {
     assert expr.multiResolve(true).length > 1
   }
 
+  void testStaticMethodInInstanceContext() {
+    GrMethod resolved = resolveByText('''\
+class Foo {
+    def foo(String s){}
+    static def foo(File f){}
+}
+
+new Foo().f<caret>oo(new File(''))
+''', GrMethod)
+
+    assertTrue(resolved.hasModifierProperty(PsiModifier.STATIC))
+  }
 }

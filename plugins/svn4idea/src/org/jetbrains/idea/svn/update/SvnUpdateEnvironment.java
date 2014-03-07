@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ package org.jetbrains.idea.svn.update;
 
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vcs.FilePath;
 import com.intellij.openapi.vcs.VcsException;
@@ -84,10 +83,11 @@ public class SvnUpdateEnvironment extends AbstractSvnUpdateIntegrateEnvironment 
       if (isSwitch) {
         final UpdateClient updateClient = createUpdateClient(configuration, root, true, sourceUrl);
         myHandler.addToSwitch(root, sourceUrl);
-        rev = updateClient.doSwitch(root, rootInfo.getUrl(), SVNRevision.UNDEFINED, updateTo, configuration.UPDATE_DEPTH, configuration.FORCE_UPDATE, false);
+        rev = updateClient.doSwitch(root, rootInfo.getUrl(), SVNRevision.UNDEFINED, updateTo, configuration.getUpdateDepth(),
+                                    configuration.isForceUpdate(), false);
       } else {
         final UpdateClient updateClient = createUpdateClient(configuration, root, false, sourceUrl);
-        rev = updateClient.doUpdate(root, updateTo, configuration.UPDATE_DEPTH, configuration.FORCE_UPDATE, false);
+        rev = updateClient.doUpdate(root, updateTo, configuration.getUpdateDepth(), configuration.isForceUpdate(), false);
       }
 
       myPostUpdateFiles.setRevisions(root.getAbsolutePath(), myVcs, new SvnRevisionNumber(SVNRevision.create(rev)));
@@ -96,19 +96,13 @@ public class SvnUpdateEnvironment extends AbstractSvnUpdateIntegrateEnvironment 
     }
 
     private UpdateClient createUpdateClient(SvnConfiguration configuration, File root, boolean isSwitch, SVNURL sourceUrl) {
-      boolean is17 = WorkingCopyFormat.ONE_DOT_SEVEN.equals(myVcs.getWorkingCopyFormat(root));
-      boolean isSupportedProtocol =
-        SvnAuthenticationManager.HTTP.equals(sourceUrl.getProtocol()) || SvnAuthenticationManager.HTTPS.equals(sourceUrl.getProtocol());
-
-      // TODO: Update this with just myVcs.getFactory(root) when switch and authentication protocols are implemented for command line
-      ClientFactory factory = is17 && (isSwitch || !isSupportedProtocol) ? myVcs.getSvnKitFactory() : myVcs.getFactory(root);
-      final UpdateClient updateClient = factory.createUpdateClient();
+      final UpdateClient updateClient = myVcs.getFactory(root).createUpdateClient();
 
       if (! isSwitch) {
-        updateClient.setIgnoreExternals(configuration.IGNORE_EXTERNALS);
+        updateClient.setIgnoreExternals(configuration.isIgnoreExternals());
       }
       updateClient.setEventHandler(myHandler);
-      updateClient.setUpdateLocksOnDemand(configuration.UPDATE_LOCK_ON_DEMAND);
+      updateClient.setUpdateLocksOnDemand(configuration.isUpdateLockOnDemand());
 
       return updateClient;
     }
@@ -193,6 +187,6 @@ public class SvnUpdateEnvironment extends AbstractSvnUpdateIntegrateEnvironment 
 
     final int result = Messages.showYesNoDialog(myVcs.getProject(), SvnBundle.message("switch.target.not.copy.current"),
                                                 SvnBundle.message("switch.target.problem.title"), Messages.getWarningIcon());
-    return (DialogWrapper.OK_EXIT_CODE == result);
+    return (Messages.YES == result);
   }
 }

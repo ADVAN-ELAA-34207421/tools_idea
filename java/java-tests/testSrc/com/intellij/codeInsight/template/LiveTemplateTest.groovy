@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 package com.intellij.codeInsight.template
-
 import com.intellij.JavaTestUtil
 import com.intellij.codeInsight.CodeInsightSettings
 import com.intellij.codeInsight.lookup.LookupManager
@@ -24,10 +23,9 @@ import com.intellij.codeInsight.template.impl.*
 import com.intellij.codeInsight.template.macro.ClassNameCompleteMacro
 import com.intellij.codeInsight.template.macro.CompleteMacro
 import com.intellij.codeInsight.template.macro.MethodReturnTypeMacro
+import com.intellij.codeInsight.template.macro.SnakeCaseMacro
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.application.AccessToken
-import com.intellij.openapi.application.WriteAction
-import com.intellij.openapi.command.CommandProcessor
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.impl.DocumentImpl
 import com.intellij.openapi.util.Disposer
@@ -39,7 +37,6 @@ import com.intellij.util.containers.ContainerUtil
 import org.jetbrains.annotations.NotNull
 
 import static com.intellij.codeInsight.template.Template.Property.USE_STATIC_IMPORT_IF_POSSIBLE
-
 /**
  * @author spleaner
  */
@@ -61,7 +58,9 @@ public class LiveTemplateTest extends LightCodeInsightFixtureTestCase {
     CodeInsightSettings.instance.COMPLETION_CASE_SENSITIVE = CodeInsightSettings.FIRST_LETTER
     CodeInsightSettings.instance.SELECT_AUTOPOPUP_SUGGESTIONS_BY_CHARS = false
     if (state != null) {
-      state.gotoEnd();
+      WriteCommandAction.runWriteCommandAction project, {
+        state.gotoEnd()
+      };
     }
     super.tearDown();
   }
@@ -426,15 +425,7 @@ class Foo {
   }
 
   private writeCommand(Runnable runnable) {
-    CommandProcessor.instance.executeCommand(project, {
-      AccessToken token = WriteAction.start()
-      try {
-        runnable.run()
-      }
-      finally {
-        token.finish()
-      }
-    }, null, null)
+    WriteCommandAction.runWriteCommandAction(null, runnable)
   }
 
   public void testSearchByDescriptionWhenTemplatesListed() {
@@ -611,7 +602,7 @@ class Outer {
     }
 }'''
     myFixture.type('\t')
-    assert myFixture.editor.document.text.contains("Outer.Inner.foo")
+    assert myFixture.editor.document.text.contains("\"Inner.foo")
   }
 
   public void "test do not strip type argument containing class"() {
@@ -712,6 +703,23 @@ class Foo {
 }
 """
 
+  }
+
+  public void "test snakeCase should convert hyphens to underscores"() {
+    final TemplateManager manager = TemplateManager.getInstance(getProject());
+    final Template template = manager.createTemplate("result", "user", '$A$ $B$ c');
+    template.addVariable('A', new EmptyNode(), true)
+
+    def macroCallNode = new MacroCallNode(new SnakeCaseMacro())
+    macroCallNode.addParameter(new VariableNode('A', null))
+    template.addVariable('B', macroCallNode, false)
+
+    myFixture.configureByText "a.txt", "<caret>"
+    manager.startTemplate(editor, template);
+    myFixture.type('-foo-bar_goo-')
+    state.nextTab()
+    assert !state
+    myFixture.checkResult('-foo-bar_goo- _foo_bar_goo_ c<caret>')
   }
 
 }

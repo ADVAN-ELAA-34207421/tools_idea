@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -349,16 +349,14 @@ public class PsiUtilCore {
 
   @Nullable
   public static VirtualFile getVirtualFile(@Nullable PsiElement element) {
-    if (element == null || !element.isValid()) {
+    if (element == null) {
       return null;
     }
-
     if (element instanceof PsiFileSystemItem) {
-      return ((PsiFileSystemItem)element).getVirtualFile();
+      return element.isValid() ? ((PsiFileSystemItem)element).getVirtualFile() : null;
     }
-
     final PsiFile containingFile = element.getContainingFile();
-    if (containingFile == null) {
+    if (containingFile == null || !containingFile.isValid()) {
       return null;
     }
 
@@ -486,7 +484,7 @@ public class PsiUtilCore {
 
   @NotNull
   public static Language findLanguageFromElement(final PsiElement elt) {
-    if (elt.getFirstChild() == null) { //is leaf
+    if (!(elt instanceof PsiFile) && elt.getFirstChild() == null) { //is leaf
       final PsiElement parent = elt.getParent();
       if (parent != null) {
         return parent.getLanguage();
@@ -501,7 +499,11 @@ public class PsiUtilCore {
     final PsiElement elt = file.findElementAt(offset);
     if (elt == null) return file.getLanguage();
     if (elt instanceof PsiWhiteSpace) {
-      final int decremented = elt.getTextRange().getStartOffset() - 1;
+      TextRange textRange = elt.getTextRange();
+      if (!textRange.contains(offset)) {
+        LOG.error("PSI corrupted: in file "+file+" ("+file.getViewProvider().getVirtualFile()+") offset="+offset+" returned element "+elt+" with text range "+textRange);
+      }
+      final int decremented = textRange.getStartOffset() - 1;
       if (decremented >= 0) {
         return getLanguageAtOffset(file, decremented);
       }

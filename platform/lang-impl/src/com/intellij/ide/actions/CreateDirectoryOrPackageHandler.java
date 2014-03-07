@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2010 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.intellij.openapi.fileTypes.UnknownFileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.InputValidatorEx;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiDirectory;
 import com.intellij.psi.PsiFileSystemItem;
@@ -104,7 +105,7 @@ public class CreateDirectoryOrPackageHandler implements InputValidatorEx {
     }
     
     boolean createFile = false;
-    if (StringUtil.countChars(subDirName, '.') == 1) {
+    if (StringUtil.countChars(subDirName, '.') == 1 && Registry.is("ide.suggest.file.when.creating.filename.like.directory")) {
       FileType fileType = findFileTypeBoundToName(subDirName);
       if (fileType != null) {
         String message = "The name you entered looks like a file name. Do you want to create a file named " + subDirName + " instead?";
@@ -112,7 +113,7 @@ public class CreateDirectoryOrPackageHandler implements InputValidatorEx {
                                            "File Name Detected", "Yes, create file",
                                            "No, create " + (myIsDirectory ? "directory" : "packages"),
                                            fileType.getIcon());
-        if (ec == Messages.OK) {
+        if (ec == Messages.YES) {
           createFile = true;
         }
       }

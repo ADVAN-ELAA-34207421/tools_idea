@@ -42,7 +42,7 @@ public class DataPack {
 
     MutableGraph graph = GraphBuilder.build(commits, allRefs);
 
-    GraphModel graphModel = new GraphModelImpl(graph, allRefs);
+    GraphModel graphModel = new GraphModelImpl(graph);
 
     final GraphPrintCellModel printCellModel = new GraphPrintCellModelImpl(graphModel.getGraph());
     graphModel.addUpdateListener(new Consumer<UpdateRequest>() {
@@ -52,7 +52,7 @@ public class DataPack {
       }
     });
 
-    final RefsModel refsModel = new RefsModel(allRefs, hashGetter);
+    final RefsModel refsModel = new RefsModel(allRefs, indexGetter);
     graphModel.getFragmentManager().setUnconcealedNodeFunction(new Function<Node, Boolean>() {
       @NotNull
       @Override
@@ -75,10 +75,6 @@ public class DataPack {
     myPrintCellModel = printCellModel;
     myHashGetter = hashGetter;
     myIndexGetter = indexGetter;
-  }
-
-  public void appendCommits(@NotNull List<GraphCommit> commitParentsList) {
-    myGraphModel.appendCommitsToGraph(commitParentsList);
   }
 
   @NotNull

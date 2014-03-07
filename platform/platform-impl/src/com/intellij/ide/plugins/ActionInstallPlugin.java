@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,12 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.project.DumbAware;
-import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.Function;
 import com.intellij.util.net.IOExceptionDialog;
+import com.intellij.xml.util.XmlStringUtil;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.io.IOException;
@@ -51,6 +52,7 @@ public class ActionInstallPlugin extends AnAction implements DumbAware {
     this.installed = installed;
   }
 
+  @Override
   public void update(AnActionEvent e) {
     Presentation presentation = e.getPresentation();
     IdeaPluginDescriptor[] selection = getPluginTable().getSelectedObjects();
@@ -81,11 +83,12 @@ public class ActionInstallPlugin extends AnAction implements DumbAware {
     presentation.setEnabled(enabled);
   }
 
+  @Override
   public void actionPerformed(AnActionEvent e) {
-    install();
+    install(null);
   }
 
-  public void install() {
+  public void install(@Nullable final Runnable onSuccess) {
     IdeaPluginDescriptor[] selection = getPluginTable().getSelectedObjects();
 
     if (userConfirm(selection)) {
@@ -156,6 +159,9 @@ public class ActionInstallPlugin extends AnAction implements DumbAware {
                 PluginManagerMain.notifyPluginsWereInstalled(list.size() == 1 ? list.get(0).getName() : null, null);
               }
             }
+            if (onSuccess != null) {
+              onSuccess.run();
+            }
           }
         };
         PluginManagerMain.downloadPlugins(list, pluginTableModel.getAllPlugins(), onInstallRunnable, new Runnable(){
@@ -184,10 +190,11 @@ public class ActionInstallPlugin extends AnAction implements DumbAware {
                                                       final Set<IdeaPluginDescriptor> disabledDependants,
                                                       final ArrayList<PluginNode> list) {
     if (!disabled.isEmpty() || !disabledDependants.isEmpty()) {
-      String message = "<html><body>";
+      String message = "";
       if (disabled.size() == 1) {
         message += "Updated plugin '" + disabled.iterator().next().getName() + "' is disabled.";
-      } else if (!disabled.isEmpty()) {
+      }
+      else if (!disabled.isEmpty()) {
         message += "Updated plugins " + StringUtil.join(disabled, new Function<IdeaPluginDescriptor, String>() {
           @Override
           public String fun(IdeaPluginDescriptor pluginDescriptor) {
@@ -201,7 +208,8 @@ public class ActionInstallPlugin extends AnAction implements DumbAware {
         message += "Updated plugin" + (list.size() > 1 ? "s depend " : " depends ") + "on disabled";
         if (disabledDependants.size() == 1) {
           message += " plugin '" + disabledDependants.iterator().next().getName() + "'.";
-        } else {
+        }
+        else {
           message += " plugins " + StringUtil.join(disabledDependants, new Function<IdeaPluginDescriptor, String>() {
             @Override
             public String fun(IdeaPluginDescriptor pluginDescriptor) {
@@ -215,27 +223,30 @@ public class ActionInstallPlugin extends AnAction implements DumbAware {
       int result;
       if (!disabled.isEmpty() && !disabledDependants.isEmpty()) {
         result =
-          Messages.showYesNoCancelDialog(message + "</body></html>", CommonBundle.getWarningTitle(), "Enable all",
+          Messages.showYesNoCancelDialog(XmlStringUtil.wrapInHtml(message), CommonBundle.getWarningTitle(), "Enable all",
                                          "Enable updated plugin" + (disabled.size() > 1 ? "s" : ""), CommonBundle.getCancelButtonText(),
                                          Messages.getQuestionIcon());
-        if (result == DialogWrapper.NEXT_USER_EXIT_CODE) return false;
-      } else {
+        if (result == Messages.CANCEL) return false;
+      }
+      else {
         message += "<br>Would you like to enable ";
         if (!disabled.isEmpty()) {
           message += "updated plugin" + (disabled.size() > 1 ? "s" : "");
         }
         else {
+          //noinspection SpellCheckingInspection
           message += "plugin dependenc" + (disabledDependants.size() > 1 ? "ies" : "y");
         }
         message += "?</body></html>";
         result = Messages.showYesNoDialog(message, CommonBundle.getWarningTitle(), Messages.getQuestionIcon());
-        if (result == DialogWrapper.CANCEL_EXIT_CODE) return false;
+        if (result == Messages.NO) return false;
       }
 
-      if (result == DialogWrapper.OK_EXIT_CODE) {
+      if (result == Messages.YES) {
         disabled.addAll(disabledDependants);
         pluginsModel.enableRows(disabled.toArray(new IdeaPluginDescriptor[disabled.size()]), true);
-      } else if (result == DialogWrapper.CANCEL_EXIT_CODE && !disabled.isEmpty()) {
+      }
+      else if (result == Messages.NO && !disabled.isEmpty()) {
         pluginsModel.enableRows(disabled.toArray(new IdeaPluginDescriptor[disabled.size()]), true);
       }
       return true;
@@ -283,6 +294,6 @@ public class ActionInstallPlugin extends AnAction implements DumbAware {
       message = IdeBundle.message("prompt.install.several.plugins", selection.length);
     }
 
-    return Messages.showYesNoDialog(host.getMainPanel(), message, IdeBundle.message("action.download.and.install.plugin"), Messages.getQuestionIcon()) == 0;
+    return Messages.showYesNoDialog(host.getMainPanel(), message, IdeBundle.message("action.download.and.install.plugin"), Messages.getQuestionIcon()) == Messages.YES;
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,13 +44,13 @@ import static org.jetbrains.plugins.groovy.lang.parser.GroovyElementTypes.GSTRIN
 public class GrStringUtil {
   private static final Logger LOG = Logger.getInstance(GrStringUtil.class);
 
-  private static final String TRIPLE_QUOTES = "'''";
-  private static final String QUOTE = "'";
-  private static final String DOUBLE_QUOTES = "\"";
-  private static final String TRIPLE_DOUBLE_QUOTES = "\"\"\"";
-  private static final String SLASH = "/";
-  private static final String DOLLAR_SLASH = "$/";
-  private static final String SLASH_DOLLAR = "/$";
+  public static final String TRIPLE_QUOTES = "'''";
+  public static final String QUOTE = "'";
+  public static final String DOUBLE_QUOTES = "\"";
+  public static final String TRIPLE_DOUBLE_QUOTES = "\"\"\"";
+  public static final String SLASH = "/";
+  public static final String DOLLAR_SLASH = "$/";
+  public static final String SLASH_DOLLAR = "/$";
 
   private GrStringUtil() {
   }
@@ -602,12 +602,12 @@ public class GrStringUtil {
   }
 
   public static String getEndQuote(String text) {
-    if (text.startsWith(TRIPLE_QUOTES)) return TRIPLE_QUOTES;
-    if (text.startsWith(QUOTE)) return QUOTE;
-    if (text.startsWith(TRIPLE_DOUBLE_QUOTES)) return TRIPLE_DOUBLE_QUOTES;
-    if (text.startsWith(DOUBLE_QUOTES)) return DOUBLE_QUOTES;
-    if (text.startsWith(SLASH)) return SLASH;
-    if (text.startsWith(SLASH_DOLLAR)) return SLASH_DOLLAR;
+    if (text.endsWith(TRIPLE_QUOTES)) return TRIPLE_QUOTES;
+    if (text.endsWith(QUOTE)) return QUOTE;
+    if (text.endsWith(TRIPLE_DOUBLE_QUOTES)) return TRIPLE_DOUBLE_QUOTES;
+    if (text.endsWith(DOUBLE_QUOTES)) return DOUBLE_QUOTES;
+    if (text.endsWith(SLASH)) return SLASH;
+    if (text.endsWith(SLASH_DOLLAR)) return SLASH_DOLLAR;
     return "";
   }
 
@@ -690,6 +690,10 @@ public class GrStringUtil {
           break;
         default:
           outChars.append('\\').append(c);
+          if (sourceOffsets != null) {
+            sourceOffsets[outChars.length() - outOffset] = index;
+          }
+
       }
     }
     return true;

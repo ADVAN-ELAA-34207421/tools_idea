@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -142,18 +142,22 @@ public class ToolsImpl implements Tools {
       for (ScopeToolState state : myTools) {
         final Element scopeElement = new Element("scope");
         scopeElement.setAttribute("name", state.getScopeName());
-        scopeElement.setAttribute(LEVEL_ATTRIBUTE, state.getLevel().toString());
+        scopeElement.setAttribute(LEVEL_ATTRIBUTE, state.getLevel().getName());
         scopeElement.setAttribute(ENABLED_ATTRIBUTE, Boolean.toString(state.isEnabled()));
         InspectionToolWrapper toolWrapper = state.getTool();
-        toolWrapper.getTool().writeSettings(scopeElement);
+        if (toolWrapper.isInitialized()) {
+          toolWrapper.getTool().writeSettings(scopeElement);
+        }
         inspectionElement.addContent(scopeElement);
       }
     }
     inspectionElement.setAttribute(ENABLED_ATTRIBUTE, Boolean.toString(isEnabled()));
-    inspectionElement.setAttribute(LEVEL_ATTRIBUTE, getLevel().toString());
+    inspectionElement.setAttribute(LEVEL_ATTRIBUTE, getLevel().getName());
     inspectionElement.setAttribute(ENABLED_BY_DEFAULT_ATTRIBUTE, Boolean.toString(myDefaultState.isEnabled()));
     InspectionToolWrapper toolWrapper = myDefaultState.getTool();
-    toolWrapper.getTool().writeSettings(inspectionElement);
+    if (toolWrapper.isInitialized()) {
+      toolWrapper.getTool().writeSettings(inspectionElement);
+    }
   }
 
   void readExternal(@NotNull Element toolElement, @NotNull InspectionProfile profile) throws InvalidDataException {

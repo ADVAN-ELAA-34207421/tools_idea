@@ -17,6 +17,7 @@ package com.jetbrains.python.psi.impl;
 
 import com.intellij.lang.ASTNode;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.extensions.ExtensionException;
 import com.intellij.openapi.extensions.Extensions;
 import com.intellij.openapi.util.Ref;
 import com.intellij.psi.*;
@@ -50,6 +51,7 @@ import java.util.*;
  */
 public class PyReferenceExpressionImpl extends PyElementImpl implements PyReferenceExpression {
   private static final Logger LOG = Logger.getInstance("#com.jetbrains.python.psi.impl.PyReferenceExpressionImpl");
+  private QualifiedName myQualifiedName = null;
 
   public PyReferenceExpressionImpl(ASTNode astNode) {
     super(astNode);
@@ -97,6 +99,11 @@ public class PyReferenceExpressionImpl extends PyElementImpl implements PyRefere
   public PyExpression getQualifier() {
     final ASTNode[] nodes = getNode().getChildren(PythonDialectsTokenSetProvider.INSTANCE.getExpressionTokens());
     return (PyExpression)(nodes.length == 1 ? nodes[0].getPsi() : null);
+  }
+
+  @Override
+  public boolean isQualified() {
+    return getQualifier() != null;
   }
 
   @Nullable
@@ -173,7 +180,10 @@ public class PyReferenceExpressionImpl extends PyElementImpl implements PyRefere
 
   @Nullable
   public QualifiedName asQualifiedName() {
-    return PyQualifiedNameFactory.fromReferenceChain(PyResolveUtil.unwindQualifiers(this));
+    if (myQualifiedName == null) {
+      myQualifiedName = PyPsiUtils.asQualifiedName(this);
+    }
+    return myQualifiedName;
   }
 
   @Override
@@ -186,8 +196,8 @@ public class PyReferenceExpressionImpl extends PyElementImpl implements PyRefere
       return null;
     }
     try {
-      final PyExpression qualifier = getQualifier();
-      if (qualifier == null) {
+      final boolean qualified = isQualified();
+      if (!qualified) {
         String name = getReferencedName();
         if (PyNames.NONE.equals(name)) {
           return PyNoneType.INSTANCE;
@@ -197,7 +207,7 @@ public class PyReferenceExpressionImpl extends PyElementImpl implements PyRefere
       if (type != null) {
         return type;
       }
-      if (qualifier != null) {
+      if (qualified) {
         PyType maybe_type = PyUtil.getSpecialAttributeType(this, context);
         if (maybe_type != null) return maybe_type;
         Ref<PyType> typeOfProperty = getTypeOfProperty(context);
@@ -264,7 +274,7 @@ public class PyReferenceExpressionImpl extends PyElementImpl implements PyRefere
     if (qualifierType instanceof PyClassType) {
       final PyClassType classType = (PyClassType)qualifierType;
       PyClass pyClass = classType.getPyClass();
-      Property property = pyClass.findProperty(name);
+      Property property = pyClass.findProperty(name, true);
       if (property != null) {
         if (classType.isDefinition()) {
           return Ref.<PyType>create(PyBuiltinCache.getInstance(pyClass).getObjectType(PyNames.PROPERTY));
@@ -291,7 +301,7 @@ public class PyReferenceExpressionImpl extends PyElementImpl implements PyRefere
   }
 
   @Nullable
-  private PyType getTypeFromProviders(TypeEvalContext context) {
+  private PyType getTypeFromProviders(@NotNull TypeEvalContext context) {
     for (PyTypeProvider provider : Extensions.getExtensions(PyTypeProvider.EP_NAME)) {
       try {
         final PyType type = provider.getReferenceExpressionType(this, context);
@@ -300,7 +310,7 @@ public class PyReferenceExpressionImpl extends PyElementImpl implements PyRefere
         }
       }
       catch (AbstractMethodError e) {
-        LOG.info(e);
+        LOG.info(new ExtensionException(provider.getClass()));
       }
     }
     return null;
@@ -402,6 +412,12 @@ public class PyReferenceExpressionImpl extends PyElementImpl implements PyRefere
     }
 
     return null;
+  }
+
+  @Override
+  public void subtreeChanged() {
+    super.subtreeChanged();
+    myQualifiedName = null;
   }
 
   private static class QualifiedResolveResultImpl extends RatedResolveResult implements QualifiedResolveResult {

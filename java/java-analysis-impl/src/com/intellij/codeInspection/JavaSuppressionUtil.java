@@ -166,7 +166,7 @@ public class JavaSuppressionUtil {
     return getInspectionIdsSuppressedInAnnotation(modifierList);
   }
 
-  static String getSuppressedInspectionIdsIn(@NotNull PsiElement element) {
+  public static String getSuppressedInspectionIdsIn(@NotNull PsiElement element) {
     if (element instanceof PsiComment) {
       String text = element.getText();
       Matcher matcher = SuppressionUtil.SUPPRESS_IN_LINE_COMMENT_PATTERN.matcher(text);
@@ -205,7 +205,7 @@ public class JavaSuppressionUtil {
           return statement;
         }
 
-        PsiVariable local = PsiTreeUtil.getParentOfType(place, PsiVariable.class);
+        PsiVariable local = PsiTreeUtil.getParentOfType(place, PsiVariable.class, false);
         if (local != null && getAnnotationMemberSuppressedIn(local, toolId) != null) {
           PsiModifierList modifierList = local.getModifierList();
           return modifierList != null ? modifierList.findAnnotation(SUPPRESS_INSPECTIONS_ANNOTATION_NAME) : null;

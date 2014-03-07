@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -89,6 +89,7 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
   private final Object myDataLock = new Object();
 
   private final TIntHashSet mySuspendedProjects = new TIntHashSet(); // projectId for all projects that should not be monitored
+  private volatile int myWatchedProjectsCount;
 
   private final TIntObjectHashMap<TIntHashSet> mySourcesToRecompile = new TIntObjectHashMap<TIntHashSet>(); // ProjectId->set of source file paths
   private PersistentHashMap<Integer, TIntObjectHashMap<Pair<Integer, Integer>>> myOutputRootsStorage; // ProjectId->map[moduleId->Pair(outputDirId, testOutputDirId)]
@@ -195,6 +196,7 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
         return;
       }
       FileUtil.createIfDoesntExist(CompilerPaths.getRebuildMarkerFile(project));
+      --myWatchedProjectsCount;
       // cleanup internal structures to free memory
       mySourcesToRecompile.remove(projectId);
       myOutputsToDelete.remove(projectId);
@@ -216,6 +218,7 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
   public void watchProject(Project project) {
     synchronized (myDataLock) {
       mySuspendedProjects.remove(getProjectId(project));
+      ++myWatchedProjectsCount;
     }
   }
 
@@ -1398,7 +1401,10 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
     public void projectClosed(final Project project) {
       final int projectId = getProjectId(project);
       terminateAsyncScan(projectId, true);
-      myConnections.remove(project).disconnect();
+      final MessageBusConnection connection = myConnections.remove(project);
+      if (connection != null) {
+        connection.disconnect();
+      }
       synchronized (myDataLock) {
         mySourcesToRecompile.remove(projectId);
         myOutputsToDelete.remove(projectId);  // drop cache to save memory
@@ -1407,7 +1413,7 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
   }
 
   private class MyVfsListener extends VirtualFileAdapter {
-    public void propertyChanged(final VirtualFilePropertyEvent event) {
+    public void propertyChanged(@NotNull final VirtualFilePropertyEvent event) {
       if (VirtualFile.PROP_NAME.equals(event.getPropertyName())) {
         final VirtualFile eventFile = event.getFile();
         final VirtualFile parent = event.getParent();
@@ -1453,23 +1459,24 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
       }
     }
 
-    public void contentsChanged(final VirtualFileEvent event) {
+    public void contentsChanged(@NotNull final VirtualFileEvent event) {
       markDirtyIfSource(event.getFile(), false);
     }
 
-    public void fileCreated(final VirtualFileEvent event) {
+    public void fileCreated(@NotNull final VirtualFileEvent event) {
       processNewFile(event.getFile(), true);
     }
 
-    public void fileCopied(final VirtualFileCopyEvent event) {
+    public void fileCopied(@NotNull final VirtualFileCopyEvent event) {
       processNewFile(event.getFile(), true);
     }
 
-    public void fileMoved(VirtualFileMoveEvent event) {
+    public void fileMoved(@NotNull VirtualFileMoveEvent event) {
       processNewFile(event.getFile(), true);
     }
 
-    public void beforeFileDeletion(final VirtualFileEvent event) {
+    public void beforeFileDeletion(@NotNull final VirtualFileEvent event) {
+      if (myWatchedProjectsCount == 0) return;
       final VirtualFile eventFile = event.getFile();
       if ((LOG.isDebugEnabled() && eventFile.isDirectory()) || ourDebugMode) {
         final String message = "Processing file deletion: " + eventFile.getPresentableUrl();
@@ -1566,7 +1573,7 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
       notifyFilesDeleted(pathsToMark);
     }
 
-    public void beforeFileMovement(final VirtualFileMoveEvent event) {
+    public void beforeFileMovement(@NotNull final VirtualFileMoveEvent event) {
       markDirtyIfSource(event.getFile(), true);
     }
 
@@ -1609,6 +1616,7 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
     }
 
     private void processNewFile(final VirtualFile file, final boolean notifyServer) {
+      if (myWatchedProjectsCount == 0) return;
       final Ref<Boolean> isInContent = Ref.create(false);
       ApplicationManager.getApplication().runReadAction(new Runnable() {
         // need read action to ensure that the project was not disposed during the iteration over the project list

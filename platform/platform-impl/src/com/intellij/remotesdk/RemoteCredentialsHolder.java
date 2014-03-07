@@ -23,7 +23,17 @@ import org.jetbrains.annotations.Nullable;
 /**
  * @author michael.golubev
  */
-public class RemoteCredentialsHolder implements RemoteCredentials {
+public class RemoteCredentialsHolder implements MutableRemoteCredentials {
+
+  public static final String HOST = "HOST";
+  public static final String PORT = "PORT";
+  public static final String ANONYMOUS = "ANONYMOUS";
+  public static final String USERNAME = "USERNAME";
+  public static final String PASSWORD = "PASSWORD";
+  public static final String USE_KEY_PAIR = "USE_KEY_PAIR";
+  public static final String PRIVATE_KEY_FILE = "PRIVATE_KEY_FILE";
+  public static final String KNOWN_HOSTS_FILE = "MY_KNOWN_HOSTS_FILE";
+  public static final String PASSPHRASE = "PASSPHRASE";
 
   private String myHost;
   private int myPort;
@@ -192,5 +202,18 @@ public class RemoteCredentialsHolder implements RemoteCredentials {
       myPassphrase = null;
       myStorePassphrase = false;
     }
+  }
+
+  public void copyTo(RemoteSdkCredentials to) {
+    to.setHost(getHost());
+    to.setPort(getPort());
+    to.setAnonymous(isAnonymous());
+    to.setUserName(getUserName());
+    to.setPassword(getPassword());
+    to.setUseKeyPair(isUseKeyPair());
+    to.setPrivateKeyFile(getPrivateKeyFile());
+    to.setKnownHostsFile(getKnownHostsFile());
+    to.setStorePassword(isStorePassword());
+    to.setStorePassphrase(isStorePassphrase());
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.RecursionGuard;
 import com.intellij.openapi.util.RecursionManager;
-import com.intellij.openapi.util.registry.Registry;
 import com.intellij.pom.java.LanguageLevel;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.source.resolve.DefaultParameterTypeInferencePolicy;
@@ -41,11 +40,12 @@ import java.util.Map;
 public class MethodCandidateInfo extends CandidateInfo{
   public static final RecursionGuard ourOverloadGuard = RecursionManager.createGuard("overload.guard");
   public static final ThreadLocal<Map<PsiElement,  Pair<PsiMethod, PsiSubstitutor>>> CURRENT_CANDIDATE = new ThreadLocal<Map<PsiElement,  Pair<PsiMethod, PsiSubstitutor>>>();
-  @ApplicabilityLevelConstant private int myApplicabilityLevel = 0;
+  @ApplicabilityLevelConstant
+  private int myApplicabilityLevel; // benign race
   private final PsiElement myArgumentList;
   private final PsiType[] myArgumentTypes;
   private final PsiType[] myTypeArguments;
-  private PsiSubstitutor myCalcedSubstitutor = null;
+  private PsiSubstitutor myCalcedSubstitutor; // benign race
   private final LanguageLevel myLanguageLevel;
 
   public MethodCandidateInfo(PsiElement candidate,
@@ -100,29 +100,46 @@ public class MethodCandidateInfo extends CandidateInfo{
 
   @ApplicabilityLevelConstant
   public int getPertinentApplicabilityLevel() {
-    final PsiMethod method = getElement();
-    if (method != null && method.hasTypeParameters() || myArgumentList == null || !PsiUtil.isLanguageLevel8OrHigher(myArgumentList)) {
+    if (myTypeArguments != null) {
       return getApplicabilityLevel();
     }
-    return ourOverloadGuard.doPreventingRecursion(myArgumentList, false, new Computable<Integer>() {
+
+    if (myArgumentTypes == null) {
+      return ApplicabilityLevel.NOT_APPLICABLE;
+    }
+
+    @ApplicabilityLevelConstant int level;
+    Integer boxedLevel = ourOverloadGuard.doPreventingRecursion(myArgumentList, false, new Computable<Integer>() {
       @Override
       public Integer compute() {
+        
+        final PsiMethod method = getElement();
+        if (method != null && method.hasTypeParameters() || myArgumentList == null || !PsiUtil.isLanguageLevel8OrHigher(myArgumentList)) {
+          return PsiUtil.getApplicabilityLevel(getElement(), getSubstitutor(false), myArgumentTypes, myLanguageLevel);
+        }
         return getApplicabilityLevelInner();
       }
+
     });
+    level = boxedLevel != null ? boxedLevel : getApplicabilityLevel();
+    if (level > ApplicabilityLevel.NOT_APPLICABLE && !isTypeArgumentsApplicable(false)) level = ApplicabilityLevel.NOT_APPLICABLE;
+    return level;
   }
 
   public PsiSubstitutor getSiteSubstitutor() {
     return super.getSubstitutor();
   }
   
+  @NotNull
   @Override
   public PsiSubstitutor getSubstitutor() {
     return getSubstitutor(true);
   }
-  
+
+  @NotNull
   public PsiSubstitutor getSubstitutor(boolean includeReturnConstraint) {
-    if (myCalcedSubstitutor == null || !includeReturnConstraint) {
+    PsiSubstitutor substitutor = myCalcedSubstitutor;
+    if (substitutor == null || !includeReturnConstraint && myLanguageLevel.isAtLeast(LanguageLevel.JDK_1_8)) {
       PsiSubstitutor incompleteSubstitutor = super.getSubstitutor();
       PsiMethod method = getElement();
       if (myTypeArguments == null) {
@@ -130,32 +147,36 @@ public class MethodCandidateInfo extends CandidateInfo{
 
         final PsiSubstitutor inferredSubstitutor = inferTypeArguments(DefaultParameterTypeInferencePolicy.INSTANCE, includeReturnConstraint);
 
-         if (!stackStamp.mayCacheNow() || !includeReturnConstraint) {
+         if (!stackStamp.mayCacheNow() || !includeReturnConstraint && myLanguageLevel.isAtLeast(LanguageLevel.JDK_1_8)) {
           return inferredSubstitutor;
         }
 
-        myCalcedSubstitutor = inferredSubstitutor;
+        myCalcedSubstitutor = substitutor = inferredSubstitutor;
       }
       else {
         PsiTypeParameter[] typeParams = method.getTypeParameters();
         for (int i = 0; i < myTypeArguments.length && i < typeParams.length; i++) {
           incompleteSubstitutor = incompleteSubstitutor.put(typeParams[i], myTypeArguments[i]);
         }
-        myCalcedSubstitutor = incompleteSubstitutor;
+        myCalcedSubstitutor = substitutor = incompleteSubstitutor;
       }
     }
 
-    return myCalcedSubstitutor;
+    return substitutor;
   }
 
 
   public boolean isTypeArgumentsApplicable() {
+    return isTypeArgumentsApplicable(false);
+  }
+
+  public boolean isTypeArgumentsApplicable(boolean includeReturnConstraint) {
     final PsiMethod psiMethod = getElement();
     PsiTypeParameter[] typeParams = psiMethod.getTypeParameters();
     if (myTypeArguments != null && typeParams.length != myTypeArguments.length && !PsiUtil.isLanguageLevel7OrHigher(psiMethod)){
       return typeParams.length == 0 && JavaVersionService.getInstance().isAtLeast(psiMethod, JavaSdkVersion.JDK_1_7);
     }
-    PsiSubstitutor substitutor = getSubstitutor();
+    PsiSubstitutor substitutor = getSubstitutor(includeReturnConstraint);
     return GenericsUtil.isTypeArgumentsApplicable(typeParams, substitutor, getParent());
   }
 
@@ -173,6 +194,7 @@ public class MethodCandidateInfo extends CandidateInfo{
     return (PsiMethod)super.getElement();
   }
 
+  @NotNull
   public PsiSubstitutor inferTypeArguments(@NotNull ParameterTypeInferencePolicy policy, boolean includeReturnConstraint) {
     return inferTypeArguments(policy, myArgumentList instanceof PsiExpressionList
                                       ? ((PsiExpressionList)myArgumentList).getExpressions()
@@ -184,18 +206,23 @@ public class MethodCandidateInfo extends CandidateInfo{
       return inferTypeArguments(policy, arguments, true);
     }
     else {
-      PsiSubstitutor incompleteSubstitutor = super.getSubstitutor();
-      PsiMethod method = getElement();
-      if (method != null) {
-        PsiTypeParameter[] typeParams = method.getTypeParameters();
-        for (int i = 0; i < myTypeArguments.length && i < typeParams.length; i++) {
-          incompleteSubstitutor = incompleteSubstitutor.put(typeParams[i], myTypeArguments[i]);
-        }
-      }
-      return incompleteSubstitutor;
+      return typeArgumentsSubstitutor();
     }
   }
 
+  public PsiSubstitutor typeArgumentsSubstitutor() {
+    PsiSubstitutor incompleteSubstitutor = super.getSubstitutor();
+    PsiMethod method = getElement();
+    if (method != null) {
+      PsiTypeParameter[] typeParams = method.getTypeParameters();
+      for (int i = 0; i < myTypeArguments.length && i < typeParams.length; i++) {
+        incompleteSubstitutor = incompleteSubstitutor.put(typeParams[i], myTypeArguments[i]);
+      }
+    }
+    return incompleteSubstitutor;
+  }
+
+  @NotNull
   public PsiSubstitutor inferTypeArguments(@NotNull ParameterTypeInferencePolicy policy,
                                            @NotNull PsiExpression[] arguments, 
                                            boolean includeReturnConstraint) {
@@ -244,6 +271,16 @@ public class MethodCandidateInfo extends CandidateInfo{
   public static Pair<PsiMethod, PsiSubstitutor> getCurrentMethod(PsiElement context) {
     final Map<PsiElement,Pair<PsiMethod,PsiSubstitutor>> currentMethodCandidates = CURRENT_CANDIDATE.get();
     return currentMethodCandidates != null ? currentMethodCandidates.get(context) : null;
+  }
+
+  public static void updateSubstitutor(PsiElement context, PsiSubstitutor newSubstitutor) {
+    final Map<PsiElement,Pair<PsiMethod,PsiSubstitutor>> currentMethodCandidates = CURRENT_CANDIDATE.get();
+    if (currentMethodCandidates != null) {
+      final Pair<PsiMethod, PsiSubstitutor> pair = currentMethodCandidates.get(context);
+      if (pair != null) {
+        currentMethodCandidates.put(context, Pair.create(pair.first, newSubstitutor));
+      }
+    }
   }
 
   public static class ApplicabilityLevel {

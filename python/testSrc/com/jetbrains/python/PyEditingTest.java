@@ -20,12 +20,14 @@ import com.intellij.ide.DataManager;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.IdeActions;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.CommandProcessor;
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.LogicalPosition;
 import com.intellij.openapi.editor.ex.EditorSettingsExternalizable;
 import com.intellij.openapi.util.Computable;
 import com.intellij.psi.PsiFile;
+import com.jetbrains.python.documentation.DocStringFormat;
+import com.jetbrains.python.documentation.PyDocumentationSettings;
 import com.jetbrains.python.fixtures.PyTestCase;
 
 /**
@@ -142,7 +144,7 @@ public class PyEditingTest extends PyTestCase {
   }
 
   public void testEnterInStatement() {
-    doTestEnter("if a <caret>and b: pass", "if a \\\n    and b: pass");
+    doTestEnter("if a <caret>and b: pass", "if a \\\n        and b: pass");
   }
 
   public void testEnterBeforeStatement() {
@@ -202,10 +204,17 @@ public class PyEditingTest extends PyTestCase {
   }
 
   public void testEnterStubInDocstring() {  // CR-PY-144
-    doTestEnter("def foo():\n  \"\"\"<caret>", "def foo():\n" +
-                                               "  \"\"\"\n" +
-                                               "  \n" +
-                                               "  \"\"\"");
+    final PyDocumentationSettings documentationSettings = PyDocumentationSettings.getInstance(myFixture.getModule());
+    final String oldFormat = documentationSettings.getFormat();
+    documentationSettings.setFormat(DocStringFormat.PLAIN);
+    try {
+      doTestEnter("def foo():\n  \"\"\"<caret>", "def foo():\n" +
+                                                 "  \"\"\"\n" +
+                                                 "  \n" +
+                                                 "  \"\"\"");
+    } finally {
+      documentationSettings.setFormat(oldFormat);
+    }
   }
 
   public void testEnterInString() {  // PY-1738
@@ -216,7 +225,7 @@ public class PyEditingTest extends PyTestCase {
   public void testEnterInImportWithParens() {  // PY-2661
     doTestEnter("from django.http import (HttpResponse,<caret>)",
                 "from django.http import (HttpResponse,\n" +
-                "                         )");
+                ")");
   }
 
   public void testEnterInKeyword() {
@@ -288,10 +297,10 @@ public class PyEditingTest extends PyTestCase {
   }
 
   public void testParenthesizedInIf() {
-    doTestEnter("if isinstance(bz_value, list) and <caret>(isinstance(bz_value[0], str):\n" +
+    doTestEnter("if isinstance(bz_value, list) and <caret>(isinstance(bz_value[0], str)):\n" +
                 "    pass",
-                "if isinstance(bz_value, list) and \n" +
-                "(isinstance(bz_value[0], str):\n" +
+                "if isinstance(bz_value, list) and \\\n" +
+                "        (isinstance(bz_value[0], str)):\n" +
                 "    pass");
   }
 
@@ -323,7 +332,7 @@ public class PyEditingTest extends PyTestCase {
   }
 
   private String doTestTyping(final String text, final int offset, final char character) {
-    final PsiFile file = ApplicationManager.getApplication().runWriteAction(new Computable<PsiFile>() {
+    final PsiFile file = WriteCommandAction.runWriteCommandAction(null, new Computable<PsiFile>() {
       @Override
       public PsiFile compute() {
         final PsiFile file = myFixture.configureByText(PythonFileType.INSTANCE, text);
@@ -344,7 +353,7 @@ public class PyEditingTest extends PyTestCase {
 
   private void doTyping(final char character) {
     final int offset = myFixture.getEditor().getCaretModel().getOffset();
-    final PsiFile file = ApplicationManager.getApplication().runWriteAction(new Computable<PsiFile>() {
+    final PsiFile file = WriteCommandAction.runWriteCommandAction(null, new Computable<PsiFile>() {
       @Override
       public PsiFile compute() {
         myFixture.getEditor().getCaretModel().moveToOffset(offset);

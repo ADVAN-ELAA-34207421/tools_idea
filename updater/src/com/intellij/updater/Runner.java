@@ -1,5 +1,10 @@
 package com.intellij.updater;
 
+import org.apache.log4j.FileAppender;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.apache.log4j.PatternLayout;
+
 import javax.swing.*;
 import java.io.*;
 import java.net.URI;
@@ -11,47 +16,106 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
 public class Runner {
+  public static Logger logger = null;
+
   private static final String PATCH_FILE_NAME = "patch-file.zip";
   private static final String PATCH_PROPERTIES_ENTRY = "patch.properties";
   private static final String OLD_BUILD_DESCRIPTION = "old.build.description";
   private static final String NEW_BUILD_DESCRIPTION = "new.build.description";
 
   public static void main(String[] args) throws Exception {
-    if (args.length != 2 && args.length < 6) {
-      printUsage();
-      return;
-    }
-
-    String command = args[0];
-
-    if ("create".equals(command)) {
-      if (args.length < 6) {
-        printUsage();
-        return;
-      }
+    if (args.length >= 7 && "create".equals(args[0])) {
       String oldVersionDesc = args[1];
       String newVersionDesc = args[2];
       String oldFolder = args[3];
       String newFolder = args[4];
       String patchFile = args[5];
+
+      String logFolder = args[6];
+      initLogger(logFolder);
+
       List<String> ignoredFiles = extractFiles(args, "ignored");
       List<String> criticalFiles = extractFiles(args, "critical");
       List<String> optionalFiles = extractFiles(args, "optional");
       create(oldVersionDesc, newVersionDesc, oldFolder, newFolder, patchFile, ignoredFiles, criticalFiles, optionalFiles);
     }
-    else if ("install".equals(command)) {
-      if (args.length != 2) {
-        printUsage();
-        return;
+    else if (args.length >= 2 && "install".equals(args[0])) {
+      // install [--exit0] <destination_folder> [log_directory]
+      int max = 3;
+      int nextArg = 1;
+
+      // Default install exit code is SwingUpdaterUI.RESULT_REQUIRES_RESTART (42) unless overridden to be 0.
+      // This is used by testUI/build.gradle as gradle expects a javaexec to exit with code 0.
+      boolean useExitCode0 = false;
+      if (args[nextArg].equals("--exit0")) {
+        useExitCode0 = true;
+        nextArg++;
+        max++;
       }
 
-      String destFolder = args[1];
-      install(destFolder);
+      String destFolder = args[nextArg++];
+
+      String logFolder = args.length >= max ? args[nextArg] : null;
+      initLogger(logFolder);
+      logger.info("destFolder: " + destFolder);
+
+      install(useExitCode0, destFolder);
     }
     else {
       printUsage();
-      return;
     }
+  }
+
+  // checks that log directory 1)exists 2)has write perm. and 3)has 1MB+ free space
+  private static boolean isValidLogDir(String logFolder) {
+    File fileLogDir = new File(logFolder);
+    return fileLogDir.isDirectory() && fileLogDir.canWrite() && fileLogDir.getUsableSpace() >= 1000000;
+  }
+
+  private static String getLogDir(String logFolder) {
+    if (logFolder == null || !isValidLogDir(logFolder)) {
+      logFolder = System.getProperty("java.io.tmpdir");
+      if (!isValidLogDir(logFolder)) {
+        logFolder = System.getProperty("user.home");
+      }
+    }
+    return logFolder;
+  }
+
+  public static void initLogger(String logFolder) {
+    if (logger == null) {
+      logFolder = getLogDir(logFolder);
+      FileAppender update = new FileAppender();
+
+      update.setFile(new File(logFolder, "idea_updater.log").getAbsolutePath());
+      update.setLayout(new PatternLayout("%d{dd MMM yyyy HH:mm:ss} %-5p %C{1}.%M - %m%n"));
+      update.setThreshold(Level.ALL);
+      update.setAppend(true);
+      update.activateOptions();
+
+      FileAppender updateError = new FileAppender();
+      updateError.setFile(new File(logFolder, "idea_updater_error.log").getAbsolutePath());
+      updateError.setLayout(new PatternLayout("%d{dd MMM yyyy HH:mm:ss} %-5p %C{1}.%M - %m%n"));
+      updateError.setThreshold(Level.ERROR);
+      // The error(s) from an old run of the updater (if there were) could be found in idea_updater.log file
+      updateError.setAppend(false);
+      updateError.activateOptions();
+
+      logger = Logger.getLogger("com.intellij.updater");
+      logger.addAppender(updateError);
+      logger.addAppender(update);
+      logger.setLevel(Level.ALL);
+
+      logger.info("--- Updater started ---");
+    }
+  }
+
+  public static void infoStackTrace(String msg, Throwable e){
+    logger.info(msg, e);
+  }
+
+  public static void printStackTrace(Throwable e){
+    logger.error(e.getMessage(), e);
   }
 
   public static List<String> extractFiles(String[] args, String paramName) {
@@ -68,10 +132,12 @@ public class Runner {
     return result;
   }
 
+  @SuppressWarnings("UseOfSystemOutOrSystemErr")
   private static void printUsage() {
     System.err.println("Usage:\n" +
-                       "create <old_version_description> <new_version_description> <old_version_folder> <new_version_folder> <patch_file_name> [ignored=file1;file2;...] [critical=file1;file2;...] [optional=file1;file2;...]\n" +
-                       "install <destination_folder>\n");
+                       "create <old_version_description> <new_version_description> <old_version_folder> <new_version_folder>" +
+                       " <patch_file_name> <log_directory> [ignored=file1;file2;...] [critical=file1;file2;...] [optional=file1;file2;...]\n" +
+                       "install [--exit0] <destination_folder> [log_directory]\n");
   }
 
   private static void create(String oldBuildDesc,
@@ -82,9 +148,31 @@ public class Runner {
                              List<String> ignoredFiles,
                              List<String> criticalFiles,
                              List<String> optionalFiles) throws IOException, OperationCancelledException {
-    UpdaterUI ui = new ConsoleUpdaterUI();
+    File tempPatchFile = Utils.createTempFile();
+    createImpl(oldBuildDesc,
+               newBuildDesc,
+               oldFolder,
+               newFolder,
+               patchFile,
+               tempPatchFile,
+               ignoredFiles,
+               criticalFiles,
+               optionalFiles,
+               new ConsoleUpdaterUI(), resolveJarFile());
+  }
+
+  static void createImpl(String oldBuildDesc,
+                         String newBuildDesc,
+                         String oldFolder,
+                         String newFolder,
+                         String outPatchJar,
+                         File   tempPatchFile,
+                         List<String> ignoredFiles,
+                         List<String> criticalFiles,
+                         List<String> optionalFiles,
+                         UpdaterUI ui,
+                         File resolvedJar) throws IOException, OperationCancelledException {
     try {
-      File tempPatchFile = Utils.createTempFile();
       PatchFileCreator.create(new File(oldFolder),
                               new File(newFolder),
                               tempPatchFile,
@@ -93,10 +181,13 @@ public class Runner {
                               optionalFiles,
                               ui);
 
-      ui.startProcess("Packing jar file '" + patchFile + "'...");
-      ZipOutputWrapper out = new ZipOutputWrapper(new FileOutputStream(patchFile));
+      logger.info("Packing jar file: " + outPatchJar );
+      ui.startProcess("Packing jar file '" + outPatchJar + "'...");
+
+      FileOutputStream fileOut = new FileOutputStream(outPatchJar);
       try {
-        ZipInputStream in = new ZipInputStream(new FileInputStream(resolveJarFile()));
+        ZipOutputWrapper out = new ZipOutputWrapper(fileOut);
+        ZipInputStream in = new ZipInputStream(new FileInputStream(resolvedJar));
         try {
           ZipEntry e;
           while ((e = in.getNextEntry()) != null) {
@@ -110,8 +201,8 @@ public class Runner {
         ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
         try {
           Properties props = new Properties();
-          props.put(OLD_BUILD_DESCRIPTION, oldBuildDesc);
-          props.put(NEW_BUILD_DESCRIPTION, newBuildDesc);
+          props.setProperty(OLD_BUILD_DESCRIPTION, oldBuildDesc);
+          props.setProperty(NEW_BUILD_DESCRIPTION, newBuildDesc);
           props.store(byteOut, "");
         }
         finally {
@@ -120,9 +211,10 @@ public class Runner {
 
         out.zipBytes(PATCH_PROPERTIES_ENTRY, byteOut);
         out.zipFile(PATCH_FILE_NAME, tempPatchFile);
+        out.finish();
       }
       finally {
-        out.close();
+        fileOut.close();
       }
     }
     finally {
@@ -131,12 +223,13 @@ public class Runner {
   }
 
   private static void cleanup(UpdaterUI ui) throws IOException {
+    logger.info("Cleaning up...");
     ui.startProcess("Cleaning up...");
     ui.setProgressIndeterminate();
     Utils.cleanup();
   }
 
-  private static void install(final String destFolder) throws Exception {
+  private static void install(final boolean useExitCode0, final String destFolder) throws Exception {
     InputStream in = Runner.class.getResourceAsStream("/" + PATCH_PROPERTIES_ENTRY);
     Properties props = new Properties();
     try {
@@ -153,25 +246,45 @@ public class Runner {
           UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         }
         catch (Exception ignore) {
+          printStackTrace(ignore);
         }
       }
     });
 
     new SwingUpdaterUI(props.getProperty(OLD_BUILD_DESCRIPTION),
                   props.getProperty(NEW_BUILD_DESCRIPTION),
+                  useExitCode0 ? 0 : SwingUpdaterUI.RESULT_REQUIRES_RESTART,
                   new SwingUpdaterUI.InstallOperation() {
+                    @Override
                     public boolean execute(UpdaterUI ui) throws OperationCancelledException {
+                      logger.info("installing patch to the " + destFolder);
                       return doInstall(ui, destFolder);
                     }
                   });
   }
 
+  interface IJarResolver {
+    File resolveJar() throws IOException;
+  }
+
   private static boolean doInstall(UpdaterUI ui, String destFolder) throws OperationCancelledException {
+    return doInstallImpl(ui, destFolder, new IJarResolver() {
+      @Override
+      public File resolveJar() throws IOException {
+        return resolveJarFile();
+      }
+    });
+  }
+
+  static boolean doInstallImpl(UpdaterUI ui,
+                               String destFolder,
+                               IJarResolver jarResolver) throws OperationCancelledException {
     try {
       try {
         File patchFile = Utils.createTempFile();
-        ZipFile jarFile = new ZipFile(resolveJarFile());
+        ZipFile jarFile = new ZipFile(jarResolver.resolveJar());
 
+        logger.info("Extracting patch file...");
         ui.startProcess("Extracting patch file...");
         ui.setProgressIndeterminate();
         try {
@@ -198,6 +311,7 @@ public class Runner {
       }
       catch (IOException e) {
         ui.showError(e);
+        printStackTrace(e);
       }
     }
     finally {
@@ -206,6 +320,7 @@ public class Runner {
       }
       catch (IOException e) {
         ui.showError(e);
+        printStackTrace(e);
       }
     }
 
@@ -229,6 +344,7 @@ public class Runner {
       return new File(new URI(jarFileUrl));
     }
     catch (URISyntaxException e) {
+      printStackTrace(e);
       throw new IOException(e.getMessage());
     }
   }

@@ -2,10 +2,13 @@ package com.intellij.vcs.log.ui.frame;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.actions.RefreshAction;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Splitter;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.vcs.VcsDataKeys;
 import com.intellij.openapi.vcs.changes.Change;
 import com.intellij.openapi.vcs.changes.committed.RepositoryChangesBrowser;
@@ -21,6 +24,7 @@ import com.intellij.vcs.log.data.VcsLogUiProperties;
 import com.intellij.vcs.log.ui.VcsLogUI;
 import com.intellij.vcs.log.ui.filter.VcsLogClassicFilterUi;
 import com.intellij.vcs.log.ui.filter.VcsLogFilterUi;
+import com.intellij.vcs.log.ui.tables.GraphTableModel;
 import icons.VcsLogIcons;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -92,12 +96,19 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
     toolbarsAndTable.add(toolbars, BorderLayout.NORTH);
     toolbarsAndTable.add(myDetailsSplitter, BorderLayout.CENTER);
 
-    Splitter changesBrowserSplitter = new Splitter(false, 0.7f);
+    final Splitter changesBrowserSplitter = new Splitter(false, 0.7f);
     changesBrowserSplitter.setFirstComponent(toolbarsAndTable);
     changesBrowserSplitter.setSecondComponent(myChangesLoadingPane);
 
     setLayout(new BorderLayout());
     add(changesBrowserSplitter);
+
+    Disposer.register(logDataHolder, new Disposable() {
+      public void dispose() {
+        myDetailsSplitter.dispose();
+        changesBrowserSplitter.dispose();
+      }
+    });
   }
 
   private void updateWhenDetailsAreLoaded(final CommitSelectionListener selectionChangeListener) {
@@ -111,6 +122,12 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
       @Override
       public void run() {
         selectionChangeListener.valueChanged(null);
+        myDetailsPanel.valueChanged(null);
+      }
+    });
+    myLogDataHolder.getContainingBranchesGetter().setTaskCompletedListener(new Runnable() {
+      @Override
+      public void run() {
         myDetailsPanel.valueChanged(null);
       }
     });
@@ -135,14 +152,14 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
   }
 
   private JComponent createActionsToolbar() {
-    AnAction hideBranchesAction = new DumbAwareAction("Collapse linear branches", "Collapse linear branches", VcsLogIcons.CollapseBranches) {
+    AnAction hideBranchesAction = new GraphAction("Collapse linear branches", "Collapse linear branches", VcsLogIcons.CollapseBranches) {
       @Override
       public void actionPerformed(AnActionEvent e) {
         myUI.hideAll();
       }
     };
 
-    AnAction showBranchesAction = new DumbAwareAction("Expand all branches", "Expand all branches", VcsLogIcons.ExpandBranches) {
+    AnAction showBranchesAction = new GraphAction("Expand all branches", "Expand all branches", VcsLogIcons.ExpandBranches) {
       @Override
       public void actionPerformed(AnActionEvent e) {
         myUI.showAll();
@@ -161,34 +178,8 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
       }
     };
 
-    AnAction showFullPatchAction = new ToggleAction("Show long edges",
-                                                    "Show long branch edges even if commits are invisible in the current view.",
-                                                    VcsLogIcons.ShowHideLongEdges) {
-      @Override
-      public boolean isSelected(AnActionEvent e) {
-        return !myUI.areLongEdgesHidden();
-      }
-
-      @Override
-      public void setSelected(AnActionEvent e, boolean state) {
-        myUI.setLongEdgeVisibility(state);
-      }
-    };
-
-    ToggleAction showDetailsAction = new ToggleAction("Show Details", "Display details panel", AllIcons.Actions.Preview) {
-      @Override
-      public boolean isSelected(AnActionEvent e) {
-        return !myProject.isDisposed() && myUiProperties.isShowDetails();
-      }
-
-      @Override
-      public void setSelected(AnActionEvent e, boolean state) {
-        setupDetailsSplitter(state);
-        if (!myProject.isDisposed()) {
-          myUiProperties.setShowDetails(state);
-        }
-      }
-    };
+    AnAction showFullPatchAction = new ShowLongEdgesAction();
+    AnAction showDetailsAction = new ShowDetailsAction();
 
     refreshAction.registerShortcutOn(this);
 
@@ -200,15 +191,13 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
     mainGroup.add(myFilterUi.getFilterActionComponents());
     mainGroup.addSeparator();
     mainGroup.add(toolbarGroup);
-    return ActionManager.getInstance().createActionToolbar(ActionPlaces.UNKNOWN, mainGroup, true).getComponent();
+    ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar(ActionPlaces.UNKNOWN, mainGroup, true);
+    toolbar.setTargetComponent(this);
+    return toolbar.getComponent();
   }
 
   public JComponent getMainComponent() {
     return this;
-  }
-
-  public void refresh() {
-    myBranchesPanel.rebuild();
   }
 
   public void setBranchesPanelVisible(boolean visible) {
@@ -226,17 +215,19 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
       sink.put(key, myLog);
     }
     else if (VcsDataKeys.CHANGES.equals(key)) {
-      if (myGraphTable.getSelectedRowCount() == 1) {
-        List<Change> selectedChanges = getSelectedChanges();
-        if (selectedChanges != null) {
-          sink.put(VcsDataKeys.CHANGES, ArrayUtil.toObjectArray(selectedChanges, Change.class));
-        }
+      List<Change> selectedChanges = getSelectedChanges();
+      if (selectedChanges != null) {
+        sink.put(VcsDataKeys.CHANGES, ArrayUtil.toObjectArray(selectedChanges, Change.class));
       }
     }
   }
 
   public Component getToolbar() {
     return myToolbar;
+  }
+
+  public boolean areGraphActionsEnabled() {
+    return myGraphTable.getModel() instanceof GraphTableModel && myGraphTable.getRowCount() > 0;
   }
 
   private class CommitSelectionListener implements ListSelectionListener {
@@ -265,6 +256,60 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
           myChangesLoadingPane.startLoading();
         }
       }
+    }
+  }
+
+  private class ShowDetailsAction extends ToggleAction implements DumbAware {
+
+    public ShowDetailsAction() {
+      super("Show Details", "Display details panel", AllIcons.Actions.Preview);
+    }
+
+    @Override
+    public boolean isSelected(AnActionEvent e) {
+      return !myProject.isDisposed() && myUiProperties.isShowDetails();
+    }
+
+    @Override
+    public void setSelected(AnActionEvent e, boolean state) {
+      setupDetailsSplitter(state);
+      if (!myProject.isDisposed()) {
+        myUiProperties.setShowDetails(state);
+      }
+    }
+  }
+
+  private class ShowLongEdgesAction extends ToggleAction implements DumbAware {
+    public ShowLongEdgesAction() {
+      super("Show long edges", "Show long branch edges even if commits are invisible in the current view.", VcsLogIcons.ShowHideLongEdges);
+    }
+
+    @Override
+    public boolean isSelected(AnActionEvent e) {
+      return !myUI.areLongEdgesHidden();
+    }
+
+    @Override
+    public void setSelected(AnActionEvent e, boolean state) {
+      myUI.setLongEdgeVisibility(state);
+    }
+
+    @Override
+    public void update(AnActionEvent e) {
+      super.update(e);
+      e.getPresentation().setEnabled(areGraphActionsEnabled());
+    }
+  }
+
+  private abstract class GraphAction extends DumbAwareAction {
+
+    public GraphAction(String text, String description, Icon icon) {
+      super(text, description, icon);
+    }
+
+    @Override
+    public void update(AnActionEvent e) {
+      e.getPresentation().setEnabled(areGraphActionsEnabled());
     }
   }
 }

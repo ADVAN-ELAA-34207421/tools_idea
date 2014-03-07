@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -78,8 +78,8 @@ public class DarculaLaf extends BasicLookAndFeel {
 
   @SuppressWarnings("UnusedParameters")
   private static void log(Exception e) {
-    //everything is gonna be alright
-    //e.printStackTrace();
+//    everything is gonna be alright
+    e.printStackTrace();
   }
 
   @Override
@@ -110,7 +110,7 @@ public class DarculaLaf extends BasicLookAndFeel {
       if (SystemInfo.isWindows) {
         //JFrame.setDefaultLookAndFeelDecorated(true);
       }
-
+      defaults.put("EditorPane.font", defaults.getFont("TextField.font"));
       return defaults;
     }
     catch (Exception e) {
@@ -227,6 +227,7 @@ public class DarculaLaf extends BasicLookAndFeel {
       //"ENTER", "selectNextRowCell",
       "shift ENTER", "selectPreviousRowCell",
       "ctrl A", "selectAll",
+      "meta A", "selectAll",
       //"ESCAPE", "cancel",
       "F2", "startEditing"
     }));

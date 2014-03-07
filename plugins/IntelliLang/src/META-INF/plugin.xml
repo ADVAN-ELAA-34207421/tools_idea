@@ -11,7 +11,6 @@
   <depends optional="true" config-file="intellilang-xml-support.xml">com.intellij.modules.xml</depends>
   <depends optional="true" config-file="intellilang-js-support.xml">JavaScript</depends>
   <depends optional="true" config-file="intellilang-python-support.xml">com.intellij.modules.python</depends>
-  <depends optional="true" config-file="intellilang-python-support.xml">Pythonid</depends>
 
   <extensionPoints>
     <extensionPoint name="languageSupport" interface="org.intellij.plugins.intelliLang.inject.LanguageInjectionSupport"/>
@@ -36,7 +35,7 @@
     <highlightErrorFilter implementation="org.intellij.plugins.intelliLang.inject.FrankensteinErrorFilter"/>
     <daemon.highlightInfoFilter implementation="org.intellij.plugins.intelliLang.inject.FrankensteinErrorFilter"/>
 
-    <projectConfigurable instance="org.intellij.plugins.intelliLang.InjectionsSettingsUI" nonDefaultProject="true"/>
+    <projectConfigurable displayName="Language Injections" instance="org.intellij.plugins.intelliLang.InjectionsSettingsUI" nonDefaultProject="true"/>
 
     <multiHostInjector implementation="org.intellij.plugins.intelliLang.inject.CommentLanguageInjector"/>
     <multiHostInjector implementation="org.intellij.plugins.intelliLang.inject.TemporaryPlacesInjector"/>

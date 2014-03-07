@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +49,8 @@ import org.jetbrains.plugins.groovy.lang.psi.GroovyPsiElementFactory;
 import org.jetbrains.plugins.groovy.lang.psi.api.GroovyResolveResult;
 import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.GrCondition;
 import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.GrListOrMap;
+import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.modifiers.GrModifier;
+import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.modifiers.GrModifierList;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrConstructorInvocation;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrStatement;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrVariable;
@@ -74,9 +76,6 @@ import org.jetbrains.plugins.groovy.lang.psi.api.types.GrTypeElement;
 import org.jetbrains.plugins.groovy.lang.psi.api.util.GrNamedArgumentsOwner;
 import org.jetbrains.plugins.groovy.lang.psi.api.util.GrStatementOwner;
 import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.TypesUtil;
-import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.arithmetic.GrAdditiveExpressionImpl;
-import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.arithmetic.GrMultiplicativeExpressionImpl;
-import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.arithmetic.GrRangeExpressionImpl;
 import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.literals.GrLiteralImpl;
 import org.jetbrains.plugins.groovy.lang.psi.impl.synthetic.GrSyntheticCodeBlock;
 import org.jetbrains.plugins.groovy.lang.psi.impl.synthetic.GrSyntheticExpression;
@@ -95,6 +94,8 @@ import static com.intellij.psi.impl.source.tree.Factory.createSingleLeafElement;
 import static org.jetbrains.plugins.groovy.lang.lexer.GroovyTokenTypes.*;
 import static org.jetbrains.plugins.groovy.lang.lexer.TokenSets.RELATIONS;
 import static org.jetbrains.plugins.groovy.lang.lexer.TokenSets.SHIFT_SIGNS;
+import static org.jetbrains.plugins.groovy.lang.psi.util.GroovyCommonClassNames.GROOVY_LANG_IMMUTABLE;
+import static org.jetbrains.plugins.groovy.lang.psi.util.GroovyCommonClassNames.GROOVY_TRANSFORM_IMMUTABLE;
 
 public class PsiImplUtil {
   private static final Logger LOG = Logger.getInstance("org.jetbrains.plugins.groovy.lang.psi.impl.PsiImplUtil");
@@ -271,20 +272,11 @@ public class PsiImplUtil {
 
   private static boolean isNotAssociative(GrBinaryExpression binaryExpression) {
     final IElementType opToken = binaryExpression.getOperationTokenType();
-    if (binaryExpression instanceof GrMultiplicativeExpressionImpl) {
-      return opToken != mSTAR;
-    }
-    if (binaryExpression instanceof GrAdditiveExpressionImpl) {
-      return opToken == mMINUS;
-    }
-    return RELATIONS.contains(opToken) || opToken == mCOMPARE_TO
-           || opToken == mREGEX_FIND || opToken == mREGEX_MATCH
-           || SHIFT_SIGNS.contains(opToken)
-           || opToken==mSTAR;
+    return !TokenSets.ASSOCIATIVE_BINARY_OP_SET.contains(opToken);
   }
 
   @Nullable
-  public static GrExpression getRuntimeQualifier(GrReferenceExpression refExpr) {
+  public static GrExpression getRuntimeQualifier(@NotNull GrReferenceExpression refExpr) {
     GrExpression qualifier = refExpr.getQualifierExpression();
     if (qualifier != null) return qualifier;
 
@@ -360,12 +352,11 @@ public class PsiImplUtil {
   }
 
   private static int getExprPriorityLevel(GrExpression expr) {
-    int priority = 0;
+    int priority;
     //if (expr instanceof GrNewExpression) priority = 1;
     if (expr instanceof GrUnaryExpression) priority = ((GrUnaryExpression)expr).isPostfix() ? 5 : 6;
     else if (expr instanceof GrTypeCastExpression) priority = 6;
 
-    else if (expr instanceof GrRangeExpressionImpl) priority = 11;
 
     else if (expr instanceof GrBinaryExpression) {
       final IElementType opToken = ((GrBinaryExpression)expr).getOperationTokenType();
@@ -374,6 +365,7 @@ public class PsiImplUtil {
       else if (opToken == mSTAR || opToken == mDIV) priority = 8;
       else if (opToken == mPLUS || opToken == mMINUS) priority = 9;
       else if (SHIFT_SIGNS.contains(opToken)) priority = 10;
+      else if (opToken == mRANGE_EXCLUSIVE || opToken == mRANGE_INCLUSIVE) priority = 11;
       else if (RELATIONS.contains(opToken)) priority = 12;
       else if (opToken == mEQUAL || opToken == mNOT_EQUAL || opToken == mCOMPARE_TO) priority = 13;
       else if (opToken == mREGEX_FIND || opToken == mREGEX_MATCH) priority = 14;
@@ -382,11 +374,16 @@ public class PsiImplUtil {
       else if (opToken == mBOR) priority = 17;
       else if (opToken == mLAND) priority = 18;
       else if (opToken == mLOR) priority = 19;
+      else {
+        assert false :"unknown operation:"+opToken;
+        priority = 0;
+      }
     }
     else if (expr instanceof GrConditionalExpression) priority = 20;
     else if (expr instanceof GrSafeCastExpression) priority = 21;
     else if (expr instanceof GrAssignmentExpression) priority = 22;
     else if (expr instanceof GrApplicationStatement) priority = 23;
+    else priority = 0;
 
     return -priority;
   }
@@ -580,7 +577,7 @@ public class PsiImplUtil {
     if (block == null) return null;
 
     final SoftReference<PsiCodeBlock> ref = block.getUserData(PSI_CODE_BLOCK);
-    final PsiCodeBlock body = ref == null ? null : ref.get();
+    final PsiCodeBlock body = SoftReference.dereference(ref);
     if (body != null) return body;
     final GrSyntheticCodeBlock newBody = new GrSyntheticCodeBlock(block);
     block.putUserData(PSI_CODE_BLOCK, new SoftReference<PsiCodeBlock>(newBody));
@@ -591,7 +588,7 @@ public class PsiImplUtil {
     if (typeElement == null) return null;
 
     final SoftReference<PsiTypeElement> ref = typeElement.getUserData(PSI_TYPE_ELEMENT);
-    final PsiTypeElement element = ref == null ? null : ref.get();
+    final PsiTypeElement element = SoftReference.dereference(ref);
     if (element != null) return element;
     final GrSyntheticTypeElement newTypeElement = new GrSyntheticTypeElement(typeElement);
     typeElement.putUserData(PSI_TYPE_ELEMENT, new SoftReference<PsiTypeElement>(newTypeElement));
@@ -602,7 +599,7 @@ public class PsiImplUtil {
     if (expr == null) return null;
 
     final SoftReference<PsiExpression> ref = expr.getUserData(PSI_EXPRESSION);
-    final PsiExpression element = ref == null ? null : ref.get();
+    final PsiExpression element = SoftReference.dereference(ref);
     if (element != null) return element;
     final GrSyntheticExpression newExpr = new GrSyntheticExpression(expr);
     expr.putUserData(PSI_EXPRESSION, new SoftReference<PsiExpression>(newExpr));
@@ -613,7 +610,7 @@ public class PsiImplUtil {
     if (list == null) return null;
 
     final SoftReference<PsiReferenceList> ref = list.getUserData(PSI_REFERENCE_LIST);
-    final PsiReferenceList element = ref == null ? null : ref.get();
+    final PsiReferenceList element = SoftReference.dereference(ref);
     if (element != null) return element;
     final GrSyntheticReferenceList newList = new GrSyntheticReferenceList(list, role);
     list.putUserData(PSI_REFERENCE_LIST, new SoftReference<PsiReferenceList>(newList));
@@ -754,10 +751,6 @@ public class PsiImplUtil {
     return type;
   }
 
-  public static boolean isWhiteSpace(@Nullable PsiElement element) {
-    return hasElementType(element, TokenSets.WHITE_SPACES_SET);
-  }
-
   public static boolean hasElementType(@Nullable PsiElement next, @NotNull final IElementType type) {
     if (next == null) return false;
     final ASTNode astNode = next.getNode();
@@ -840,6 +833,51 @@ public class PsiImplUtil {
       }
     }
 
+    return null;
+  }
+
+  public static boolean hasImmutableAnnotation(PsiModifierList modifierList) {
+    return modifierList.findAnnotation(GROOVY_LANG_IMMUTABLE) != null ||
+           modifierList.findAnnotation(GROOVY_TRANSFORM_IMMUTABLE) != null;
+  }
+
+  public static boolean isWhiteSpaceOrNls(@Nullable PsiElement sibling) {
+    return sibling != null && isWhiteSpaceOrNls(sibling.getNode());
+  }
+
+  public static boolean isWhiteSpaceOrNls(@Nullable ASTNode node) {
+    return node != null && TokenSets.WHITE_SPACES_SET.contains(node.getElementType());
+  }
+
+  public static void insertPlaceHolderToModifierListAtEndIfNeeded(GrModifierList modifierList) {
+    PsiElement newLineAfterModifierList = findNewLineAfterElement(modifierList);
+    if (newLineAfterModifierList != null) {
+      modifierList.setModifierProperty(GrModifier.DEF, false);
+
+      if (modifierList.getModifiers().length > 0) {
+        modifierList.getNode().addLeaf(mNLS, newLineAfterModifierList.getText(), null);
+      }
+      modifierList.getNode().addLeaf(kDEF, "def", null);
+      final PsiElement newLineUpdated = findNewLineAfterElement(modifierList);
+      if (newLineUpdated != null) newLineUpdated.delete();
+      if (!isWhiteSpaceOrNls(modifierList.getNextSibling())) {
+        modifierList.getParent().getNode().addLeaf(TokenType.WHITE_SPACE, " ", modifierList.getNextSibling().getNode());
+      }
+    }
+    else if (modifierList.getModifiers().length == 0) {
+      modifierList.setModifierProperty(GrModifier.DEF, true);
+    }
+  }
+
+  @Nullable
+  private static PsiElement findNewLineAfterElement(PsiElement element) {
+    PsiElement sibling = element.getNextSibling();
+    while (sibling != null && isWhiteSpaceOrNls(sibling)) {
+      if (PsiUtil.isNewLine(sibling)) {
+        return sibling;
+      }
+      sibling = sibling.getNextSibling();
+    }
     return null;
   }
 }

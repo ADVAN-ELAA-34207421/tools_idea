@@ -76,7 +76,7 @@ public class YouTrackRepository extends BaseRepositoryImpl {
   public Task[] getIssues(@Nullable String request, int max, long since) throws Exception {
 
     String query = getDefaultSearch();
-    if (request != null) {
+    if (StringUtil.isNotEmpty(request)) {
       query += " " + request;
     }
     String requestUrl = "/rest/project/issues/?filter=" + encodeUrl(query) + "&max=" + max + "&updatedAfter" + since;
@@ -214,6 +214,7 @@ public class YouTrackRepository extends BaseRepositoryImpl {
 
     final Date updated = new Date(Long.parseLong(element.getAttributeValue("updated")));
     final Date created = new Date(Long.parseLong(element.getAttributeValue("created")));
+    final boolean resolved = element.getAttribute("resolved") != null;
 
     return new Task() {
       @Override
@@ -274,7 +275,8 @@ public class YouTrackRepository extends BaseRepositoryImpl {
 
       @Override
       public boolean isClosed() {
-        return false;
+        // IDEA-118605
+        return resolved;
       }
 
       @Override
@@ -307,7 +309,7 @@ public class YouTrackRepository extends BaseRepositoryImpl {
   private static final Logger LOG = Logger.getInstance("#com.intellij.tasks.youtrack.YouTrackRepository");
 
   @Override
-  public void updateTimeSpent(final LocalTask task, final String timeSpent, final String comment) throws Exception {
+  public void updateTimeSpent(@NotNull LocalTask task, @NotNull String timeSpent, @NotNull String comment) throws Exception {
     checkVersion();
     final HttpMethod method = doREST("/rest/issue/execute/" + task.getId() + "?command=work+Today+" + timeSpent.replaceAll(" ", "+") + "+" + comment, true);
     if (method.getStatusCode() != 200) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -166,7 +166,7 @@ public class GroovyLanguageCodeStyleSettingsProvider extends LanguageCodeStyleSe
                                    "SPACE_AROUND_ADDITIVE_OPERATORS",
                                    "SPACE_AROUND_MULTIPLICATIVE_OPERATORS",
                                    "SPACE_AROUND_SHIFT_OPERATORS",
-                                   "SPACE_AROUND_UNARY_OPERATOR",
+                                   //"SPACE_AROUND_UNARY_OPERATOR",
                                    "SPACE_AFTER_COMMA",
                                    "SPACE_AFTER_COMMA_IN_TYPE_ARGUMENTS",
                                    "SPACE_BEFORE_COMMA",
@@ -223,13 +223,15 @@ public class GroovyLanguageCodeStyleSettingsProvider extends LanguageCodeStyleSe
                                    "SPACE_BEFORE_ANOTATION_PARAMETER_LIST",
                                    "SPACE_WITHIN_ANNOTATION_PARENTHESES"
       );
-      consumer.showCustomOption(GroovyCodeStyleSettings.class, "SPACE_IN_NAMED_ARGUMENT", "In named argument after ':'",
-                                CodeStyleSettingsCustomizable.SPACES_OTHER);
+      consumer.renameStandardOption("SPACE_AROUND_RELATIONAL_OPERATORS", "Relational operators (<, >, <=, >=, <=>)");
+      consumer.renameStandardOption("SPACE_AROUND_UNARY_OPERATOR", "Unary operators (!, -, +, ++, --, *)");
+
+      consumer.showCustomOption(GroovyCodeStyleSettings.class, "SPACE_IN_NAMED_ARGUMENT", "In named argument after ':'", CodeStyleSettingsCustomizable.SPACES_OTHER);
       consumer.showCustomOption(GroovyCodeStyleSettings.class, "SPACE_WITHIN_LIST_OR_MAP", "List and maps literals", CodeStyleSettingsCustomizable.SPACES_WITHIN);
       consumer.showCustomOption(GroovyCodeStyleSettings.class, "SPACE_BEFORE_CLOSURE_LBRACE", "Closure left brace in method calls", CodeStyleSettingsCustomizable.SPACES_BEFORE_LEFT_BRACE);
       consumer.showCustomOption(GroovyCodeStyleSettings.class, "SPACE_WITHIN_GSTRING_INJECTION_BRACES", "GString injection braces", CodeStyleSettingsCustomizable.SPACES_WITHIN);
-      consumer.showCustomOption(GroovyCodeStyleSettings.class, "SPACE_WITHIN_TUPLE_EXPRESSION", "Tuple assignment expression",
-                                CodeStyleSettingsCustomizable.SPACES_WITHIN);
+      consumer.showCustomOption(GroovyCodeStyleSettings.class, "SPACE_WITHIN_TUPLE_EXPRESSION", "Tuple assignment expression", CodeStyleSettingsCustomizable.SPACES_WITHIN);
+      consumer.showCustomOption(GroovyCodeStyleSettings.class, "SPACE_AROUND_REGEX_OPERATORS", "Regexp expression (==~, =~)", CodeStyleSettingsCustomizable.SPACES_AROUND_OPERATORS);
       return;
     }
     if (settingsType == SettingsType.BLANK_LINES_SETTINGS) {
@@ -326,8 +328,7 @@ public class GroovyLanguageCodeStyleSettingsProvider extends LanguageCodeStyleSe
         super.apply(settings, options);
         options.LABEL_INDENT_SIZE = getFieldValue(myLabelIndent, Integer.MIN_VALUE, options.LABEL_INDENT_SIZE);
         options.LABEL_INDENT_ABSOLUTE = ABSOLUTE.equals(myLabelIndentStyle.getSelectedItem());
-        settings.getCustomSettings(GroovyCodeStyleSettings.class).INDENT_LABEL_BLOCKS = RELATIVE
-          .equals(myLabelIndentStyle.getSelectedItem());
+        settings.getCustomSettings(GroovyCodeStyleSettings.class).INDENT_LABEL_BLOCKS = RELATIVE.equals(myLabelIndentStyle.getSelectedItem());
       }
 
       public void reset(@NotNull final CodeStyleSettings settings, @NotNull final CommonCodeStyleSettings.IndentOptions options) {

@@ -15,7 +15,9 @@
  */
 package com.intellij.openapi.diff.impl;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.ide.actions.EditSourceAction;
+import com.intellij.idea.ActionsBundle;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.Application;
@@ -25,6 +27,7 @@ import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.diff.*;
 import com.intellij.openapi.diff.actions.MergeActionGroup;
+import com.intellij.openapi.diff.actions.ToggleAutoScrollAction;
 import com.intellij.openapi.diff.ex.DiffPanelEx;
 import com.intellij.openapi.diff.ex.DiffPanelOptions;
 import com.intellij.openapi.diff.impl.external.DiffManagerImpl;
@@ -32,6 +35,7 @@ import com.intellij.openapi.diff.impl.fragments.Fragment;
 import com.intellij.openapi.diff.impl.fragments.FragmentList;
 import com.intellij.openapi.diff.impl.highlighting.DiffPanelState;
 import com.intellij.openapi.diff.impl.highlighting.FragmentSide;
+import com.intellij.openapi.diff.impl.processing.HighlightMode;
 import com.intellij.openapi.diff.impl.processing.HorizontalDiffSplitter;
 import com.intellij.openapi.diff.impl.settings.DiffMergeEditorSetting;
 import com.intellij.openapi.diff.impl.settings.DiffMergeSettings;
@@ -109,10 +113,24 @@ public class DiffPanelImpl implements DiffPanelEx, ContentChangeListener, TwoSid
       public void customize(DiffToolbar toolbar) {
         ActionManager actionManager = ActionManager.getInstance();
         toolbar.addAction(actionManager.getAction("DiffPanel.Toolbar"));
+        toolbar.addSeparator();
+        toolbar.addAction(new ToggleAutoScrollAction());
+        toolbar.addSeparator();
         toolbar.addAction(actionManager.getAction("ContextHelp"));
+        toolbar.addAction(getEditSourceAction());
         toolbar.addSeparator();
         toolbar.addAction(new DiffMergeSettingsAction(Arrays.asList(getEditor1(), getEditor2()),
                                                       ServiceManager.getService(myProject, DiffToolSettings.class)));
+      }
+
+      @NotNull
+      private AnAction getEditSourceAction() {
+        AnAction editSourceAction = new EditSourceAction();
+        editSourceAction.getTemplatePresentation().setIcon(AllIcons.Actions.EditSource);
+        editSourceAction.getTemplatePresentation().setText(ActionsBundle.actionText("EditSource"));
+        editSourceAction.getTemplatePresentation().setDescription(ActionsBundle.actionText("EditSource"));
+        editSourceAction.registerCustomShortcutSet(CommonShortcuts.getEditSource(), myPanel, DiffPanelImpl.this);
+        return editSourceAction;
       }
     };
   }
@@ -162,9 +180,14 @@ public class DiffPanelImpl implements DiffPanelEx, ContentChangeListener, TwoSid
 
     final ComparisonPolicy comparisonPolicy = getComparisonPolicy();
     final ComparisonPolicy defaultComparisonPolicy = DiffManagerImpl.getInstanceEx().getComparisonPolicy();
+    final HighlightMode highlightMode = getHighlightMode();
+    final HighlightMode defaultHighlightMode = DiffManagerImpl.getInstanceEx().getHighlightMode();
 
     if (defaultComparisonPolicy != null && comparisonPolicy != defaultComparisonPolicy) {
       setComparisonPolicy(defaultComparisonPolicy);
+    }
+    if (defaultHighlightMode != null && highlightMode != defaultHighlightMode) {
+      setHighlightMode(defaultHighlightMode);
     }
     myVisibleAreaListener = new VisibleAreaListener() {
       @Override
@@ -183,9 +206,6 @@ public class DiffPanelImpl implements DiffPanelEx, ContentChangeListener, TwoSid
   }
 
   private void registerActions() {
-    // EditSourceAction is not enabled in modal context, so we need to register it here explicitly
-    new EditSourceAction().registerCustomShortcutSet(CommonShortcuts.getEditSource(), myPanel, this);
-
     //control+tab switches editors
     new AnAction(){
       @Override
@@ -449,6 +469,10 @@ public class DiffPanelImpl implements DiffPanelEx, ContentChangeListener, TwoSid
     return myData.getComparisonPolicy();
   }
 
+  public void setComparisonPolicy(ComparisonPolicy comparisonPolicy) {
+    setComparisonPolicy(comparisonPolicy, true);
+  }
+
   private void setComparisonPolicy(ComparisonPolicy policy, boolean notifyManager) {
     myData.setComparisonPolicy(policy);
     rediff();
@@ -458,8 +482,30 @@ public class DiffPanelImpl implements DiffPanelEx, ContentChangeListener, TwoSid
     }
   }
 
-  public void setComparisonPolicy(ComparisonPolicy comparisonPolicy) {
-    setComparisonPolicy(comparisonPolicy, true);
+  @NotNull
+  public HighlightMode getHighlightMode() {
+    return myData.getHighlightMode();
+  }
+
+  public void setHighlightMode(@NotNull HighlightMode mode) {
+    setHighlightMode(mode, true);
+  }
+
+  public void setHighlightMode(@NotNull HighlightMode mode, boolean notifyManager) {
+    myData.setHighlightMode(mode);
+    rediff();
+
+    if (notifyManager) {
+      DiffManagerImpl.getInstanceEx().setHighlightMode(mode);
+    }
+  }
+
+  public void setAutoScrollEnabled(boolean enabled) {
+    myScrollSupport.setEnabled(enabled);
+  }
+
+  public boolean isAutoScrollEnabled() {
+    return myScrollSupport.isEnabled();
   }
 
   public Rediffers getDiffUpdater() {

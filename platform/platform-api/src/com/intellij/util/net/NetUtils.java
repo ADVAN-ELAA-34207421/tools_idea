@@ -29,9 +29,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.*;
 
-/**
- * @author yole
- */
 public class NetUtils {
   private static final Logger LOG = Logger.getInstance(NetUtils.class);
 
@@ -127,6 +124,19 @@ public class NetUtils {
     finally {
       serverSocket.close();
     }
+  }
+
+  public static int tryToFindAvailableSocketPort(int defaultPort) {
+    try {
+      return findAvailableSocketPort();
+    }
+    catch (IOException ignored) {
+      return defaultPort;
+    }
+  }
+
+  public static int tryToFindAvailableSocketPort() {
+    return tryToFindAvailableSocketPort(-1);
   }
 
   public static int[] findAvailableSocketPorts(int capacity) throws IOException {

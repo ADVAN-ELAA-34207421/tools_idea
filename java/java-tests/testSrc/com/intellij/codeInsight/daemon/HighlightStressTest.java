@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,13 +30,14 @@ import com.intellij.codeInspection.ex.LocalInspectionToolWrapper;
 import com.intellij.codeInspection.unusedImport.UnusedImportLocalInspection;
 import com.intellij.codeInspection.unusedSymbol.UnusedSymbolLocalInspection;
 import com.intellij.lang.annotation.HighlightSeverity;
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.PsiManagerEx;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.PsiShortNamesCache;
 import com.intellij.testFramework.PlatformTestUtil;
+import com.intellij.testFramework.SkipSlowTestLocally;
 import com.intellij.util.text.CharArrayUtil;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NonNls;
@@ -44,6 +45,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
+@SkipSlowTestLocally
 public class HighlightStressTest extends LightDaemonAnalyzerTestCase {
   @NotNull
   @Override
@@ -225,7 +227,7 @@ public class HighlightStressTest extends LightDaemonAnalyzerTestCase {
       if (v>100) break;
     }
     final String text = imports + "\n class X {{\n" + usages + "}}";
-    ApplicationManager.getApplication().runWriteAction(new Runnable() {
+    WriteCommandAction.runWriteCommandAction(null, new Runnable() {
       @Override
       public void run() {
         getEditor().getDocument().setText(text);

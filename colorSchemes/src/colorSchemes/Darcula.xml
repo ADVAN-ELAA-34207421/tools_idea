@@ -16,7 +16,7 @@
     <option name="ANNOTATIONS_COLOR" value="8b999f" />
     <option name="CARET_COLOR" value="bbbbbb" />
     <option name="CARET_ROW_COLOR" value="323232" />
-    <option name="CONSOLE_BACKGROUND_KEY" value="333333" />
+    <option name="CONSOLE_BACKGROUND_KEY" value="2B2B2B" />
     <option name="FILESTATUS_ADDED" value="629755" />
     <option name="FILESTATUS_DELETED" value="6c6c6c" />
     <option name="FILESTATUS_IDEA_FILESTATUS_DELETED_FROM_FILE_SYSTEM" value="6c6c6c" />
@@ -1361,6 +1361,42 @@
       <value>
         <option name="BACKGROUND" value="155221" />
         <option name="ERROR_STRIPE_COLOR" value="246e00" />
+      </value>
+    </option>
+    <option name="SPY-JS.FUNCTION_SCOPE">
+      <value>
+        <option name="BACKGROUND" value="3A3A3A"/>
+        <option name="EFFECT_TYPE" value="2"/>
+      </value>
+    </option>
+    <option name="SPY-JS.PROGRAM_SCOPE">
+      <value>
+        <option name="BACKGROUND" value="3A3A3A"/>
+        <option name="EFFECT_TYPE" value="2"/>
+      </value>
+    </option>
+    <option name="SPY-JS.EXCEPTION">
+      <value>
+        <option name="BACKGROUND" value="532B2E"/>
+        <option name="EFFECT_TYPE" value="2"/>
+      </value>
+    </option>
+    <option name="SPY-JS.PATH_LEVEL_ONE">
+      <value>
+        <option name="BACKGROUND" value="425F44"/>
+        <option name="EFFECT_TYPE" value="2"/>
+      </value>
+    </option>
+    <option name="SPY-JS.PATH_LEVEL_TWO">
+      <value>
+        <option name="EFFECT_COLOR" value="a9b7c6" />
+        <option name="EFFECT_TYPE" value="1"/>
+      </value>
+    </option>
+    <option name="SPY-JS.VALUE_HINT">
+      <value>
+        <option name="EFFECT_COLOR" value="a9b7c6" />
+        <option name="EFFECT_TYPE" value="0"/>
       </value>
     </option>
     <option name="STATIC_FIELD_ATTRIBUTES">

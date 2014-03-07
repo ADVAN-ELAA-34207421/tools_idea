@@ -16,9 +16,9 @@
 package com.intellij.testFramework;
 
 import com.intellij.lang.Language;
+import com.intellij.openapi.fileTypes.CharsetUtil;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.FileTypeRegistry;
-import com.intellij.openapi.fileTypes.LanguageFileType;
 import com.intellij.openapi.vfs.DeprecatedVirtualFileSystem;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -66,14 +66,7 @@ public class LightVirtualFile extends VirtualFile {
   }
 
   public LightVirtualFile(final String name, final FileType fileType, final CharSequence text, final long modificationStamp) {
-    this(name, fileType, text, charsetFromContent(fileType, text), modificationStamp);
-  }
-
-  private static Charset charsetFromContent(FileType fileType, CharSequence text) {
-    if (fileType instanceof LanguageFileType) {
-      return ((LanguageFileType)fileType).extractCharsetFromFileContent(null, null, text.toString());
-    }
-    return null;
+    this(name, fileType, text, CharsetUtil.extractCharsetFromFileContent(null, null, fileType, text), modificationStamp);
   }
 
   public LightVirtualFile(final String name, final FileType fileType, final CharSequence text, Charset charset, final long modificationStamp) {
@@ -271,7 +264,7 @@ public class LightVirtualFile extends VirtualFile {
 
   @Override
   public long getTimeStamp() {
-    return 0; // todo[max] : Add UnsupporedOperationException at better times.
+    return 0; // todo[max] : Add UnsupportedOperationException at better times.
   }
 
   @Override
@@ -280,6 +273,7 @@ public class LightVirtualFile extends VirtualFile {
       return contentsToByteArray().length;
     }
     catch (IOException e) {
+      //noinspection CallToPrintStackTrace
       e.printStackTrace();
       assert false;
       return 0;
@@ -295,6 +289,7 @@ public class LightVirtualFile extends VirtualFile {
     myModStamp = LocalTimeCounter.currentTime();
   }
 
+  @Override
   public void setWritable(boolean b) {
     myIsWritable = b;
   }

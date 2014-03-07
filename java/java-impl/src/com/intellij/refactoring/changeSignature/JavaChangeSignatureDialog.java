@@ -19,7 +19,7 @@ import com.intellij.codeInsight.completion.CompletionResultSet;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CustomShortcutSet;
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.colors.EditorColorsManager;
 import com.intellij.openapi.editor.colors.EditorFontType;
@@ -556,7 +556,7 @@ public class JavaChangeSignatureDialog extends ChangeSignatureDialogBase<Paramet
       }
 
       if (item.parameter.oldParameterIndex < 0) {
-        item.parameter.defaultValue = ApplicationManager.getApplication().runWriteAction(new Computable<String>() {
+        item.parameter.defaultValue = WriteCommandAction.runWriteCommandAction(myProject, new Computable<String>() {
           @Override
           public String compute() {
             return JavaCodeStyleManager.getInstance(myProject).qualifyClassReferences(item.defaultValueCodeFragment).getText();
@@ -609,7 +609,7 @@ public class JavaChangeSignatureDialog extends ChangeSignatureDialogBase<Paramet
         if (!RefactoringUtil.isResolvableType(((PsiTypeCodeFragment)myReturnTypeCodeFragment).getType())) {
           if (Messages.showOkCancelDialog(myProject, RefactoringBundle
             .message("changeSignature.cannot.resolve.return.type", myReturnTypeCodeFragment.getText()),
-                                          RefactoringBundle.message("changeSignature.refactoring.name"), Messages.getWarningIcon()) != 0) {
+                                          RefactoringBundle.message("changeSignature.refactoring.name"), Messages.getWarningIcon()) != Messages.OK) {
             return EXIT_SILENTLY;
           }
         }
@@ -620,7 +620,7 @@ public class JavaChangeSignatureDialog extends ChangeSignatureDialogBase<Paramet
           if (Messages.showOkCancelDialog(myProject, RefactoringBundle
             .message("changeSignature.cannot.resolve.parameter.type", item.typeCodeFragment.getText(), item.parameter.getName()),
                                           RefactoringBundle.message("changeSignature.refactoring.name"), Messages.getWarningIcon()) !=
-              0) {
+              Messages.OK) {
             return EXIT_SILENTLY;
           }
         }

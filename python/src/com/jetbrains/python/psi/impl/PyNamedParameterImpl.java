@@ -31,6 +31,8 @@ import com.jetbrains.python.PyElementTypes;
 import com.jetbrains.python.PyNames;
 import com.jetbrains.python.PyTokenTypes;
 import com.jetbrains.python.PythonDialectsTokenSetProvider;
+import com.jetbrains.python.codeInsight.controlflow.ScopeOwner;
+import com.jetbrains.python.codeInsight.dataflow.scope.ScopeUtil;
 import com.jetbrains.python.psi.*;
 import com.jetbrains.python.psi.resolve.PyResolveContext;
 import com.jetbrains.python.psi.stubs.PyNamedParameterStub;
@@ -236,6 +238,9 @@ public class PyNamedParameterImpl extends PyPresentableElementImpl<PyNamedParame
           if (defaultValue != null) {
             final PyType type = context.getType(defaultValue);
             if (type != null && !(type instanceof PyNoneType)) {
+              if (type instanceof PyTupleType) {
+                return PyTypeParser.getTypeByName(this, "collections.Iterable");
+              }
               return type;
             }
           }
@@ -247,15 +252,18 @@ public class PyNamedParameterImpl extends PyPresentableElementImpl<PyNamedParame
             @Override
             public boolean process(@NotNull PyCallExpression call) {
               final PyResolveContext resolveContext = PyResolveContext.noImplicits().withTypeEvalContext(context);
-              final CallArgumentsMapping mapping = call.getArgumentList().analyzeCall(resolveContext);
-              for (Map.Entry<PyExpression, PyNamedParameter> entry : mapping.getPlainMappedParams().entrySet()) {
-                if (entry.getValue() == PyNamedParameterImpl.this) {
-                  final PyExpression argument = entry.getKey();
-                  if (argument != null) {
-                    final PyType type = context.getType(argument);
-                    if (type != null) {
-                      types.add(type);
-                      return true;
+              final PyArgumentList argumentList = call.getArgumentList();
+              if (argumentList != null) {
+                final CallArgumentsMapping mapping = argumentList.analyzeCall(resolveContext);
+                for (Map.Entry<PyExpression, PyNamedParameter> entry : mapping.getPlainMappedParams().entrySet()) {
+                  if (entry.getValue() == PyNamedParameterImpl.this) {
+                    final PyExpression argument = entry.getKey();
+                    if (argument != null) {
+                      final PyType type = context.getType(argument);
+                      if (type != null) {
+                        types.add(type);
+                        return true;
+                      }
                     }
                   }
                 }
@@ -298,9 +306,9 @@ public class PyNamedParameterImpl extends PyPresentableElementImpl<PyNamedParame
   @NotNull
   @Override
   public SearchScope getUseScope() {
-    PyFunction func = PsiTreeUtil.getParentOfType(this, PyFunction.class);
-    if (func != null) {
-      return new LocalSearchScope(func);
+    final ScopeOwner owner = ScopeUtil.getScopeOwner(this);
+    if (owner instanceof PyFunction) {
+      return new LocalSearchScope(owner);
     }
     return new LocalSearchScope(getContainingFile());
   }

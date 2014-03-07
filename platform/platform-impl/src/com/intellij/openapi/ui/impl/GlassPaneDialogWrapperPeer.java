@@ -51,7 +51,6 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.lang.ref.WeakReference;
-import java.util.List;
 
 /**
  * @author spleaner
@@ -64,6 +63,7 @@ public class GlassPaneDialogWrapperPeer extends DialogWrapperPeer implements Foc
   private Project myProject;
   private MyDialog myDialog;
   private boolean myCanBeParent;
+  private String myTitle;
 
   public GlassPaneDialogWrapperPeer(DialogWrapper wrapper, Project project, boolean canBeParent) throws GlasspanePeerUnavailableException {
     myWrapper = wrapper;
@@ -104,7 +104,7 @@ public class GlassPaneDialogWrapperPeer extends DialogWrapperPeer implements Foc
   }
 
   public GlassPaneDialogWrapperPeer(DialogWrapper wrapper, boolean canBeParent) throws GlasspanePeerUnavailableException {
-    this(wrapper, (Project) null, canBeParent);
+    this(wrapper, (Project)null, canBeParent);
   }
 
   public GlassPaneDialogWrapperPeer(DialogWrapper wrapper, @NotNull Component parent, boolean canBeParent)
@@ -145,8 +145,7 @@ public class GlassPaneDialogWrapperPeer extends DialogWrapperPeer implements Foc
     if (myDialog != null) {
       return myDialog.getFocusTrackback();
     }
-    
-    return null;
+     return null;
   }
 
   public void setUndecorated(final boolean undecorated) {
@@ -238,7 +237,7 @@ public class GlassPaneDialogWrapperPeer extends DialogWrapperPeer implements Foc
   }
 
   public void setTitle(final String title) {
-    throw new UnsupportedOperationException("Not implemented in " + getClass().getCanonicalName());
+    myTitle = title;
   }
 
   // TODO: WTF?! VOID?!!!
@@ -316,10 +315,6 @@ public class GlassPaneDialogWrapperPeer extends DialogWrapperPeer implements Foc
   }
 
   public void pack() {
-  }
-
-  public void setIconImages(final List<Image> image) {
-    throw new UnsupportedOperationException("Not implemented in " + getClass().getCanonicalName());
   }
 
   public void setAppIcons() {

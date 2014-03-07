@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import java.awt.event.MouseListener;
 * @author Konstantin Bulenkov
 */
 public class WideSelectionTreeUI extends BasicTreeUI {
+  public static final String TREE_TABLE_TREE_KEY = "TreeTableTree";
 
   @NonNls public static final String SOURCE_LIST_CLIENT_PROPERTY = "mac.ui.source.list";
   @NonNls public static final String STRIPED_CLIENT_PROPERTY = "mac.ui.striped";
@@ -50,6 +51,7 @@ public class WideSelectionTreeUI extends BasicTreeUI {
   private boolean myOldRepaintAllRowValue;
   private boolean invertLineColor;
   private boolean myForceDontPaintLines = false;
+  private boolean mySkinny = false;
 
   @SuppressWarnings("unchecked")
   public WideSelectionTreeUI() {
@@ -66,6 +68,23 @@ public class WideSelectionTreeUI extends BasicTreeUI {
   public WideSelectionTreeUI(final boolean wideSelection, @NotNull Condition<Integer> wideSelectionCondition) {
     myWideSelection = wideSelection;
     myWideSelectionCondition = wideSelectionCondition;
+  }
+
+  @Override
+  public int getRightChildIndent() {
+    return isSkinny() ? 8 : super.getRightChildIndent();
+  }
+
+  public boolean isSkinny() {
+    return mySkinny;
+  }
+
+  /**
+   * Setting to <code>true</code> make tree to reduce row offset
+   * @param skinny <code>true</code> to reduce row offset
+   */
+  public void setSkinny(boolean skinny) {
+    mySkinny = skinny;
   }
 
   private final MouseListener mySelectionListener = new MouseAdapter() {
@@ -243,6 +262,16 @@ public class WideSelectionTreeUI extends BasicTreeUI {
   }
 
   @Override
+  protected int getRowX(int row, int depth) {
+    if (isSkinny()) {
+      int off = tree.isRootVisible() ? 8 : 0;
+      return 8 * depth + 8 + off;
+    } else {
+      return super.getRowX(row, depth);
+    }
+  }
+
+  @Override
   protected void paintHorizontalPartOfLeg(final Graphics g,
                                           final Rectangle clipBounds,
                                           final Insets insets,
@@ -356,7 +385,7 @@ public class WideSelectionTreeUI extends BasicTreeUI {
       }
       else {
         if (selected && (UIUtil.isUnderAquaBasedLookAndFeel() || UIUtil.isUnderDarcula() || UIUtil.isUnderIntelliJLaF())) {
-          Color bg = UIUtil.getTreeSelectionBackground(tree.hasFocus());
+          Color bg = UIUtil.getTreeSelectionBackground(tree.hasFocus() || Boolean.TRUE.equals(tree.getClientProperty(TREE_TABLE_TREE_KEY)));
 
           if (myWideSelectionCondition.value(row)) {
             rowGraphics.setColor(bg);

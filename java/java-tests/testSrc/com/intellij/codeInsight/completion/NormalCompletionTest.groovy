@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2011 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiMethod
 import com.intellij.psi.codeStyle.CodeStyleSettingsManager
 import com.intellij.psi.codeStyle.CommonCodeStyleSettings
+import com.intellij.testFramework.EditorTestUtil
 
 public class NormalCompletionTest extends LightFixtureCompletionTestCase {
   @Override
@@ -99,6 +100,20 @@ public class NormalCompletionTest extends LightFixtureCompletionTestCase {
     presentation = renderElement(myItems[1])
     assert "Param2" == presentation.itemText
     assert presentation.tailText == " (type parameter of goo)"
+  }
+  
+  public void testDisplayDefaultValueInAnnotationMethods() {
+    configure()
+    LookupElementPresentation presentation = renderElement(myItems[0])
+    assert "myBool" == presentation.itemText
+    assert presentation.tailText == " default false"
+    assert presentation.tailFragments[0].grayed
+    assert !presentation.typeText
+    assert !presentation.itemTextBold
+
+    presentation = renderElement(myItems[1])
+    assert "myString" == presentation.itemText
+    assert presentation.tailText == ' default "unknown"'
   }
 
   public void testMethodItemPresentation() {
@@ -741,6 +756,13 @@ public class ListUtils {
     assertStringItems("bar", "foo");
   }
 
+  public void testAddExplicitValueInAnnotation() throws Throwable {
+    configureByTestName()
+    assertStringItems("bar", "goo")
+    selectItem(myItems[0])
+    checkResult()
+  }
+
   public void testUnnecessaryMethodMerging() throws Throwable {
     configureByFile(getTestName(false) + ".java");
     assertStringItems("fofoo", "fofoo");
@@ -858,6 +880,16 @@ public class ListUtils {
   public void testPropertyReferencePrefix() throws Throwable {
     myFixture.addFileToProject("test.properties", "foo.bar=Foo! Bar!").getVirtualFile();
     doAntiTest()
+  }
+
+  private void doMultiCaretTest() throws Exception {
+    EditorTestUtil.enableMultipleCarets()
+    try {
+      doTest()
+    }
+    finally {
+      EditorTestUtil.disableMultipleCarets()
+    }
   }
 
   private void doTest() throws Exception {
@@ -1129,6 +1161,7 @@ class XInternalError {}
     """)
     assertOneElement myFixture.completeBasic()
   }
+  public void testStaticallyImportedFieldsTwiceSwitch() { doTest() }
 
   public void testStatementKeywords() {
     myFixture.configureByText("a.java", """
@@ -1350,13 +1383,32 @@ class Foo {{
 }}'''
   }
 
+  public void testMulticaretSingleItemInsertion() {
+    doMultiCaretTest()
+  }
+
+  public void testMulticaretMethodWithParen() {
+    doMultiCaretTest()
+  }
+
+  public void testFinishWithEqualsWhenMultipleCaretsAreEnabled() {
+    EditorTestUtil.enableMultipleCarets()
+    try {
+      configureByFile("SpacesAroundEq.java");
+      type('=');
+      checkResultByFile("SpacesAroundEq_after.java");
+    }
+    finally {
+      EditorTestUtil.disableMultipleCarets()
+    }
+  }
+
   public void "test complete lowercase class name"() {
     myFixture.addClass("package foo; public class myClass {}")
     myFixture.configureByText "a.java", """
 class Foo extends my<caret>
 """
-    myFixture.completeBasic()
-    myFixture.type('\n')
+    myFixture.complete(CompletionType.BASIC, 2)
     myFixture.checkResult '''import foo.myClass;
 
 class Foo extends myClass
@@ -1389,5 +1441,12 @@ class Bar {
   }
 
   public void testNoMathTargetMethods() { doAntiTest() }
+
+  public void testNoLowercaseClasses() {
+    myFixture.addClass("package foo; public class abcdefgXxx {}")
+    doAntiTest()
+    myFixture.complete(CompletionType.BASIC, 2)
+    assertStringItems('abcdefgXxx')
+  }
 
 }

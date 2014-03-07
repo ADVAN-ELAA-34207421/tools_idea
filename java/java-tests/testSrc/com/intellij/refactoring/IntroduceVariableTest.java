@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,9 @@ package com.intellij.refactoring;
 import com.intellij.JavaTestUtil;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
-import com.intellij.psi.CommonClassNames;
-import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiExpression;
-import com.intellij.psi.PsiType;
+import com.intellij.psi.*;
+import com.intellij.psi.impl.source.resolve.PsiResolveHelperImpl;
+import com.intellij.psi.impl.source.resolve.graphInference.PsiGraphInferenceHelper;
 import com.intellij.refactoring.introduce.inplace.OccurrencesChooser;
 import com.intellij.refactoring.introduceVariable.InputValidator;
 import com.intellij.refactoring.introduceVariable.IntroduceVariableBase;
@@ -29,7 +28,6 @@ import com.intellij.refactoring.introduceVariable.IntroduceVariableSettings;
 import com.intellij.refactoring.ui.TypeSelectorManagerImpl;
 import com.intellij.testFramework.LightCodeInsightTestCase;
 import com.intellij.util.containers.MultiMap;
-import junit.framework.Assert;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
@@ -78,8 +76,36 @@ public class IntroduceVariableTest extends LightCodeInsightTestCase {
     doTest(new MockIntroduceVariableHandler("j", true, false, false, "int"));
   }
 
+  public void testAnonymousClass3() throws Exception {
+    doTest(new MockIntroduceVariableHandler("j", true, false, false, "Foo"));
+  }
+
+  public void testAnonymousClass4() throws Exception {
+    doTest(new MockIntroduceVariableHandler("j", true, false, false, "int"));
+  }
+
+  public void testAnonymousClass5() throws Exception {
+    doTest(new MockIntroduceVariableHandler("j", true, false, false, "int"));
+  }
+
+  public void testLambda() throws Exception {
+    doTest(new MockIntroduceVariableHandler("j", true, false, false, "int"));
+  }
+
   public void testParenthized() throws Exception {
     doTest(new MockIntroduceVariableHandler("temp", true, false, false, "int"));
+  }
+
+  public void testExpectedType8Inference() throws Exception {
+    final PsiResolveHelperImpl helper = (PsiResolveHelperImpl)JavaPsiFacade.getInstance(getProject()).getResolveHelper();
+    helper.setTestHelper(new PsiGraphInferenceHelper(getPsiManager()));
+    try {
+      doTest(new MockIntroduceVariableHandler("temp", true, false, false,
+                                              "java.util.Map<java.lang.String,java.util.List<java.lang.String>>"));
+    }
+    finally {
+      helper.setTestHelper(null);
+    }
   }
 
   public void testMethodCall() throws Exception {
@@ -208,6 +234,18 @@ public class IntroduceVariableTest extends LightCodeInsightTestCase {
     doTest(new MockIntroduceVariableHandler("str", false, false, false, "java.lang.String"));
   }
 
+  public void testSubLiteralFailure() throws Exception {
+    try {
+      doTest(new MockIntroduceVariableHandler("str", false, false, false, "int"));
+    }
+    catch (Exception e) {
+      assertEquals(e.getMessage(), "Error message:Cannot perform refactoring.\n" +
+                                   "Selected block should represent an expression");
+      return;
+    }
+    fail("Should not be able to perform refactoring");
+  }
+
   public void testSubLiteralFromExpression() throws Exception {
     doTest(new MockIntroduceVariableHandler("str", false, false, false, "java.lang.String"));
   }
@@ -263,6 +301,7 @@ public class IntroduceVariableTest extends LightCodeInsightTestCase {
   public void testNonExpression() throws Exception {
     doTest(new MockIntroduceVariableHandler("sum", true, true, false, "int"));
   }
+
   public void testTypeAnnotations() throws Exception {
     doTest(new MockIntroduceVariableHandler("y1", true, false, false, "@TA C"));
   }
@@ -323,8 +362,8 @@ public class IntroduceVariableTest extends LightCodeInsightTestCase {
                                                    InputValidator validator,
                                                    PsiElement anchor, final OccurrencesChooser.ReplaceChoice replaceChoice) {
         final PsiType type = typeSelectorManager.getDefaultType();
-        Assert.assertTrue(type.getPresentableText(), type.getPresentableText().equals(expectedTypeName));
-        Assert.assertEquals("path", IntroduceVariableBase.getSuggestedName(type, expr).names[0]);
+        assertTrue(type.getPresentableText(), type.getPresentableText().equals(expectedTypeName));
+        assertEquals("path", IntroduceVariableBase.getSuggestedName(type, expr).names[0]);
         return super.getSettings(project, editor, expr, occurrences, typeSelectorManager, declareFinalIfAll, anyAssignmentLHS,
                                  validator, anchor, replaceChoice);
       }
@@ -342,7 +381,7 @@ public class IntroduceVariableTest extends LightCodeInsightTestCase {
                                                    InputValidator validator,
                                                    PsiElement anchor, final OccurrencesChooser.ReplaceChoice replaceChoice) {
         final PsiType type = typeSelectorManager.getDefaultType();
-        Assert.assertTrue(type.getPresentableText(), type.getPresentableText().equals("B"));
+        assertTrue(type.getPresentableText(), type.getPresentableText().equals("B"));
         return super.getSettings(project, editor, expr, occurrences, typeSelectorManager, declareFinalIfAll, anyAssignmentLHS,
                                  validator, anchor, replaceChoice);
       }
@@ -384,7 +423,12 @@ public class IntroduceVariableTest extends LightCodeInsightTestCase {
     doTest(new MockIntroduceVariableHandler("c", false, false, false, CommonClassNames.JAVA_LANG_OBJECT));
   }
 
+  public void testWriteUsages() throws Exception {
+    doTest(new MockIntroduceVariableHandler("c", true, false, false, CommonClassNames.JAVA_LANG_STRING));
+  }
+
   public void testLambdaExpr() throws Exception {
+
     doTest(new MockIntroduceVariableHandler("c", false, false, false, "SAM<java.lang.Integer>"));
   }
 
@@ -393,7 +437,7 @@ public class IntroduceVariableTest extends LightCodeInsightTestCase {
   }
 
   public void testLambdaExprNotAccepted() throws Exception {
-    doTest(new MockIntroduceVariableHandler("c", false, false, false, "SAM<java.lang.String>"));
+    doTest(new MockIntroduceVariableHandler("c", false, false, false, "SAM<X>"));
   }
 
   public void testOneLineLambdaVoidCompatible() throws Exception {

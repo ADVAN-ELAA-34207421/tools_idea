@@ -58,14 +58,14 @@ public class GroovycOSProcessHandler extends BaseOSProcessHandler {
     super.notifyTextAvailable(text, outputType);
 
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Received from groovyc: " + text);
+      LOG.debug("Received from groovyc " + outputType + ": " + text);
     }
 
     if (outputType == ProcessOutputTypes.SYSTEM) {
       return;
     }
 
-    if (outputType == ProcessOutputTypes.STDERR) {
+    if (outputType == ProcessOutputTypes.STDERR && !text.startsWith("Picked up JAVA_TOOL_OPTIONS")) {
       stdErr.append(StringUtil.convertLineSeparators(text));
       return;
     }
@@ -197,14 +197,17 @@ public class GroovycOSProcessHandler extends BaseOSProcessHandler {
 
   public boolean shouldRetry() {
     if (getProcess().exitValue() != 0) {
+      LOG.debug("Non-zero exit code");
       return true;
     }
     for (CompilerMessage message : compilerMessages) {
       if (message.getKind() == BuildMessage.Kind.ERROR) {
+        LOG.debug("Error message: " + message);
         return true;
       }
     }
     if (getStdErr().length() > 0) {
+      LOG.debug("Non-empty stderr: '" + getStdErr() + "'");
       return true;
     }
     return false;

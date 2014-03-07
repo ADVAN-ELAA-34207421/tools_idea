@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ModuleRootModificationUtil;
 import com.intellij.openapi.roots.libraries.JarVersionDetectionUtil;
-import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.vfs.*;
@@ -315,7 +314,7 @@ public class TestNGUtil
   }
 
   public static boolean isAnnotatedWithParameter(PsiAnnotation annotation, String parameter, Set<String> values) {
-    final PsiAnnotationMemberValue attributeValue = annotation.findAttributeValue(parameter);
+    final PsiAnnotationMemberValue attributeValue = annotation.findDeclaredAttributeValue(parameter);
     if (attributeValue != null) {
       Collection<String> matches = extractValuesFromParameter(attributeValue);
       for (String s : matches) {
@@ -375,7 +374,7 @@ public class TestNGUtil
                                                       final PsiAnnotation annotation,
                                                       final PsiDocCommentOwner commentOwner) {
     if (annotation != null) {
-      final PsiAnnotationMemberValue value = annotation.findAttributeValue(parameter);
+      final PsiAnnotationMemberValue value = annotation.findDeclaredAttributeValue(parameter);
       if (value != null) {
         results.addAll(extractValuesFromParameter(value));
       }
@@ -478,7 +477,7 @@ public class TestNGUtil
     if (JavaPsiFacade.getInstance(manager.getProject()).findClass(TestNG.class.getName(), psiElement.getResolveScope()) == null) {
       if (!ApplicationManager.getApplication().isUnitTestMode()) {
         if (Messages.showOkCancelDialog(psiElement.getProject(), "TestNG will be added to module classpath", "Unable to convert.", Messages.getWarningIcon()) !=
-            DialogWrapper.OK_EXIT_CODE) {
+            Messages.OK) {
           return false;
         }
       }

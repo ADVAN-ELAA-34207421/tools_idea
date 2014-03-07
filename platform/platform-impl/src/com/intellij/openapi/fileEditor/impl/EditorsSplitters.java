@@ -15,40 +15,37 @@
  */
 package com.intellij.openapi.fileEditor.impl;
 
-import com.intellij.ide.actions.ShowFilePathAction;
 import com.intellij.ide.ui.UISettings;
-import com.intellij.openapi.actionSystem.IdeActions;
-import com.intellij.openapi.actionSystem.KeyboardShortcut;
-import com.intellij.openapi.actionSystem.Shortcut;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.impl.text.FileDropHandler;
+import com.intellij.openapi.keymap.Keymap;
 import com.intellij.openapi.keymap.KeymapManager;
-import com.intellij.openapi.keymap.KeymapUtil;
-import com.intellij.openapi.keymap.MacKeymapUtil;
+import com.intellij.openapi.keymap.KeymapManagerListener;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Splitter;
-import com.intellij.openapi.util.*;
-import com.intellij.openapi.vfs.VfsUtil;
+import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.InvalidDataException;
+import com.intellij.openapi.util.Ref;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.openapi.wm.*;
+import com.intellij.openapi.wm.FocusWatcher;
+import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.openapi.wm.ex.IdeFocusTraversalPolicy;
 import com.intellij.openapi.wm.ex.WindowManagerEx;
 import com.intellij.openapi.wm.impl.FrameTitleBuilder;
-import com.intellij.openapi.wm.impl.IdeFrameImpl;
 import com.intellij.openapi.wm.impl.IdePanePanel;
-import com.intellij.ui.Gray;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.awt.RelativePoint;
 import com.intellij.ui.docking.DockManager;
 import com.intellij.ui.tabs.JBTabs;
 import com.intellij.util.Alarm;
-import com.intellij.util.PairFunction;
 import com.intellij.util.containers.ArrayListSet;
 import com.intellij.util.containers.ContainerUtil;
-import com.intellij.util.ui.GraphicsUtil;
 import com.intellij.util.ui.UIUtil;
 import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
@@ -72,6 +69,8 @@ public class EditorsSplitters extends IdePanePanel {
   private static final Logger LOG = Logger.getInstance("#com.intellij.openapi.fileEditor.impl.EditorsSplitters");
   private static final String PINNED = "pinned";
 
+  private final static EditorEmptyTextPainter ourPainter = ServiceManager.getService(EditorEmptyTextPainter.class);
+
   private EditorWindow myCurrentWindow;
   final Set<EditorWindow> myWindows = new CopyOnWriteArraySet<EditorWindow>();
 
@@ -80,6 +79,7 @@ public class EditorsSplitters extends IdePanePanel {
   int myInsideChange = 0;
   private final MyFocusWatcher myFocusWatcher;
   private final Alarm myIconUpdaterAlarm = new Alarm();
+  private final KeymapManagerListener myKeymapListener;
 
   public EditorsSplitters(final FileEditorManagerImpl manager, DockManager dockManager, boolean createOwnDockableContainer) {
     super(new BorderLayout());
@@ -94,6 +94,14 @@ public class EditorsSplitters extends IdePanePanel {
       Disposer.register(manager.getProject(), dockable);
       dockManager.register(dockable);
     }
+    myKeymapListener = new KeymapManagerListener() {
+      @Override
+      public void activeKeymapChanged(Keymap keymap) {
+        invalidate();
+        repaint();
+      }
+    };
+    KeymapManager.getInstance().addKeymapManagerListener(myKeymapListener);
   }
   
   public FileEditorManagerImpl getManager() {
@@ -118,6 +126,7 @@ public class EditorsSplitters extends IdePanePanel {
   public void dispose() {
     myIconUpdaterAlarm.cancelAllRequests();
     stopListeningFocus();
+    KeymapManager.getInstance().removeKeymapManagerListener(myKeymapListener);
   }
 
   @Nullable
@@ -133,20 +142,6 @@ public class EditorsSplitters extends IdePanePanel {
     return myCurrentWindow == null || myCurrentWindow.getFiles().length == 0;
   }
 
-  private boolean isProjectViewVisible() {
-    final Window frame = SwingUtilities.getWindowAncestor(this);
-    if (frame instanceof IdeFrameImpl) {
-      final Project project = ((IdeFrameImpl)frame).getProject();
-      if (project != null) {
-        if (!project.isInitialized()) return true;
-        ToolWindow toolWindow = ToolWindowManager.getInstance(project).getToolWindow(ToolWindowId.PROJECT_VIEW);
-        return toolWindow != null && toolWindow.isVisible();
-      }
-    }
-
-    return false;
-  }
-
   @Override
   protected void paintComponent(Graphics g) {
     super.paintComponent(g);
@@ -156,58 +151,9 @@ public class EditorsSplitters extends IdePanePanel {
       g.drawLine(0, 0, getWidth(), 0);
     }
 
-    boolean isDarkBackground = UIUtil.isUnderDarcula();
-
     if (showEmptyText()) {
-      UIUtil.applyRenderingHints(g);
-      GraphicsUtil.setupAntialiasing(g, true, false);
-      g.setColor(new JBColor(isDarkBackground ? Gray._230 : Gray._80, Gray._160));
-      g.setFont(UIUtil.getLabelFont().deriveFont(isDarkBackground ? 24f : 20f));
-
-      final UIUtil.TextPainter painter = new UIUtil.TextPainter().withLineSpacing(1.5f);
-      painter.withShadow(true, new JBColor(Gray._200.withAlpha(100), Gray._0.withAlpha(255)));
-
-      painter.appendLine("No files are open").underlined(new JBColor(Gray._150, Gray._180));
-
-      final Shortcut[] shortcuts = KeymapManager.getInstance().getActiveKeymap().getShortcuts(IdeActions.ACTION_SEARCH_EVERYWHERE);
-      final String everywhere;
-      if (shortcuts.length == 0) {
-        everywhere = "Search Everywhere with <shortcut>Double " + (SystemInfo.isMac ? MacKeymapUtil.SHIFT : "Shift");
-      } else {
-        everywhere = "Search Everywhere <shortcut>" + KeymapUtil.getShortcutsText(shortcuts);
-      }
-      painter.appendLine(everywhere + "</shortcut>").smaller().withBullet();
-
-      if (!isProjectViewVisible()) {
-        painter.appendLine("Open Project View with <shortcut>" + KeymapUtil.getShortcutText(new KeyboardShortcut(
-          KeyStroke.getKeyStroke((SystemInfo.isMac ? "meta" : "alt") + " 1"), null)) + "</shortcut>").smaller().withBullet();
-      }
-
-      painter.appendLine("Open a file by name with " + getActionShortcutText("GotoFile")).smaller().withBullet()
-        .appendLine("Open Recent files with " + getActionShortcutText(IdeActions.ACTION_RECENT_FILES)).smaller().withBullet()
-        .appendLine("Open Navigation Bar with " + getActionShortcutText("ShowNavBar")).smaller().withBullet()
-        .appendLine("Drag'n'Drop file(s) here from " + ShowFilePathAction.getFileManagerName()).smaller().withBullet()
-        .draw(g, new PairFunction<Integer, Integer, Pair<Integer, Integer>>() {
-          @Override
-          public Pair<Integer, Integer> fun(Integer width, Integer height) {
-            final Dimension s = getSize();
-            return Pair.create((s.width - width) / 2, (s.height - height) / 2);
-          }
-        });
+      ourPainter.paintEmptyText(this, g);
     }
-  }
-
-  private static String getActionShortcutText(final String actionId) {
-    final Shortcut[] shortcuts = KeymapManager.getInstance().getActiveKeymap().getShortcuts(actionId);
-    String shortcutText = "";
-    for (final Shortcut shortcut : shortcuts) {
-      if (shortcut instanceof KeyboardShortcut) {
-        shortcutText = KeymapUtil.getShortcutText(shortcut);
-        break;
-      }
-    }
-
-    return "<shortcut>" + shortcutText + "</shortcut>";
   }
 
   public void writeExternal(final Element element) {
@@ -410,7 +356,7 @@ public class EditorsSplitters extends IdePanePanel {
         }
       }
     }
-    return VfsUtil.toVirtualFileArray(files);
+    return VfsUtilCore.toVirtualFileArray(files);
   }
 
   @NotNull public VirtualFile[] getSelectedFiles() {
@@ -421,7 +367,7 @@ public class EditorsSplitters extends IdePanePanel {
         files.add(file);
       }
     }
-    final VirtualFile[] virtualFiles = VfsUtil.toVirtualFileArray(files);
+    final VirtualFile[] virtualFiles = VfsUtilCore.toVirtualFileArray(files);
     final VirtualFile currentFile = getCurrentFile();
     if (currentFile != null) {
       for (int i = 0; i != virtualFiles.length; ++i) {

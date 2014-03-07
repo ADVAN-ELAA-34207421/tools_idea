@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -207,7 +207,7 @@ public class GrReferenceExpressionImpl extends GrReferenceElementImpl<GrExpressi
       final PsiElement element = candidate.getElement();
       if (element instanceof PsiField) {
         final PsiClass containingClass = ((PsiField)element).getContainingClass();
-        if (containingClass != null && PsiTreeUtil.isContextAncestor(containingClass, this, true)) return fieldCandidates;
+        if (containingClass != null && PsiUtil.getContextClass(this) == containingClass) return fieldCandidates;
       }
       else if (!(element instanceof GrBindingVariable)) {
         return fieldCandidates;
@@ -696,9 +696,6 @@ public class GrReferenceExpressionImpl extends GrReferenceElementImpl<GrExpressi
   private static final class OurTypesCalculator implements Function<GrReferenceExpressionImpl, PsiType> {
     @Nullable
     public PsiType fun(GrReferenceExpressionImpl refExpr) {
-      PsiType result = GrReassignedLocalVarsChecker.checkReassignedVar(refExpr, true);
-      if (result != null) return result;
-
       if (GrUnresolvedAccessInspection.isClassReference(refExpr)) {
         GrExpression qualifier = refExpr.getQualifier();
         LOG.assertTrue(qualifier != null);
@@ -706,9 +703,15 @@ public class GrReferenceExpressionImpl extends GrReferenceElementImpl<GrExpressi
       }
 
       final PsiElement resolved = refExpr.resolve();
-      final PsiType inferred = getInferredTypes(refExpr, resolved);
       final PsiType nominal = refExpr.getNominalType();
-      if (inferred == null || PsiType.NULL.equals(inferred)) {
+
+      Boolean reassigned = GrReassignedLocalVarsChecker.isReassignedVar(refExpr);
+      if (reassigned != null && reassigned.booleanValue()) {
+        return GrReassignedLocalVarsChecker.getReassignedVarType(refExpr, true);
+      }
+
+      final PsiType inferred = getInferredTypes(refExpr, resolved);
+      if (inferred == null) {
         if (nominal == null) {
           //inside nested closure we could still try to infer from variable initializer. Not sound, but makes sense
           if (resolved instanceof GrVariable) {

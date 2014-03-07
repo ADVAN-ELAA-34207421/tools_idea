@@ -78,7 +78,7 @@ class PortUnificationServerHandler extends Decoder {
   }
 
   @Override
-  protected void channelRead0(ChannelHandlerContext context, ByteBuf message) throws Exception {
+  protected void messageReceived(ChannelHandlerContext context, ByteBuf message) throws Exception {
     ByteBuf buffer = getBufferIfSufficient(message, 5, context);
     if (buffer == null) {
       message.release();
@@ -107,7 +107,7 @@ class PortUnificationServerHandler extends Decoder {
         NettyUtil.initHttpHandlers(pipeline);
         pipeline.addLast(delegatingHttpRequestHandler);
         if (BuiltInServer.LOG.isDebugEnabled()) {
-          pipeline.addLast(new ChannelOutboundHandlerAdapter() {
+          pipeline.addLast(new ChannelHandlerAdapter() {
             @Override
             public void write(ChannelHandlerContext context, Object message, ChannelPromise promise) throws Exception {
               if (message instanceof HttpResponse) {
@@ -136,7 +136,7 @@ class PortUnificationServerHandler extends Decoder {
   }
 
   private static void ensureThatExceptionHandlerIsLast(ChannelPipeline pipeline) {
-    ChannelInboundHandler exceptionHandler = ChannelExceptionHandler.getInstance();
+    ChannelHandler exceptionHandler = ChannelExceptionHandler.getInstance();
     if (pipeline.last() != exceptionHandler || pipeline.context(exceptionHandler) == null) {
       return;
     }
@@ -162,7 +162,7 @@ class PortUnificationServerHandler extends Decoder {
     private static final int UUID_LENGTH = 16;
 
     @Override
-    protected void channelRead0(ChannelHandlerContext context, ByteBuf message) throws Exception {
+    protected void messageReceived(ChannelHandlerContext context, ByteBuf message) throws Exception {
       ByteBuf buffer = getBufferIfSufficient(message, UUID_LENGTH, context);
       if (buffer == null) {
         message.release();

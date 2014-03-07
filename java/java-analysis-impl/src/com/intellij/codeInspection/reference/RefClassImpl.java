@@ -211,6 +211,7 @@ public class RefClassImpl extends RefJavaElementImpl implements RefClass {
     return isSelfInheritor(psiClass, new ArrayList<PsiClass>());
   }
 
+  @Nullable
   @Override
   public PsiClass getElement() {
     return (PsiClass)super.getElement();
@@ -267,6 +268,10 @@ public class RefClassImpl extends RefJavaElementImpl implements RefClass {
       for (PsiMethod psiMethod : psiMethods) {
         getRefManager().getReference(psiMethod);
       }
+
+      RefJavaUtil.getInstance().addReferences(psiClass, this, psiClass.getExtendsList());
+      RefJavaUtil.getInstance().addReferences(psiClass, this, psiClass.getImplementsList());
+
       getRefManager().fireBuildReferences(this);
     }
   }

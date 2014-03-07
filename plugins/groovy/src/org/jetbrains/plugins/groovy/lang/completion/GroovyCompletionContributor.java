@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import com.intellij.psi.codeStyle.JavaCodeStyleManager;
 import com.intellij.psi.codeStyle.SuggestedNameInfo;
 import com.intellij.psi.codeStyle.VariableKind;
 import com.intellij.psi.filters.FilterPositionUtil;
+import com.intellij.psi.impl.light.LightElement;
 import com.intellij.psi.impl.source.tree.LeafPsiElement;
 import com.intellij.psi.scope.PsiScopeProcessor;
 import com.intellij.psi.util.InheritanceUtil;
@@ -77,6 +78,7 @@ import java.util.Set;
 
 import static com.intellij.patterns.PlatformPatterns.psiElement;
 import static com.intellij.patterns.PsiJavaPatterns.elementType;
+import static com.intellij.patterns.StandardPatterns.alwaysFalse;
 import static com.intellij.util.containers.ContainerUtil.*;
 import static org.jetbrains.plugins.groovy.lang.lexer.GroovyTokenTypes.*;
 import static org.jetbrains.plugins.groovy.lang.lexer.TokenSets.SEPARATORS;
@@ -169,7 +171,8 @@ public class GroovyCompletionContributor extends CompletionContributor {
       ))
     );
 
-  private static final ElementPattern<PsiElement> AFTER_NUMBER_LITERAL = psiElement().afterLeaf(
+  private static final ElementPattern<PsiElement> AFTER_NUMBER_LITERAL = psiElement().afterLeafSkipping(
+    alwaysFalse(),
     psiElement().withElementType(elementType().oneOf(mNUM_DOUBLE, mNUM_INT, mNUM_LONG, mNUM_FLOAT, mNUM_BIG_INT, mNUM_BIG_DECIMAL)));
   public static final ElementPattern<PsiElement> AFTER_AT = psiElement().afterLeaf("@");
   public static final ElementPattern<PsiElement> IN_CATCH_TYPE = psiElement().afterLeaf(psiElement().withText("(").withParent(GrCatchClause.class));
@@ -450,6 +453,10 @@ public class GroovyCompletionContributor extends CompletionContributor {
           object = ((GroovyResolveResult)object).getElement();
         }
 
+        if (isLightElementDeclaredDuringCompletion(object)) {
+          return;
+        }
+
         if (!(lookupElement instanceof LookupElementBuilder) && inheritorsHolder.alreadyProcessed(lookupElement)) {
           return;
         }
@@ -489,6 +496,16 @@ public class GroovyCompletionContributor extends CompletionContributor {
     }
     return EmptyRunnable.INSTANCE;
   }
+
+  private static boolean isLightElementDeclaredDuringCompletion(Object object) {
+    if (!(object instanceof LightElement && object instanceof PsiNamedElement)) return false;
+    final String name = ((PsiNamedElement)object).getName();
+    if (name == null) return false;
+
+    return name.contains(CompletionInitializationContext.DUMMY_IDENTIFIER_TRIMMED.trim()) ||
+           name.contains(DUMMY_IDENTIFIER_DECAPITALIZED.trim());
+  }
+
 
   private static Runnable addStaticMembers(CompletionParameters parameters,
                                        final PrefixMatcher matcher,

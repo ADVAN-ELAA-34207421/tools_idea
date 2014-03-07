@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jetbrains.plugins.groovy.refactoring.introduceParameter;
+package org.jetbrains.plugins.groovy.refactoring.introduceParameter
 
-
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.refactoring.IntroduceParameterRefactoring
 import gnu.trove.TIntArrayList
 import org.jetbrains.plugins.groovy.LightGroovyTestCase
@@ -47,7 +47,7 @@ public abstract class ExtractClosureTest extends LightGroovyTestCase {
         GrIntroduceParameterSettings helper = new ExtractClosureHelperImpl(info, "closure", false,
                                                                            new TIntArrayList(toRemove as int[]), false,
                                                                            IntroduceParameterRefactoring.REPLACE_FIELDS_WITH_GETTERS_NONE,
-                                                                           forceReturn, false)
+                                                                           forceReturn, false, false)
         for (p in notToUseAsParams) {
           helper.parameterInfos[p].passAsParameter = false
         }
@@ -60,8 +60,10 @@ public abstract class ExtractClosureTest extends LightGroovyTestCase {
       }
     }
 
-    handler.invoke myFixture.project, myFixture.editor, myFixture.file, null
-    doPostponedFormatting(myFixture.project)
+    WriteCommandAction.runWriteCommandAction project, {
+      handler.invoke myFixture.project, myFixture.editor, myFixture.file, null
+      doPostponedFormatting(myFixture.project)
+    }
     myFixture.checkResult after
   }
 

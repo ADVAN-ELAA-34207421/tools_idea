@@ -18,6 +18,7 @@ package com.intellij.execution.process;
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.progress.ProgressIndicator;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.Charset;
@@ -30,10 +31,10 @@ import java.nio.charset.Charset;
 public class CapturingProcessHandler extends OSProcessHandler {
   private static final Logger LOG = Logger.getInstance(CapturingProcessHandler.class);
   private final ProcessOutput myOutput = new ProcessOutput();
-
+  
   public CapturingProcessHandler(@NotNull GeneralCommandLine commandLine) throws ExecutionException {
     super(commandLine);
-    addProcessListener(new CapturingProcessAdapter(myOutput));
+    addProcessListener(createProcessAdapter(myOutput));
   }
 
   public CapturingProcessHandler(final Process process) {
@@ -46,9 +47,13 @@ public class CapturingProcessHandler extends OSProcessHandler {
 
   public CapturingProcessHandler(final Process process, final Charset charset, final String commandLine) {
     super(process, commandLine, charset);
-    addProcessListener(new CapturingProcessAdapter(myOutput));
+    addProcessListener(createProcessAdapter(myOutput));
   }
 
+  protected CapturingProcessAdapter createProcessAdapter(ProcessOutput processOutput) {
+    return new CapturingProcessAdapter(processOutput);
+  }
+  
   public ProcessOutput runProcess() {
     startNotify();
     if (waitFor()) {
@@ -66,6 +71,16 @@ public class CapturingProcessHandler extends OSProcessHandler {
    * @param timeoutInMilliseconds non-positive means infinity
    */
   public ProcessOutput runProcess(int timeoutInMilliseconds) {
+    return runProcess(timeoutInMilliseconds, true);
+  }
+
+  /**
+   * Starts process with specified timeout
+   *
+   * @param timeoutInMilliseconds non-positive means infinity
+   * @param destroyOnTimeout whether to kill the process after timeout passes
+   */
+  public ProcessOutput runProcess(int timeoutInMilliseconds, boolean destroyOnTimeout) {
     if (timeoutInMilliseconds <= 0) {
       return runProcess();
     }
@@ -75,7 +90,9 @@ public class CapturingProcessHandler extends OSProcessHandler {
         myOutput.setExitCode(getProcess().exitValue());
       }
       else {
-        destroyProcess();
+        if (destroyOnTimeout) {
+          destroyProcess();
+        }
         myOutput.setTimeout();
       }
       return myOutput;
@@ -88,5 +105,25 @@ public class CapturingProcessHandler extends OSProcessHandler {
       return myCharset;
     }
     return super.getCharset();
+  }
+
+  @NotNull
+  public ProcessOutput runProcessWithProgressIndicator(@NotNull ProgressIndicator indicator) {
+    startNotify();
+    while (!waitFor(100)) {
+      if (indicator.isCanceled()) {
+        if (!isProcessTerminating() && !isProcessTerminated()) {
+          destroyProcess();
+        }
+        break;
+      }
+    }
+    if (waitFor()) {
+      myOutput.setExitCode(getProcess().exitValue());
+    }
+    else {
+      LOG.info("runProcess: exit value unavailable");
+    }
+    return myOutput;
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -168,7 +168,7 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
     myMessageBus = bus;
     mySchemesManager = schemesManagerFactory.createSchemesManager(FILE_SPEC, new BaseSchemeProcessor<AbstractFileType>() {
       @Override
-      public AbstractFileType readScheme(final Document document) throws InvalidDataException {
+      public AbstractFileType readScheme(@NotNull final Document document) throws InvalidDataException {
         if (document == null) {
           throw new InvalidDataException();
         }
@@ -195,12 +195,12 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
       }
 
       @Override
-      public boolean shouldBeSaved(final AbstractFileType fileType) {
+      public boolean shouldBeSaved(@NotNull final AbstractFileType fileType) {
         return shouldBeSavedToFile(fileType);
       }
 
       @Override
-      public Document writeScheme(final AbstractFileType fileType) throws WriteExternalException {
+      public Document writeScheme(@NotNull final AbstractFileType fileType) throws WriteExternalException {
         Element root = new Element(ELEMENT_FILETYPE);
 
         writeHeader(root, fileType);
@@ -221,7 +221,7 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
       }
 
       @Override
-      public void onSchemeAdded(final AbstractFileType scheme) {
+      public void onSchemeAdded(@NotNull final AbstractFileType scheme) {
         fireBeforeFileTypesChanged();
         if (scheme instanceof ReadFileType) {
           loadFileType((ReadFileType)scheme);
@@ -230,7 +230,7 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
       }
 
       @Override
-      public void onSchemeDeleted(final AbstractFileType scheme) {
+      public void onSchemeDeleted(@NotNull final AbstractFileType scheme) {
         fireBeforeFileTypesChanged();
         myPatternsTable.removeAllAssociations(scheme);
         fireFileTypesChanged();
@@ -286,6 +286,9 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
     for (final StandardFileType pair : myStandardFileTypes.values()) {
       registerFileTypeWithoutNotification(pair.fileType, pair.matchers);
     }
+    for (StandardFileType pair : myStandardFileTypes.values()) {
+      registerReDetectedMappings(pair);
+    }
     // Resolve unresolved mappings initialized before certain plugin initialized.
     for (final StandardFileType pair : myStandardFileTypes.values()) {
       bindUnresolvedMappings(pair.fileType);
@@ -322,7 +325,7 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
     }
 
     //noinspection ForLoopReplaceableByForEach
-    for (int i = 0, size = mySpecialFileTypes.size(); i < size; i++) {
+    for (int i = 0; i < mySpecialFileTypes.size(); i++) {
       FileTypeIdentifiableByVirtualFile type = mySpecialFileTypes.get(i);
       if (type.isMyFileType(file)) {
         return type;
@@ -332,10 +335,14 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
     fileType = getFileTypeByFileName(file.getName());
     if (fileType != UnknownFileType.INSTANCE) return fileType;
 
-    fileType = file.getUserData(DETECTED_FROM_CONTENT_FILE_TYPE_KEY);
+    fileType = cachedDetectedFromContent(file);
     if (fileType != null) return fileType;
 
     return UnknownFileType.INSTANCE;
+  }
+
+  private static FileType cachedDetectedFromContent(@NotNull VirtualFile file) {
+    return file.getUserData(DETECTED_FROM_CONTENT_FILE_TYPE_KEY);
   }
 
   @NotNull
@@ -344,12 +351,19 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
     if (file.isDirectory() || !file.isValid() || file.is(VFileProperty.SPECIAL)) {
       return UnknownFileType.INSTANCE;
     }
-    FileType fileType = file.getUserData(DETECTED_FROM_CONTENT_FILE_TYPE_KEY);
+    FileType fileType = cachedDetectedFromContent(file);
     if (fileType == null) {
       fileType = detectFromContent(file);
-      file.putUserData(DETECTED_FROM_CONTENT_FILE_TYPE_KEY, fileType);
+      // for empty file there is still hope its type will change
+      if (file.getLength() != 0) {
+        file.putUserData(DETECTED_FROM_CONTENT_FILE_TYPE_KEY, fileType);
+      }
     }
     return fileType;
+  }
+
+  public static boolean isFileTypeDetectedFromContent(@NotNull VirtualFile file) {
+    return cachedDetectedFromContent(file) != null;
   }
 
   @Override
@@ -891,9 +905,6 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
     for (FileNameMatcher matcher : new THashSet<FileNameMatcher>(myUnresolvedRemovedMappings.keySet())) {
       Trinity<String, String, Boolean> trinity = myUnresolvedRemovedMappings.get(matcher);
       if (Comparing.equal(trinity.getFirst(), fileType.getName())) {
-        if (trinity.getSecond() == null || PlainTextFileType.INSTANCE.getName().equals(trinity.getSecond())) {
-          myRemovedMappings.put(matcher, Pair.create(fileType, trinity.getThird()));
-        }
         removeAssociation(fileType, matcher, false);
         myUnresolvedRemovedMappings.remove(matcher);
       }
@@ -1072,7 +1083,7 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
   }
 
   public static String getFileTypeComponentName() {
-    return PlatformUtils.isCommunity() ? "CommunityFileTypes" : "FileTypeManager";
+    return PlatformUtils.isIdeaCommunity() ? "CommunityFileTypes" : "FileTypeManager";
   }
 
   public FileTypeAssocTable getExtensionMap() {
@@ -1131,6 +1142,18 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
   @Override
   public FileType getKnownFileTypeOrAssociate(@NotNull VirtualFile file, @NotNull Project project) {
     return FileTypeChooser.getKnownFileTypeOrAssociate(file, project);
+  }
+
+  private void registerReDetectedMappings(StandardFileType pair) {
+    FileType fileType = pair.fileType;
+    if (fileType == PlainTextFileType.INSTANCE) return;
+    for (FileNameMatcher matcher : pair.matchers) {
+      String typeName = myUnresolvedMappings.get(matcher);
+      if (typeName != null && !typeName.equals(fileType.getName())) {
+        Trinity<String, String, Boolean> trinity = myUnresolvedRemovedMappings.get(matcher);
+        myRemovedMappings.put(matcher, Pair.create(fileType, trinity != null && trinity.third));
+      }
+    }
   }
 
   Map<FileNameMatcher, Pair<FileType, Boolean>> getRemovedMappings() {

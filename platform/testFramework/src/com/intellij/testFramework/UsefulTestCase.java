@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ import com.intellij.codeInsight.CodeInsightSettings;
 import com.intellij.diagnostic.PerformanceWatcher;
 import com.intellij.mock.MockApplication;
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.PathManager;
-import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.command.impl.StartMarkAction;
 import com.intellij.openapi.editor.impl.DocumentImpl;
 import com.intellij.openapi.fileTypes.StdFileTypes;
@@ -30,6 +30,7 @@ import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.io.FileSystemUtil;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vfs.CharsetToolkit;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileVisitor;
@@ -41,10 +42,7 @@ import com.intellij.psi.impl.source.PostprocessReformattingAspect;
 import com.intellij.refactoring.rename.inplace.InplaceRefactoring;
 import com.intellij.rt.execution.junit.FileComparisonFailure;
 import com.intellij.testFramework.exceptionCases.AbstractExceptionCase;
-import com.intellij.util.Consumer;
-import com.intellij.util.Function;
-import com.intellij.util.Processor;
-import com.intellij.util.ReflectionUtil;
+import com.intellij.util.*;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.UIUtil;
 import gnu.trove.THashSet;
@@ -57,6 +55,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -70,6 +69,7 @@ import java.util.regex.Pattern;
 /**
  * @author peter
  */
+@SuppressWarnings("UseOfSystemOutOrSystemErr")
 public abstract class UsefulTestCase extends TestCase {
   public static final String IDEA_MARKER_CLASS = "com.intellij.openapi.components.impl.stores.IdeaProjectStoreImpl";
   public static final String TEMP_DIR_MARKER = "unitTest_";
@@ -121,8 +121,6 @@ public abstract class UsefulTestCase extends TestCase {
   protected void setUp() throws Exception {
     super.setUp();
 
-    PathManager.ensureConfigFolderExists();
-
     if (shouldContainTempFiles()) {
       String testName = getTestName(true);
       if (StringUtil.isEmptyOrSpaces(testName)) testName = "";
@@ -173,8 +171,7 @@ public abstract class UsefulTestCase extends TestCase {
       aClass = Class.forName("java.io.DeleteOnExitHook");
       files = ReflectionUtil.getField(aClass, null, Set.class, "files");
     }
-    catch (Exception e) {
-    }
+    catch (Exception ignored) { }
     DELETE_ON_EXIT_HOOK_CLASS = aClass;
     DELETE_ON_EXIT_HOOK_DOT_FILES = files;
   }
@@ -214,19 +211,14 @@ public abstract class UsefulTestCase extends TestCase {
       Object map = mapF.get(manager);
       ((Map)map).clear();
     }
-
-    //Constructor<?> ctr = aClass.getDeclaredConstructor();
-    //ctr.setAccessible(true);
-    //Object newManager = ctr.newInstance();
-    //Method setter = aClass.getDeclaredMethod("setCurrentManager", aClass);
-    //setter.setAccessible(true);
-    //setter.invoke(null, newManager);
   }
 
   protected void checkForSettingsDamage() throws Exception {
-    if (isPerformanceTest() || ApplicationManager.getApplication() == null || ApplicationManager.getApplication() instanceof MockApplication) {
+    Application app = ApplicationManager.getApplication();
+    if (isPerformanceTest() || app == null || app instanceof MockApplication) {
       return;
     }
+
     CodeStyleSettings oldCodeStyleSettings = myOldCodeStyleSettings;
     myOldCodeStyleSettings = null;
 
@@ -341,6 +333,7 @@ public abstract class UsefulTestCase extends TestCase {
     super.runBare();
   }
 
+  @Override
   public void runBare() throws Throwable {
     if (!shouldRunTest()) return;
 
@@ -425,7 +418,7 @@ public abstract class UsefulTestCase extends TestCase {
       String expectedString = toString(expected);
       String actualString = toString(actual);
       Assert.assertEquals(erroMsg, expectedString, actualString);
-      Assert.fail("Warning! 'toString' do not reflect the difference.\nExpected: " + expectedString + "\nActual: " + actualString);
+      Assert.fail("Warning! 'toString' does not reflect the difference.\nExpected: " + expectedString + "\nActual: " + actualString);
     }
   }
 
@@ -573,7 +566,8 @@ public abstract class UsefulTestCase extends TestCase {
   public static <T> T assertInstanceOf(Object o, Class<T> aClass) {
     Assert.assertNotNull("Expected instance of: " + aClass.getName() + " actual: " + null, o);
     Assert.assertTrue("Expected instance of: " + aClass.getName() + " actual: " + o.getClass().getName(), aClass.isInstance(o));
-    return (T)o;
+    @SuppressWarnings("unchecked") T t = (T)o;
+    return t;
   }
 
   public static <T> T assertOneElement(Collection<T> collection) {
@@ -591,11 +585,11 @@ public abstract class UsefulTestCase extends TestCase {
   public static <T> void assertOneOf(T value, T... values) {
     boolean found = false;
     for (T v : values) {
-      if (value == v || (value != null && value.equals(v))) {
+      if (value == v || value != null && value.equals(v)) {
         found = true;
       }
     }
-    Assert.assertTrue("" + value + " should be equal to one of " + Arrays.toString(values), found);
+    Assert.assertTrue(value + " should be equal to one of " + Arrays.toString(values), found);
   }
 
   public static void printThreadDump() {
@@ -604,6 +598,11 @@ public abstract class UsefulTestCase extends TestCase {
 
   public static void assertEmpty(final Object[] array) {
     assertOrderedEquals(array);
+  }
+
+  public static void assertNotEmpty(final Collection<?> collection) {
+    if (collection == null) return;
+    assertTrue(!collection.isEmpty());
   }
 
   public static void assertEmpty(final Collection<?> collection) {
@@ -618,9 +617,8 @@ public abstract class UsefulTestCase extends TestCase {
     assertTrue(s, StringUtil.isEmpty(s));
   }
 
-  public static void assertEmpty(final String errorMsg, final Collection<?> collection) {
-    Iterable<Object> i = (Iterable<Object>)collection;
-    assertOrderedEquals(errorMsg, i);
+  public static <T> void assertEmpty(final String errorMsg, final Collection<T> collection) {
+    assertOrderedEquals(errorMsg, collection);
   }
 
   public static void assertSize(int expectedSize, final Object[] array) {
@@ -687,10 +685,14 @@ public abstract class UsefulTestCase extends TestCase {
     String fileText;
     try {
       if (OVERWRITE_TESTDATA) {
-        FileUtil.writeToFile(new File(filePath), actualText);
+        VfsTestUtil.overwriteTestData(filePath, actualText);
         System.out.println("File " + filePath + " created.");
       }
-      fileText = FileUtil.loadFile(new File(filePath));
+      fileText = FileUtil.loadFile(new File(filePath), CharsetToolkit.UTF8);
+    }
+    catch (FileNotFoundException e) {
+      VfsTestUtil.overwriteTestData(filePath, actualText);
+      throw new AssertionFailedError("No output text found. File " + filePath + " created.");
     }
     catch (IOException e) {
       throw new RuntimeException(e);
@@ -724,13 +726,10 @@ public abstract class UsefulTestCase extends TestCase {
     }
   }
 
+  @SuppressWarnings("deprecation")
   protected static void checkSettingsEqual(JDOMExternalizable expected, JDOMExternalizable settings, String message) throws Exception {
-    if (expected == null) {
-      return;
-    }
-    if (settings == null) {
-      return;
-    }
+    if (expected == null || settings == null) return;
+
     Element oldS = new Element("temp");
     expected.writeExternal(oldS);
     Element newS = new Element("temp");
@@ -747,16 +746,11 @@ public abstract class UsefulTestCase extends TestCase {
   }
 
   public static void doPostponedFormatting(final Project project) {
-    CommandProcessor.getInstance().runUndoTransparentAction(new Runnable() {
+    DocumentUtil.writeInRunUndoTransparentAction(new Runnable() {
       @Override
       public void run() {
-        ApplicationManager.getApplication().runWriteAction(new Runnable() {
-          @Override
-          public void run() {
-            PsiDocumentManager.getInstance(project).commitAllDocuments();
-            PostprocessReformattingAspect.getInstance(project).doPostponedFormatting();
-          }
-        });
+        PsiDocumentManager.getInstance(project).commitAllDocuments();
+        PostprocessReformattingAspect.getInstance(project).doPostponedFormatting();
       }
     });
   }
@@ -865,7 +859,7 @@ public abstract class UsefulTestCase extends TestCase {
   }
 
   protected boolean annotatedWith(@NotNull Class annotationClass) {
-    Class aClass = getClass();
+    Class<?> aClass = getClass();
     String methodName = "test" + getTestName(false);
     boolean methodChecked = false;
     while (aClass != null && aClass != Object.class) {
@@ -876,8 +870,7 @@ public abstract class UsefulTestCase extends TestCase {
           if (method.getAnnotation(annotationClass) != null) return true;
           methodChecked = true;
         }
-        catch (NoSuchMethodException e) {
-        }
+        catch (NoSuchMethodException ignored) { }
       }
       aClass = aClass.getSuperclass();
     }
@@ -903,7 +896,8 @@ public abstract class UsefulTestCase extends TestCase {
     file.refresh(false, true);
   }
 
-  public static @NotNull Test filteredSuite(@RegExp String regexp, @NotNull Test test) {
+  @NotNull
+  public static Test filteredSuite(@RegExp String regexp, @NotNull Test test) {
     final Pattern pattern = Pattern.compile(regexp);
     final TestSuite testSuite = new TestSuite();
     new Processor<Test>() {

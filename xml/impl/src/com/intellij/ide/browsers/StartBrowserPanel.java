@@ -3,6 +3,7 @@ package com.intellij.ide.browsers;
 import com.intellij.ide.DataManager;
 import com.intellij.ide.browsers.impl.WebBrowserServiceImpl;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.application.AccessToken;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
@@ -11,13 +12,14 @@ import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.ui.TextBrowseFolderListener;
 import com.intellij.openapi.ui.TextFieldWithBrowseButton;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vfs.StandardFileSystems;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.psi.PsiBinaryFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.ui.AncestorListenerAdapter;
+import com.intellij.util.Consumer;
+import com.intellij.util.Url;
 import com.intellij.util.io.URLUtil;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.xml.XmlBundle;
@@ -45,9 +47,20 @@ public class StartBrowserPanel {
     myRoot.addAncestorListener(new AncestorListenerAdapter() {
       @Override
       public void ancestorAdded(AncestorEvent event) {
-        Project project = CommonDataKeys.PROJECT.getData(DataManager.getInstance().getDataContext(myUrlField));
-        assert project != null;
-        setupUrlField(myUrlField, project);
+        Project project = CommonDataKeys.PROJECT.getData(DataManager.getInstance().getDataContext(myRoot));
+        if (project == null) {
+          DataManager.getInstance().getDataContextFromFocus().doWhenDone(new Consumer<DataContext>() {
+            @Override
+            public void consume(DataContext context) {
+              Project project = CommonDataKeys.PROJECT.getData(context);
+              assert project != null;
+              setupUrlField(myUrlField, project);
+            }
+          });
+        }
+        else {
+          setupUrlField(myUrlField, project);
+        }
       }
     });
   }
@@ -57,17 +70,20 @@ public class StartBrowserPanel {
     return myRoot;
   }
 
-  @NotNull
+  @Nullable
   public String getUrl() {
-    String url = myUrlField.getText();
-    if (!url.isEmpty() && !URLUtil.containsScheme(url)) {
-      return VirtualFileManager.constructUrl(StandardFileSystems.HTTP_PROTOCOL, url);
+    String url = StringUtil.nullize(myUrlField.getText(), true);
+    if (url != null) {
+      url = url.trim();
+      if (!URLUtil.containsScheme(url)) {
+        return VirtualFileManager.constructUrl(URLUtil.HTTP_PROTOCOL, url);
+      }
     }
     return url;
   }
 
   public void setUrl(@Nullable String url) {
-    myUrlField.setText(StringUtil.notNullize(url));
+    myUrlField.setText(url);
   }
 
   public void clearBorder() {
@@ -91,13 +107,14 @@ public class StartBrowserPanel {
   }
 
   private void createUIComponents() {
-    myBrowserSelector = new BrowserSelector(true);
+    myBrowserSelector = new BrowserSelector();
     myBrowserComboBox = myBrowserSelector.getMainComponent();
     if (UIUtil.isUnderAquaLookAndFeel()) {
       myBrowserComboBox.setBorder(new EmptyBorder(3, 0, 0, 0));
     }
   }
 
+  @Nullable
   private static Url virtualFileToUrl(VirtualFile file, Project project) {
     PsiFile psiFile;
     AccessToken token = ReadAction.start();
@@ -108,6 +125,16 @@ public class StartBrowserPanel {
       token.finish();
     }
     return psiFile != null && !(psiFile instanceof PsiBinaryFile) ? WebBrowserServiceImpl.getUrlForContext(psiFile) : null;
+  }
+
+  @NotNull
+  public StartBrowserSettings createSettings() {
+    StartBrowserSettings browserSettings = new StartBrowserSettings();
+    browserSettings.setSelected(isSelected());
+    browserSettings.setBrowser(myBrowserSelector.getSelected());
+    browserSettings.setStartJavaScriptDebugger(myStartJavaScriptDebuggerCheckBox.isSelected());
+    browserSettings.setUrl(getUrl());
+    return browserSettings;
   }
 
   public static void setupUrlField(@NotNull TextFieldWithBrowseButton field, @NotNull final Project project) {
@@ -126,7 +153,8 @@ public class StartBrowserPanel {
       @NotNull
       @Override
       protected String chosenFileToResultingText(@NotNull VirtualFile chosenFile) {
-        return virtualFileToUrl(chosenFile, project).toDecodedForm(false);
+        Url url = virtualFileToUrl(chosenFile, project);
+        return url == null ? chosenFile.getUrl() : url.toDecodedForm();
       }
     });
   }
