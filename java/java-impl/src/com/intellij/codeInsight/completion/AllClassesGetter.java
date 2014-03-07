@@ -23,6 +23,8 @@ import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Condition;
+import com.intellij.openapi.util.registry.Registry;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.source.PostprocessReformattingAspect;
 import com.intellij.psi.impl.source.tree.java.PsiReferenceExpressionImpl;
@@ -156,8 +158,13 @@ public class AllClassesGetter {
 
       @Override
       public boolean process(PsiClass psiClass) {
-        if (parameters.getInvocationCount() < 2 && PsiReferenceExpressionImpl.seemsScrambled(psiClass)) {
-          return true;
+        if (parameters.getInvocationCount() < 2) {
+          if (PsiReferenceExpressionImpl.seemsScrambled(psiClass)) {
+            return true;
+          }
+          if (!StringUtil.isCapitalized(psiClass.getName()) && !Registry.is("ide.completion.show.lower.case.classes")) {
+            return true;
+          }
         }
 
         assert psiClass != null;
@@ -193,14 +200,14 @@ public class AllClassesGetter {
 
 
   private static String getPackagePrefix(final PsiElement context, final int offset) {
-    final String fileText = context.getContainingFile().getText();
+    final CharSequence fileText = context.getContainingFile().getViewProvider().getContents();
     int i = offset - 1;
     while (i >= 0) {
       final char c = fileText.charAt(i);
       if (!Character.isJavaIdentifierPart(c) && c != '.') break;
       i--;
     }
-    String prefix = fileText.substring(i + 1, offset);
+    String prefix = fileText.subSequence(i + 1, offset).toString();
     final int j = prefix.lastIndexOf('.');
     return j > 0 ? prefix.substring(0, j) : "";
   }

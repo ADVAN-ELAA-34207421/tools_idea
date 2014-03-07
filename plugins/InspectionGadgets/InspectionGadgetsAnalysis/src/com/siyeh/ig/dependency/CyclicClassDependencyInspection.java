@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2011 Dave Griffith, Bas Leijdekkers
+ * Copyright 2006-2013 Dave Griffith, Bas Leijdekkers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,19 @@
 package com.siyeh.ig.dependency;
 
 import com.intellij.analysis.AnalysisScope;
-import com.intellij.codeInspection.CommonProblemDescriptor;
-import com.intellij.codeInspection.GlobalInspectionContext;
-import com.intellij.codeInspection.InspectionManager;
+import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.reference.RefClass;
 import com.intellij.codeInspection.reference.RefEntity;
+import com.intellij.codeInspection.util.RefEntityAlphabeticalComparator;
+import com.intellij.psi.PsiAnonymousClass;
 import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiElement;
 import com.siyeh.InspectionGadgetsBundle;
 import com.siyeh.ig.BaseGlobalInspection;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -35,8 +37,7 @@ public class CyclicClassDependencyInspection extends BaseGlobalInspection {
   @NotNull
   @Override
   public String getDisplayName() {
-    return InspectionGadgetsBundle.message(
-      "cyclic.class.dependency.display.name");
+    return InspectionGadgetsBundle.message("cyclic.class.dependency.display.name");
   }
 
   @Override
@@ -51,25 +52,45 @@ public class CyclicClassDependencyInspection extends BaseGlobalInspection {
     }
     final RefClass refClass = (RefClass)refEntity;
     final PsiClass aClass = refClass.getElement();
-    if (aClass.getContainingClass() != null) {
+    if (aClass == null || aClass.getContainingClass() != null) {
       return null;
     }
-    final Set<RefClass> dependencies =
-      DependencyUtils.calculateTransitiveDependenciesForClass(refClass);
-    final Set<RefClass> dependents =
-      DependencyUtils.calculateTransitiveDependentsForClass(refClass);
-    final Set<RefClass> mutualDependents =
-      new HashSet<RefClass>(dependencies);
+    final Set<RefClass> dependencies = DependencyUtils.calculateTransitiveDependenciesForClass(refClass);
+    final Set<RefClass> dependents = DependencyUtils.calculateTransitiveDependentsForClass(refClass);
+    final Set<RefClass> mutualDependents = new HashSet<RefClass>(dependencies);
     mutualDependents.retainAll(dependents);
     final int numMutualDependents = mutualDependents.size();
-    if (numMutualDependents <= 1) {
+    if (numMutualDependents == 0) {
       return null;
     }
-    final String errorString = InspectionGadgetsBundle.message(
-      "cyclic.class.dependency.problem.descriptor",
-      refEntity.getName(), numMutualDependents - 1);
+    final String errorString;
+    if (numMutualDependents == 1) {
+      final RefClass[] classes = mutualDependents.toArray(new RefClass[1]);
+      errorString = InspectionGadgetsBundle.message("cyclic.class.dependency.1.problem.descriptor",
+                                                    refEntity.getName(), classes[0].getExternalName());
+    }
+    else if (numMutualDependents == 2) {
+      final RefClass[] classes = mutualDependents.toArray(new RefClass[2]);
+      Arrays.sort(classes, RefEntityAlphabeticalComparator.getInstance());
+      errorString = InspectionGadgetsBundle.message("cyclic.class.dependency.2.problem.descriptor",
+                                                    refEntity.getName(), classes[0].getExternalName(), classes[1].getExternalName());
+    }
+    else {
+      errorString = InspectionGadgetsBundle.message("cyclic.class.dependency.problem.descriptor",
+                                                    refEntity.getName(), Integer.valueOf(numMutualDependents));
+    }
+    final PsiElement anchor;
+    if (aClass instanceof PsiAnonymousClass) {
+      final PsiAnonymousClass anonymousClass = (PsiAnonymousClass)aClass;
+      anchor = anonymousClass.getBaseClassReference();
+    }
+    else {
+      anchor = aClass.getNameIdentifier();
+      if (anchor == null) return null;
+    }
     return new CommonProblemDescriptor[]{
-      inspectionManager.createProblemDescriptor(errorString)
+      inspectionManager.createProblemDescriptor(anchor, errorString, (LocalQuickFix)null,
+                                                ProblemHighlightType.GENERIC_ERROR_OR_WARNING, false)
     };
   }
 }

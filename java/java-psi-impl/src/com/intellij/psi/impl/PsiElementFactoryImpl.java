@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -165,7 +165,7 @@ public class PsiElementFactoryImpl extends PsiJavaParserFacadeImpl implements Ps
     final PsiClassType.ClassResolveResult resolveResult = type.resolveGenerics();
     final PsiClass refClass = resolveResult.getElement();
     assert refClass != null : type;
-    return new LightClassReference(myManager, type.getInternalCanonicalText(), refClass, resolveResult.getSubstitutor());
+    return new LightClassReference(myManager, type.getCanonicalText(), refClass, resolveResult.getSubstitutor());
   }
 
   @NotNull
@@ -543,7 +543,7 @@ public class PsiElementFactoryImpl extends PsiJavaParserFacadeImpl implements Ps
   @NotNull
   @Override
   public PsiKeyword createKeyword(@NotNull final String text) throws IncorrectOperationException {
-    if (!JavaPsiFacade.getInstance(myManager.getProject()).getNameHelper().isKeyword(text)) {
+    if (!PsiNameHelper.getInstance(myManager.getProject()).isKeyword(text)) {
       throw new IncorrectOperationException("\"" + text + "\" is not a keyword.");
     }
     return new LightKeyword(myManager, text);
@@ -579,7 +579,7 @@ public class PsiElementFactoryImpl extends PsiJavaParserFacadeImpl implements Ps
     if (packageName.isEmpty()) {
       throw new IncorrectOperationException("Cannot create import statement for default package.");
     }
-    if (!JavaPsiFacade.getInstance(myManager.getProject()).getNameHelper().isQualifiedName(packageName)) {
+    if (!PsiNameHelper.getInstance(myManager.getProject()).isQualifiedName(packageName)) {
       throw new IncorrectOperationException("Incorrect package name: \"" + packageName + "\".");
     }
 
@@ -590,28 +590,36 @@ public class PsiElementFactoryImpl extends PsiJavaParserFacadeImpl implements Ps
 
   @NotNull
   @Override
-  public PsiDeclarationStatement createVariableDeclarationStatement(@NotNull final String name,
-                                                                    @NotNull final PsiType type,
-                                                                    final PsiExpression initializer) throws IncorrectOperationException {
-    if (!JavaPsiFacade.getInstance(myManager.getProject()).getNameHelper().isIdentifier(name)) {
+  public PsiDeclarationStatement createVariableDeclarationStatement(@NotNull String name,
+                                                                    @NotNull PsiType type,
+                                                                    @Nullable PsiExpression initializer) throws IncorrectOperationException {
+    if (!isIdentifier(name)) {
       throw new IncorrectOperationException("\"" + name + "\" is not an identifier.");
     }
     if (PsiType.NULL.equals(type)) {
       throw new IncorrectOperationException("Cannot create variable with type \"null\".");
     }
 
-    @NonNls final String text = "X " + name + (initializer != null ? " = x" : "") + ";";
+    String text = "X " + name + (initializer != null ? " = x" : "") + ";";
+    PsiDeclarationStatement statement = (PsiDeclarationStatement)createStatementFromText(text, null);
 
-    final PsiDeclarationStatement statement = (PsiDeclarationStatement)createStatementFromText(text, null);
-    final PsiVariable variable = (PsiVariable)statement.getDeclaredElements()[0];
+    PsiVariable variable = (PsiVariable)statement.getDeclaredElements()[0];
     replace(variable.getTypeElement(), createTypeElement(type), text);
-    PsiUtil.setModifierProperty(variable, PsiModifier.FINAL,
-                                JavaCodeStyleSettingsFacade.getInstance(myManager.getProject()).isGenerateFinalLocals());
+
+    boolean generateFinalLocals = JavaCodeStyleSettingsFacade.getInstance(myManager.getProject()).isGenerateFinalLocals();
+    PsiUtil.setModifierProperty(variable, PsiModifier.FINAL, generateFinalLocals);
+
     if (initializer != null) {
       replace(variable.getInitializer(), initializer, text);
     }
+
     GeneratedMarkerVisitor.markGenerated(statement);
     return statement;
+  }
+
+  private static void replace(@Nullable PsiElement original, @NotNull PsiElement replacement, @NotNull String message) {
+    assert original != null : message;
+    original.replace(replacement);
   }
 
   @NotNull
@@ -718,11 +726,6 @@ public class PsiElementFactoryImpl extends PsiJavaParserFacadeImpl implements Ps
     return statements[0];
   }
 
-  private static void replace(final PsiElement original, final PsiElement replacement, final String message) {
-    assert original != null : message;
-    original.replace(replacement);
-  }
-
   private static final JavaParserUtil.ParserWrapper CATCH_SECTION = new JavaParserUtil.ParserWrapper() {
     @Override
     public void parse(final PsiBuilder builder) {
@@ -748,7 +751,7 @@ public class PsiElementFactoryImpl extends PsiJavaParserFacadeImpl implements Ps
 
     final Project project = myManager.getProject();
     final JavaPsiImplementationHelper helper = JavaPsiImplementationHelper.getInstance(project);
-    helper.setupCatchBlock(exceptionName, context, (PsiCatchSection)element);
+    helper.setupCatchBlock(exceptionName, exceptionType, context, (PsiCatchSection)element);
     final CodeStyleManager styleManager = CodeStyleManager.getInstance(project);
     final PsiCatchSection catchSection = (PsiCatchSection)styleManager.reformat(element);
 
@@ -782,6 +785,6 @@ public class PsiElementFactoryImpl extends PsiJavaParserFacadeImpl implements Ps
   }
 
   private boolean isIdentifier(@NotNull String name) {
-    return JavaPsiFacade.getInstance(myManager.getProject()).getNameHelper().isIdentifier(name);
+    return PsiNameHelper.getInstance(myManager.getProject()).isIdentifier(name);
   }
 }

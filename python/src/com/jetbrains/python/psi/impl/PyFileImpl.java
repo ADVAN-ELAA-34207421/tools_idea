@@ -16,15 +16,19 @@
 package com.jetbrains.python.psi.impl;
 
 import com.intellij.extapi.psi.PsiFileBase;
+import com.intellij.icons.AllIcons;
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.Language;
+import com.intellij.navigation.ItemPresentation;
 import com.intellij.openapi.fileTypes.FileType;
+import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.intellij.psi.scope.PsiScopeProcessor;
 import com.intellij.psi.stubs.StubElement;
-import com.intellij.psi.templateLanguages.TemplateLanguageFileViewProvider;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiModificationTracker;
 import com.intellij.psi.util.QualifiedName;
@@ -33,11 +37,15 @@ import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
 import com.intellij.util.indexing.IndexingDataKeys;
-import com.jetbrains.python.*;
+import com.jetbrains.python.PyElementTypes;
+import com.jetbrains.python.PyNames;
+import com.jetbrains.python.PythonFileType;
+import com.jetbrains.python.PythonLanguage;
 import com.jetbrains.python.codeInsight.controlflow.ControlFlowCache;
 import com.jetbrains.python.documentation.DocStringUtil;
 import com.jetbrains.python.inspections.PythonVisitorFilter;
 import com.jetbrains.python.psi.*;
+import com.jetbrains.python.psi.resolve.QualifiedNameFinder;
 import com.jetbrains.python.psi.resolve.RatedResolveResult;
 import com.jetbrains.python.psi.resolve.ResolveImportUtil;
 import com.jetbrains.python.psi.resolve.VariantsProcessor;
@@ -49,6 +57,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import java.io.File;
 import java.util.*;
 
 public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
@@ -59,8 +68,7 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
   private final Map<FutureFeature, Boolean> myFutureFeatures;
   private List<String> myDunderAll;
   private boolean myDunderAllCalculated;
-  private SoftReference<ExportedNameCache> myExportedNameCache = new SoftReference<ExportedNameCache>(null);
-  private final Object myENCLock = new Object();
+  private volatile SoftReference<ExportedNameCache> myExportedNameCache = new SoftReference<ExportedNameCache>(null);
   private final PsiModificationTracker myModificationTracker;
 
   private class ExportedNameCache {
@@ -305,19 +313,12 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
   }
 
   public boolean isAcceptedFor(@NotNull Class visitorClass) {
-    final FileViewProvider viewProvider = getViewProvider();
-    final Language lang;
-    if (viewProvider instanceof TemplateLanguageFileViewProvider) {
-      lang = viewProvider.getBaseLanguage();
-    }
-    else {
-      lang = getLanguage();
-    }
-    final List<PythonVisitorFilter> filters = PythonVisitorFilter.INSTANCE.allForLanguage(lang);
-    if (filters.isEmpty()) return true;
-    for (PythonVisitorFilter filter : filters) {
-      if (!filter.isSupported(visitorClass, this))
-        return false;
+    for (Language lang : getViewProvider().getLanguages()) {
+      final List<PythonVisitorFilter> filters = PythonVisitorFilter.INSTANCE.allForLanguage(lang);
+      for (PythonVisitorFilter filter : filters) {
+        if (!filter.isSupported(visitorClass, this))
+          return false;
+      }
     }
     return true;
   }
@@ -441,17 +442,15 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
 
   private ExportedNameCache getExportedNameCache() {
     ExportedNameCache cache;
-    synchronized (myENCLock) {
-      cache = myExportedNameCache != null ? myExportedNameCache.get() : null;
-      final long modificationStamp = getModificationStamp();
-      if (myExportedNameCache != null && cache != null && modificationStamp != cache.getModificationStamp()) {
-        myExportedNameCache.clear();
-        cache = null;
-      }
-      if (cache == null) {
-        cache = new ExportedNameCache(modificationStamp);
-        myExportedNameCache = new SoftReference<ExportedNameCache>(cache);
-      }
+    cache = myExportedNameCache != null ? myExportedNameCache.get() : null;
+    final long modificationStamp = getModificationStamp();
+    if (myExportedNameCache != null && cache != null && modificationStamp != cache.getModificationStamp()) {
+      myExportedNameCache.clear();
+      cache = null;
+    }
+    if (cache == null) {
+      cache = new ExportedNameCache(modificationStamp);
+      myExportedNameCache = new SoftReference<ExportedNameCache>(cache);
     }
     return cache;
   }
@@ -614,7 +613,7 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
 
     @Nullable
     private List<String> getStringListFromValue(PyExpression expression) {
-      if (expression instanceof PyReferenceExpression && ((PyReferenceExpression)expression).getQualifier() == null) {
+      if (expression instanceof PyReferenceExpression && !((PyReferenceExpression)expression).isQualified()) {
         return myDunderLike.get(((PyReferenceExpression)expression).getReferencedName());
       }
       return PyUtil.strListValue(expression);
@@ -747,9 +746,7 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
     ControlFlowCache.clear(this);
     myDunderAllCalculated = false;
     myFutureFeatures.clear(); // probably no need to synchronize
-    synchronized (myENCLock) {
-      myExportedNameCache.clear();
-    }
+    myExportedNameCache.clear();
   }
 
   @Override
@@ -781,5 +778,79 @@ public class PyFileImpl extends PsiFileBase implements PyFile, PyExpression {
       return true;
     }
     return elementType == PyElementTypes.IMPORT_STATEMENT || elementType == PyElementTypes.FROM_IMPORT_STATEMENT;
+  }
+
+  @Override
+  public ItemPresentation getPresentation() {
+    return new ItemPresentation() {
+      @Override
+      public String getPresentableText() {
+        return getModuleName(PyFileImpl.this);
+      }
+
+      @Override
+      public String getLocationString() {
+        final String name = getLocationName();
+        return name != null ? "(" + name + ")" : null;
+      }
+
+      @Override
+      public Icon getIcon(final boolean open) {
+        if (PyUtil.isPackage(PyFileImpl.this)) {
+          return AllIcons.Modules.SourceFolder;
+        }
+        return PyFileImpl.this.getIcon(0);
+      }
+
+      @NotNull
+      private String getModuleName(@NotNull PyFile file) {
+        if (PyUtil.isPackage(file)) {
+          final PsiDirectory dir = file.getContainingDirectory();
+          if (dir != null) {
+            return dir.getName();
+          }
+        }
+        return FileUtil.getNameWithoutExtension(file.getName());
+      }
+
+      @Nullable
+      private String getLocationName() {
+        final QualifiedName name = QualifiedNameFinder.findShortestImportableQName(PyFileImpl.this);
+        if (name != null) {
+          final QualifiedName prefix = name.removeTail(1);
+          if (prefix.getComponentCount() > 0) {
+            return prefix.toString();
+          }
+        }
+        final String relativePath = getRelativeContainerPath();
+        if (relativePath != null) {
+          return relativePath;
+        }
+        final PsiDirectory psiDirectory = getParent();
+        if (psiDirectory != null) {
+          return psiDirectory.getVirtualFile().getPresentableUrl();
+        }
+        return null;
+      }
+
+      @Nullable
+      private String getRelativeContainerPath() {
+        final PsiDirectory psiDirectory = getParent();
+        if (psiDirectory != null) {
+          final VirtualFile virtualFile = getVirtualFile();
+          if (virtualFile != null) {
+            final VirtualFile root = ProjectFileIndex.SERVICE.getInstance(getProject()).getContentRootForFile(virtualFile);
+            if (root != null) {
+              final VirtualFile parent = virtualFile.getParent();
+              final VirtualFile rootParent = root.getParent();
+              if (rootParent != null && parent != null) {
+                return VfsUtilCore.getRelativePath(parent, rootParent, File.separatorChar);
+              }
+            }
+          }
+        }
+        return null;
+      }
+    };
   }
 }

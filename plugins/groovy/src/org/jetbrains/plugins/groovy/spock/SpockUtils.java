@@ -34,7 +34,6 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrBinary
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrExpression;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrReferenceExpression;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.members.GrMethod;
-import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.arithmetic.GrShiftExpressionImpl;
 import org.jetbrains.plugins.groovy.util.LightCacheKey;
 
 import java.util.*;
@@ -57,9 +56,10 @@ public class SpockUtils {
 
     PsiFile containingFile = method.getContainingFile();
     if (containingFile != containingFile.getOriginalFile()) {
-      PsiElement originalPlace = containingFile.getOriginalFile().findElementAt(method.getTextOffset());
+      int methodOffset = method.getTextOffset();
+      PsiElement originalPlace = containingFile.getOriginalFile().findElementAt(methodOffset);
       originalMethod = PsiTreeUtil.getParentOfType(originalPlace, GrMethod.class);
-      assert originalMethod != null;
+      assert originalMethod != null : containingFile.getOriginalFile().getText().substring(Math.max(0, methodOffset - 50), Math.min(methodOffset + 50, containingFile.getOriginalFile().getText().length()));
     }
     else {
       originalMethod = method;
@@ -115,36 +115,33 @@ public class SpockUtils {
     PsiElement e = elementUnderLabel;
 
     while (e != null) {
-      if (e instanceof GrShiftExpressionImpl) {
-        GrShiftExpressionImpl shift = (GrShiftExpressionImpl)e;
+      if (e instanceof GrBinaryExpression && ((GrBinaryExpression)e).getOperationTokenType() == GroovyElementTypes.COMPOSITE_LSHIFT_SIGN) {
+        GrBinaryExpression shift = (GrBinaryExpression)e;
+        GrExpression leftOperand = shift.getLeftOperand();
+        GrExpression rightOperand = shift.getRightOperand();
 
-        if (shift.getOperationTokenType() == GroovyElementTypes.COMPOSITE_LSHIFT_SIGN) {
-          GrExpression leftOperand = shift.getLeftOperand();
-          GrExpression rightOperand = shift.getRightOperand();
-
-          if (leftOperand instanceof GrReferenceExpression) {
-            String name = getNameByReference(leftOperand);
-            if (name != null) {
-              SpockVariableDescriptor descriptor = new SpockVariableDescriptor(leftOperand, name);
-              descriptor.addExpressionOfCollection(rightOperand);
-              res.put(name, descriptor);
-            }
+        if (leftOperand instanceof GrReferenceExpression) {
+          String name = getNameByReference(leftOperand);
+          if (name != null) {
+            SpockVariableDescriptor descriptor = new SpockVariableDescriptor(leftOperand, name);
+            descriptor.addExpressionOfCollection(rightOperand);
+            res.put(name, descriptor);
           }
-          else if (leftOperand instanceof GrListOrMap) {
-            GrExpression[] variableDefinitions = ((GrListOrMap)leftOperand).getInitializers();
+        }
+        else if (leftOperand instanceof GrListOrMap) {
+          GrExpression[] variableDefinitions = ((GrListOrMap)leftOperand).getInitializers();
 
-            SpockVariableDescriptor[] variables = createVariables(res, Arrays.asList(variableDefinitions));
+          SpockVariableDescriptor[] variables = createVariables(res, Arrays.asList(variableDefinitions));
 
-            if (rightOperand instanceof GrListOrMap) {
-              for (GrExpression expression : ((GrListOrMap)rightOperand).getInitializers()) {
-                if (expression instanceof GrListOrMap) {
-                  add(variables, Arrays.asList(((GrListOrMap)expression).getInitializers()));
-                }
-                else {
-                  for (SpockVariableDescriptor variable : variables) {
-                    if (variable != null) {
-                      variable.addExpressionOfCollection(expression);
-                    }
+          if (rightOperand instanceof GrListOrMap) {
+            for (GrExpression expression : ((GrListOrMap)rightOperand).getInitializers()) {
+              if (expression instanceof GrListOrMap) {
+                add(variables, Arrays.asList(((GrListOrMap)expression).getInitializers()));
+              }
+              else {
+                for (SpockVariableDescriptor variable : variables) {
+                  if (variable != null) {
+                    variable.addExpressionOfCollection(expression);
                   }
                 }
               }
@@ -169,14 +166,14 @@ public class SpockUtils {
 
         List<GrExpression> row = new ArrayList<GrExpression>();
 
-        PsiElement rowElement = getNext(e, elementUnderLabel,elementAfterLabel);
+        PsiElement rowElement = getNext(e, elementUnderLabel, elementAfterLabel);
         while (isOrStatement(rowElement)) {
           row.clear();
           splitOr(row, (GrExpression)rowElement);
 
           add(variables, row);
 
-          rowElement = getNext(rowElement, elementUnderLabel,elementAfterLabel);
+          rowElement = getNext(rowElement, elementUnderLabel, elementAfterLabel);
         }
 
         e = rowElement;

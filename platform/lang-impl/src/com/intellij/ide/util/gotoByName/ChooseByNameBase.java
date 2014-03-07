@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,6 +82,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import javax.swing.border.Border;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
@@ -630,7 +631,7 @@ public abstract class ChooseByNameBase {
                             ListSelectionModel.SINGLE_SELECTION);
     new ClickListener() {
       @Override
-      public boolean onClick(MouseEvent e, int clickCount) {
+      public boolean onClick(@NotNull MouseEvent e, int clickCount) {
         if (!myTextField.hasFocus()) {
           myTextField.requestFocus();
         }
@@ -1247,6 +1248,18 @@ public abstract class ChooseByNameBase {
       });
     }
 
+    @Override
+    public Dimension getPreferredSize() {
+      Dimension size = super.getPreferredSize();
+      Border border = super.getBorder();
+      if (border != null && UIUtil.isUnderAquaLookAndFeel()) {
+        Insets insets = border.getBorderInsets(this);
+        size.height += insets.top + insets.bottom;
+        size.width += insets.left + insets.right;
+      }
+      return size;
+    }
+
     @Nullable
     private KeyStroke getShortcut(String actionCodeCompletion) {
       final Shortcut[] shortcuts = KeymapManager.getInstance().getActiveKeymap().getShortcuts(actionCodeCompletion);
@@ -1685,7 +1698,7 @@ public abstract class ChooseByNameBase {
                   protected boolean isOverflow(@NotNull Set<Object> elementsArray) {
                     if (elementsArray.size() > UsageLimitUtil.USAGES_LIMIT - myMaximumListSizeLimit && !userAskedToAbort.getAndSet(true)) {
                       final UsageLimitUtil.Result ret = UsageLimitUtil.showTooManyUsagesWarning(myProject, UsageViewBundle
-                        .message("find.excessive.usage.count.prompt", elementsArray.size() + myMaximumListSizeLimit));
+                        .message("find.excessive.usage.count.prompt", elementsArray.size() + myMaximumListSizeLimit, StringUtil.pluralize(presentation.getUsagesWord())), presentation);
                       if (ret == UsageLimitUtil.Result.ABORT) {
                         overFlow[0] = true;
                         return true;

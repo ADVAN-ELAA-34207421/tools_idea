@@ -141,7 +141,7 @@ public abstract class PlatformTestCase extends UsefulTestCase implements DataPro
     }
   }
 
-  private static String[] PREFIX_CANDIDATES = new String[] { "Python", "PyCharmCore", "UltimateLangXml", "Idea" };
+  private static String[] PREFIX_CANDIDATES = new String[] { "AppCode", "CppIde", "Python", "PyCharmCore", "UltimateLangXml", "Idea" };
 
   public static void autodetectPlatformPrefix() {
     if (ourPlatformPrefixInitialized) {
@@ -829,6 +829,7 @@ public abstract class PlatformTestCase extends UsefulTestCase implements DataPro
 
   private static void setPlatformPrefix(String prefix) {
     System.setProperty(PlatformUtils.PLATFORM_PREFIX_KEY, prefix);
+    ourPlatformPrefixInitialized = true;
   }
 
   @Retention(RetentionPolicy.RUNTIME)

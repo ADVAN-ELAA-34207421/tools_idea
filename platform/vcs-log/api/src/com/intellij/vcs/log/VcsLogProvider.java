@@ -74,11 +74,14 @@ public interface VcsLogProvider {
   void subscribeToRootRefreshEvents(@NotNull Collection<VirtualFile> roots, @NotNull VcsLogRefresher refresher);
 
   /**
-   * Return commits with full details, which correspond to the given filters.
+   * <p>Return commits with full details, which correspond to the given filters.</p>
+   *
+   * @param maxCount maximum number of commits to request from the VCS, or -1 for unlimited.
    */
   @NotNull
   List<? extends VcsFullCommitDetails> getFilteredDetails(@NotNull VirtualFile root,
-                                                          @NotNull Collection<VcsLogFilter> filters) throws VcsException;
+                                                          @NotNull VcsLogFilterCollection filterCollection,
+                                                          int maxCount) throws VcsException;
 
   /**
    * Returns the name of current user as specified for the given root,
@@ -86,5 +89,11 @@ public interface VcsLogProvider {
    */
   @Nullable
   VcsUser getCurrentUser(@NotNull VirtualFile root) throws VcsException;
+
+  /**
+   * Returns the list of names of branches/references which contain the given commit.
+   */
+  @NotNull
+  Collection<String> getContainingBranches(@NotNull VirtualFile root, @NotNull Hash commitHash) throws VcsException;
 
 }

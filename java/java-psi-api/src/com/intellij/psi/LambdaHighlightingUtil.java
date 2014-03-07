@@ -18,6 +18,7 @@ package com.intellij.psi;
 import com.intellij.openapi.util.Computable;
 import com.intellij.psi.util.MethodSignature;
 import com.intellij.psi.util.PsiUtil;
+import com.intellij.util.IncorrectOperationException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -39,8 +40,6 @@ public class LambdaHighlightingUtil {
     if (signatures == null) return interfaceNonFunctionalMessage;
     if (signatures.isEmpty()) return "No target method found";
     if (signatures.size() == 1) {
-      final MethodSignature functionalMethod = signatures.get(0);
-      if (functionalMethod.getTypeParameters().length > 0) return "Target method is generic";
       return null;
     }
     return "Multiple non-overriding abstract methods found";
@@ -51,10 +50,14 @@ public class LambdaHighlightingUtil {
       final PsiElement body = lambdaExpression.getBody();
       if (body instanceof PsiCodeBlock) {
         if (!LambdaUtil.getReturnExpressions(lambdaExpression).isEmpty()) return "Unexpected return value";
-      } else if (body instanceof PsiReferenceExpression || body instanceof PsiLiteralExpression) {
+      } else if (body instanceof PsiExpression) {
         final PsiType type = ((PsiExpression)body).getType();
-        if (type != PsiType.VOID) {
-          return "Incompatible return type " + (type == PsiType.NULL || type == null ? "<null>" : type.getPresentableText()) +" in lambda expression";
+        try {
+          if (!PsiUtil.isStatement(JavaPsiFacade.getElementFactory(body.getProject()).createStatementFromText(body.getText(), body))) {
+            return "Incompatible return type " + (type == PsiType.NULL || type == null ? "<null>" : type.getPresentableText()) + " in lambda expression";
+          }
+        }
+        catch (IncorrectOperationException ignore) {
         }
       }
     } else if (functionalInterfaceReturnType != null) {
@@ -98,9 +101,15 @@ public class LambdaHighlightingUtil {
         if (checkInterfaceFunctional(type) == null) return null;
       }
     }
-    final PsiClassType.ClassResolveResult resolveResult = PsiUtil.resolveGenericsClassInType(GenericsUtil.eliminateWildcards(functionalInterfaceType));
+    final PsiClassType.ClassResolveResult resolveResult = PsiUtil.resolveGenericsClassInType(functionalInterfaceType);
     final PsiClass aClass = resolveResult.getElement();
     if (aClass != null) {
+      if (aClass instanceof PsiTypeParameter) return null; //should be logged as cyclic inference
+      final List<MethodSignature> signatures = LambdaUtil.findFunctionCandidates(aClass);
+      if (signatures != null && signatures.size() == 1) {
+        final MethodSignature functionalMethod = signatures.get(0);
+        if (functionalMethod.getTypeParameters().length > 0) return "Target method is generic";
+      }
       if (checkReturnTypeApplicable(resolveResult, aClass)) {
         return "No instance of type " + functionalInterfaceType.getPresentableText() + " exists so that lambda expression can be type-checked";
       }

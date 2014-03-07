@@ -112,6 +112,12 @@
   <action id="FindWordAtCaret">
     <keyboard-shortcut first-keystroke="control F3"/>
   </action>
+  <action id="SelectNextOccurrence">
+    <keyboard-shortcut first-keystroke="alt J"/>
+  </action>
+  <action id="UnselectLastOccurrence">
+    <keyboard-shortcut first-keystroke="alt shift J"/>
+  </action>
   <action id="GotoDeclaration">
     <keyboard-shortcut first-keystroke="control B"/>
     <mouse-shortcut keystroke="ctrl button1"/>
@@ -924,7 +930,7 @@
     <keyboard-shortcut first-keystroke="alt shift A" />
   </action>
 
-  <action id="DatabaseView.PropertiesAction"><keyboard-shortcut first-keystroke="F4"/><keyboard-shortcut first-keystroke="ENTER"/></action>
+  <action id="DatabaseView.PropertiesAction" />
 
   <action id="Jdbc.OpenConsole"><keyboard-shortcut first-keystroke="control shift F10"/></action>
   <action id="Jpa.OpenConsole"><keyboard-shortcut first-keystroke="control shift F10"/></action>

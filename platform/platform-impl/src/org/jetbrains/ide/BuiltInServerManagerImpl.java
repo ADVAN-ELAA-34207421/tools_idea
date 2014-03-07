@@ -39,6 +39,12 @@ public class BuiltInServerManagerImpl extends BuiltInServerManager {
   private BuiltInServer server;
   private boolean enabledInUnitTestMode = true;
 
+  //static {
+  //  // IDEA-120811
+  //  System.setProperty("io.netty.machineId", Integer.toHexString(new Random().nextInt()));
+  //  System.setProperty("io.netty.processId", "1");
+  //}
+
   @Override
   public int getPort() {
     return detectedPortNumber == -1 ? getDefaultPort() : detectedPortNumber;

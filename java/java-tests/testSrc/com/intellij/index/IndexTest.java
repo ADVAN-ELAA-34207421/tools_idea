@@ -1,20 +1,36 @@
+/*
+ * Copyright 2000-2014 JetBrains s.r.o.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.intellij.index;
 
-import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.fileTypes.UnknownFileType;
 import com.intellij.openapi.util.Factory;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.JavaPsiFacade;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiManager;
+import com.intellij.psi.*;
 import com.intellij.psi.impl.PsiManagerEx;
 import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.psi.search.PsiSearchHelper;
 import com.intellij.testFramework.IdeaTestCase;
 import com.intellij.testFramework.PlatformTestUtil;
 import com.intellij.testFramework.PsiTestUtil;
+import com.intellij.testFramework.SkipSlowTestLocally;
 import com.intellij.util.indexing.MapIndexStorage;
 import com.intellij.util.indexing.StorageException;
 import com.intellij.util.io.*;
@@ -29,8 +45,9 @@ import java.util.*;
  * @author Eugene Zhuravlev
  *         Date: Dec 12, 2007
  */
+@SkipSlowTestLocally
 public class IndexTest extends IdeaTestCase {
-  
+
   public void testUpdate() throws StorageException, IOException {
     final File storageFile = FileUtil.createTempFile("indextest", "storage");
     final File metaIndexFile = FileUtil.createTempFile("indextest_inputs", "storage");
@@ -122,7 +139,7 @@ public class IndexTest extends IdeaTestCase {
     FileTypeManager.getInstance().registerFileType(TestFileType.INSTANCE, "fff");
     final FFFLangParserDefinition parserDefinition = new FFFLangParserDefinition();
     LanguageParserDefinitions.INSTANCE.addExplicitExtension(FFFLanguage.INSTANCE, parserDefinition);
-    
+
     final TestStubElementType stubType = new TestStubElementType();
     SerializationManager.getInstance().registerSerializer(TestStubElement.class, stubType);
 
@@ -130,7 +147,7 @@ public class IndexTest extends IdeaTestCase {
     fffFile.createNewFile();
 
     final VirtualFile vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(fffFile);
-    
+
     assertNotNull(vFile);
     assertEquals(TestFileType.INSTANCE, vFile.getFileType());
 
@@ -166,9 +183,9 @@ public class IndexTest extends IdeaTestCase {
       final List<SerializedStubTree> trees = data.toValueList();
 
       final SerializedStubTree tree = assertOneElement(trees);
-      
+
       assertTrue(Comparing.equal(bytes, tree.getBytes()));
-      
+
       final StubElement deserialized = tree.getStub();
     }
     finally {
@@ -177,40 +194,117 @@ public class IndexTest extends IdeaTestCase {
 
   }
   */
-  
+
   private static <T> void assertDataEquals(List<T> actual, T... expected) {
     assertTrue(new HashSet<T>(Arrays.asList(expected)).equals(new HashSet<T>(actual)));
   }
 
-  public void _testCollectedPsiWithChangedDocument() throws IOException {
+  public void testCollectedPsiWithChangedDocument() throws IOException {
     VirtualFile dir = getVirtualFile(createTempDirectory());
     PsiTestUtil.addSourceContentToRoots(myModule, dir);
-    
+
     final VirtualFile vFile = createChildData(dir, "Foo.java");
     VfsUtil.saveText(vFile, "class Foo {}");
 
     final GlobalSearchScope scope = GlobalSearchScope.allScope(getProject());
     final JavaPsiFacade facade = JavaPsiFacade.getInstance(getProject());
     assertNotNull(facade.findClass("Foo", scope));
-    ApplicationManager.getApplication().runWriteAction(new Runnable() {
+    WriteCommandAction.runWriteCommandAction(null, new Runnable() {
       @Override
       public void run() {
         PsiFile psiFile = PsiManager.getInstance(getProject()).findFile(vFile);
         assertNotNull(psiFile);
-        
+
         Document document = FileDocumentManager.getInstance().getDocument(vFile);
         document.deleteString(0, document.getTextLength());
         assertNotNull(facade.findClass("Foo", scope));
-        
+
         psiFile = null;
         PlatformTestUtil.tryGcSoftlyReachableObjects();
         assertNull(((PsiManagerEx)PsiManager.getInstance(getProject())).getFileManager().getCachedPsiFile(vFile));
 
-        // should be assertNull(facade.findClass("Foo", scope));
-        // or the file should not be allowed to be gc'ed
-        facade.findClass("Foo", scope).getText();
+        PsiClass foo = facade.findClass("Foo", scope);
+        assertNotNull(foo);
+        assertTrue(foo.isValid());
+        assertEquals("class Foo {}", foo.getText());
+        assertTrue(foo.isValid());
+
+        PsiDocumentManager.getInstance(myProject).commitAllDocuments();
+        assertNull(facade.findClass("Foo", scope));
       }
     });
   }
-  
+
+  public void testSavedUncommittedDocument() throws IOException {
+    VirtualFile dir = getVirtualFile(createTempDirectory());
+    PsiTestUtil.addSourceContentToRoots(myModule, dir);
+
+    final VirtualFile vFile = createChildData(dir, "Foo.java");
+    VfsUtil.saveText(vFile, "");
+
+    final GlobalSearchScope scope = GlobalSearchScope.allScope(getProject());
+    final JavaPsiFacade facade = JavaPsiFacade.getInstance(getProject());
+    assertNull(facade.findClass("Foo", scope));
+    WriteCommandAction.runWriteCommandAction(null, new Runnable() {
+      @Override
+      public void run() {
+        PsiFile psiFile = PsiManager.getInstance(getProject()).findFile(vFile);
+        assertNotNull(psiFile);
+
+        long count = PsiManager.getInstance(myProject).getModificationTracker().getModificationCount();
+
+        Document document = FileDocumentManager.getInstance().getDocument(vFile);
+        document.insertString(0, "class Foo {}");
+        FileDocumentManager.getInstance().saveDocument(document);
+
+        assertTrue(count == PsiManager.getInstance(myProject).getModificationTracker().getModificationCount());
+        assertNull(facade.findClass("Foo", scope));
+
+        PsiDocumentManager.getInstance(myProject).commitAllDocuments();
+        assertNotNull(facade.findClass("Foo", scope));
+        assertNotNull(facade.findClass("Foo", scope).getText());
+        // if Foo exists now, mod count should be different
+        assertTrue(count != PsiManager.getInstance(myProject).getModificationTracker().getModificationCount());
+      }
+    });
+  }
+
+  public void testSkipUnknownFileTypes() throws IOException {
+    VirtualFile dir = getVirtualFile(createTempDirectory());
+    PsiTestUtil.addSourceContentToRoots(myModule, dir);
+
+    final VirtualFile vFile = createChildData(dir, "Foo.test");
+    VfsUtil.saveText(vFile, "Foo");
+    assertEquals(UnknownFileType.INSTANCE, vFile.getFileType());
+    assertEmpty(PsiSearchHelper.SERVICE.getInstance(myProject).findFilesWithPlainTextWords("Foo"));
+
+    final Document document = FileDocumentManager.getInstance().getDocument(vFile);
+    //todo should file type be changed silently without events?
+    //assertEquals(UnknownFileType.INSTANCE, vFile.getFileType());
+
+    final PsiFile file = getPsiFile(document);
+    assertInstanceOf(file, PsiPlainTextFile.class);
+    assertEquals("Foo", file.getText());
+
+    assertEmpty(PsiSearchHelper.SERVICE.getInstance(myProject).findFilesWithPlainTextWords("Foo"));
+
+    WriteCommandAction.runWriteCommandAction(myProject, new Runnable() {
+      @Override
+      public void run() {
+        document.insertString(0, " ");
+        assertEquals("Foo", file.getText());
+        assertEmpty(PsiSearchHelper.SERVICE.getInstance(myProject).findFilesWithPlainTextWords("Foo"));
+
+        FileDocumentManager.getInstance().saveDocument(document);
+        assertEquals("Foo", file.getText());
+        assertEmpty(PsiSearchHelper.SERVICE.getInstance(myProject).findFilesWithPlainTextWords("Foo"));
+
+        PsiDocumentManager.getInstance(myProject).commitAllDocuments();
+        assertEquals(" Foo", file.getText());
+        assertEmpty(PsiSearchHelper.SERVICE.getInstance(myProject).findFilesWithPlainTextWords("Foo"));
+
+      }
+    });
+  }
+
 }

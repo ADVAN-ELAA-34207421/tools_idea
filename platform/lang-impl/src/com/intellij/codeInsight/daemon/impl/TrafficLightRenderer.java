@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ public class TrafficLightRenderer implements ErrorStripeRenderer, Disposable {
 
     if (project != null) {
       final MarkupModelEx model = (MarkupModelEx)DocumentMarkupModel.forDocument(document, project, true);
-      model.addMarkupModelListener(this, new MarkupModelListener() {
+      model.addMarkupModelListener(this, new MarkupModelListener.Adapter() {
         @Override
         public void afterAdded(@NotNull RangeHighlighterEx highlighter) {
           incErrorCount(highlighter, 1);
@@ -94,10 +94,6 @@ public class TrafficLightRenderer implements ErrorStripeRenderer, Disposable {
         @Override
         public void beforeRemoved(@NotNull RangeHighlighterEx highlighter) {
           incErrorCount(highlighter, -1);
-        }
-
-        @Override
-        public void attributesChanged(@NotNull RangeHighlighterEx highlighter) {
         }
       });
       UIUtil.invokeLaterIfNeeded(new Runnable() {

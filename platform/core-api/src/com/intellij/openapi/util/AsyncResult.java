@@ -25,6 +25,8 @@ import org.jetbrains.annotations.Nullable;
 public class AsyncResult<T> extends ActionCallback {
   private static final Logger LOG = Logger.getInstance(AsyncResult.class);
 
+  private static final AsyncResult REJECTED = new Rejected();
+
   protected T myResult;
 
   @NotNull
@@ -63,9 +65,9 @@ public class AsyncResult<T> extends ActionCallback {
   @NotNull
   @Deprecated
   /**
-   * @deprecated Please use {@link #doWhenDone(com.intellij.util.Consumer)}
+   * @deprecated Use {@link #doWhenDone(com.intellij.util.Consumer)} (to remove in IDEA 16)
    */
-  public AsyncResult<T> doWhenDone(@NotNull final Handler<T> handler) {
+  public AsyncResult<T> doWhenDone(@SuppressWarnings("deprecation") @NotNull final Handler<T> handler) {
     doWhenDone(new Runnable() {
       @Override
       public void run() {
@@ -89,9 +91,9 @@ public class AsyncResult<T> extends ActionCallback {
   @NotNull
   @Deprecated
   /**
-   * @deprecated use {@link #doWhenRejected(com.intellij.util.Consumer)}
+   * @deprecated Use {@link #doWhenRejected(com.intellij.util.Consumer)} (to remove in IDEA 16)
    */
-  public AsyncResult<T> doWhenRejected(@NotNull final Handler<T> handler) {
+  public AsyncResult<T> doWhenRejected(@SuppressWarnings("deprecation") @NotNull final Handler<T> handler) {
     doWhenRejected(new Runnable() {
       @Override
       public void run() {
@@ -133,6 +135,22 @@ public class AsyncResult<T> extends ActionCallback {
     return myResult;
   }
 
+  @NotNull
+  public final ActionCallback doWhenProcessed(@NotNull final Consumer<T> consumer) {
+    doWhenDone(consumer);
+    doWhenRejected(new PairConsumer<T, String>() {
+      @Override
+      public void consume(T result, String error) {
+        consumer.consume(result);
+      }
+    });
+    return this;
+  }
+
+  @Deprecated
+  /**
+   * @deprecated Use {@link com.intellij.util.Consumer} (to remove in IDEA 16)
+   */
   public interface Handler<T> {
     void run(T t);
   }
@@ -151,6 +169,15 @@ public class AsyncResult<T> extends ActionCallback {
     public Rejected(T value) {
       setRejected(value);
     }
+  }
+
+  public static <R> AsyncResult<R> rejected() {
+    //noinspection unchecked
+    return REJECTED;
+  }
+
+  public static <R> AsyncResult<R> done(@NotNull R result) {
+    return new AsyncResult<R>().setDone(result);
   }
 
   // we don't use inner class, avoid memory leak, we don't want to hold this result while dependent is computing

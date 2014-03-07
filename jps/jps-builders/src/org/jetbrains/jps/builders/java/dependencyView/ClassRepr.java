@@ -21,6 +21,7 @@ import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.asm4.Opcodes;
+import org.jetbrains.jps.builders.storage.BuildDataCorruptedException;
 
 import java.io.*;
 import java.lang.annotation.RetentionPolicy;
@@ -270,7 +271,7 @@ public class ClassRepr extends Proto {
       myUsages =(Set<UsageRepr.Usage>)RW.read(UsageRepr.externalizer(context), new THashSet<UsageRepr.Usage>(), in);
     }
     catch (IOException e) {
-      throw new RuntimeException(e);
+      throw new BuildDataCorruptedException(e);
     }
   }
 
@@ -294,7 +295,7 @@ public class ClassRepr extends Proto {
       RW.save(myUsages, UsageRepr.externalizer(myContext), out);
     }
     catch (IOException e) {
-      throw new RuntimeException(e);
+      throw new BuildDataCorruptedException(e);
     }
   }
 
@@ -321,15 +322,17 @@ public class ClassRepr extends Proto {
   }
 
   public String getPackageName() {
-    return getPackageName(name);
+    final String strValue = myContext.getValue(name);
+    return strValue != null? getPackageName(strValue) : null;
   }
 
-  public String getPackageName(final int s) {
-    return getPackageName(myContext.getValue(s));
+  public String getShortName() {
+    final String strValue = myContext.getValue(name);
+    return strValue != null? getShortName(strValue) : null;
   }
 
   @NotNull
-  public static String getPackageName(final String raw) {
+  public static String getPackageName(@NotNull final String raw) {
     final int index = raw.lastIndexOf('/');
 
     if (index == -1) {
@@ -337,6 +340,17 @@ public class ClassRepr extends Proto {
     }
 
     return raw.substring(0, index);
+  }
+
+  @NotNull
+  public static String getShortName(@NotNull final String fqName) {
+    final int index = fqName.lastIndexOf('/');
+
+    if (index == -1) {
+      return fqName;
+    }
+
+    return fqName.substring(index + 1);
   }
 
   @Nullable
@@ -494,8 +508,8 @@ public class ClassRepr extends Proto {
       try {
         bas.close();
       }
-      catch (final Exception e) {
-        throw new RuntimeException(e);
+      catch (final IOException e) {
+        throw new BuildDataCorruptedException(e);
       }
 
       usages.add(bas.toString());

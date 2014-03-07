@@ -20,6 +20,7 @@ import com.intellij.openapi.util.AtomicNotNullLazyValue;
 import com.intellij.openapi.util.io.FileUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.jps.builders.storage.BuildDataCorruptedException;
 import org.jetbrains.jps.builders.BuildTarget;
 import org.jetbrains.jps.builders.impl.BuildTargetChunk;
 import org.jetbrains.jps.builders.impl.storage.BuildTargetStorages;
@@ -41,7 +42,7 @@ import java.util.concurrent.ConcurrentMap;
  *         Date: 10/7/11
  */
 public class BuildDataManager implements StorageOwner {
-  private static final int VERSION = 20;
+  private static final int VERSION = 22;
   private static final Logger LOG = Logger.getInstance("#org.jetbrains.jps.incremental.storage.BuildDataManager");
   private static final String SRC_TO_FORM_STORAGE = "src-form";
   private static final String MAPPINGS_STORAGE = "mappings";
@@ -101,7 +102,7 @@ public class BuildDataManager implements StorageOwner {
             return new SourceToOutputMappingImpl(new File(getSourceToOutputMapRoot(key), "data"));
           }
           catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new BuildDataCorruptedException(e);
           }
         }
       };
@@ -125,7 +126,7 @@ public class BuildDataManager implements StorageOwner {
     myDataPaths = dataPaths;
     myTargetsState = targetsState;
     mySrcToFormMap = new OneToManyPathsMapping(new File(getSourceToFormsRoot(), "data"));
-    myMappings = new Mappings(getMappingsRoot(), useMemoryTempCaches);
+    myMappings = new Mappings(getMappingsRoot(myDataPaths.getDataStorageRoot()), useMemoryTempCaches);
     myVersionFile = new File(myDataPaths.getDataStorageRoot(), "version.dat");
   }
 
@@ -189,7 +190,7 @@ public class BuildDataManager implements StorageOwner {
             }
           }
           else {
-            FileUtil.delete(getMappingsRoot());
+            FileUtil.delete(getMappingsRoot(myDataPaths.getDataStorageRoot()));
           }
         }
       }
@@ -236,12 +237,8 @@ public class BuildDataManager implements StorageOwner {
             try {
               mappings.close();
             }
-            catch (RuntimeException e) {
-              final Throwable cause = e.getCause();
-              if (cause instanceof IOException) {
-                throw ((IOException)cause);
-              }
-              throw e;
+            catch (BuildDataCorruptedException e) {
+              throw e.getCause();
             }
           }
         }
@@ -294,12 +291,8 @@ public class BuildDataManager implements StorageOwner {
     try {
       return lazy.getValue();
     }
-    catch (RuntimeException e) {
-      final Throwable cause = e.getCause();
-      if (cause instanceof IOException) {
-        throw (IOException)cause;
-      }
-      throw e;
+    catch (BuildDataCorruptedException e) {
+      throw e.getCause();
     }
   }
   
@@ -311,12 +304,12 @@ public class BuildDataManager implements StorageOwner {
     return new File(myDataPaths.getDataStorageRoot(), SRC_TO_FORM_STORAGE);
   }
 
-  private File getMappingsRoot() {
-    return new File(myDataPaths.getDataStorageRoot(), MAPPINGS_STORAGE);
-  }
-
   public BuildDataPaths getDataPaths() {
     return myDataPaths;
+  }
+
+  public static File getMappingsRoot(final File dataStorageRoot) {
+    return new File(dataStorageRoot, MAPPINGS_STORAGE);
   }
 
   private static void wipeStorage(File root, @Nullable AbstractStateStorage<?, ?> storage) {

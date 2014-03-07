@@ -52,7 +52,7 @@ import java.util.List;
  * User: spLeaner
  */
 public class IdeStatusBarImpl extends JComponent implements StatusBarEx {
-  private static final int MIN_ICON_HEIGHT = 18;
+  private static final int MIN_ICON_HEIGHT = 18 + 1 + 1;
   private final InfoAndProgressPanel myInfoAndProgressPanel;
   private IdeFrame myFrame;
 
@@ -699,7 +699,7 @@ public class IdeStatusBarImpl extends JComponent implements StatusBarEx {
       setToolTipText(presentation.getTooltipText());
       new ClickListener() {
         @Override
-        public boolean onClick(MouseEvent e, int clickCount) {
+        public boolean onClick(@NotNull MouseEvent e, int clickCount) {
           final ListPopup popup = myPresentation.getPopupStep();
           if (popup == null) return false;
           final Dimension dimension = popup.getContent().getPreferredSize();

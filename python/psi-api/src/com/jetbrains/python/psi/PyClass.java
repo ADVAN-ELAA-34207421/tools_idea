@@ -25,6 +25,7 @@ import com.intellij.util.Processor;
 import com.jetbrains.python.codeInsight.controlflow.ScopeOwner;
 import com.jetbrains.python.psi.stubs.PyClassStub;
 import com.jetbrains.python.psi.types.PyClassLikeType;
+import com.jetbrains.python.psi.types.PyType;
 import com.jetbrains.python.psi.types.TypeEvalContext;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
@@ -36,7 +37,7 @@ import java.util.List;
  * Represents a class declaration in source.
  */
 public interface PyClass extends PsiNameIdentifierOwner, PyStatement, NameDefiner, PyDocStringOwner, StubBasedPsiElement<PyClassStub>,
-                                 ScopeOwner, PyDecoratable, PyTypedElement, PyQualifiedNameOwner {
+                                 ScopeOwner, PyDecoratable, PyTypedElement, PyQualifiedNameOwner, PyStatementListContainer {
   ArrayFactory<PyClass> ARRAY_FACTORY = new ArrayFactory<PyClass>() {
     @NotNull
     @Override
@@ -48,8 +49,6 @@ public interface PyClass extends PsiNameIdentifierOwner, PyStatement, NameDefine
   @Nullable
   ASTNode getNameNode();
 
-  @NotNull
-  PyStatementList getStatementList();
 
   /**
    * Returns types of all ancestors from the hierarchy.
@@ -136,11 +135,13 @@ public interface PyClass extends PsiNameIdentifierOwner, PyStatement, NameDefine
   /**
    * Finds a property with the specified name in the class or one of its ancestors.
    *
+   *
    * @param name of the property
+   * @param inherited
    * @return descriptor of property accessors, or null if such property does not exist.
    */
   @Nullable
-  Property findProperty(@NotNull String name);
+  Property findProperty(@NotNull String name, boolean inherited);
 
   /**
    * Apply a processor to every method, looking at superclasses in method resolution order as needed.
@@ -153,6 +154,7 @@ public interface PyClass extends PsiNameIdentifierOwner, PyStatement, NameDefine
 
   List<PyTargetExpression> getClassAttributes();
 
+  @Nullable
   PyTargetExpression findClassAttribute(@NotNull String name, boolean inherited);
 
   List<PyTargetExpression> getInstanceAttributes();
@@ -216,4 +218,21 @@ public interface PyClass extends PsiNameIdentifierOwner, PyStatement, NameDefine
 
   boolean processClassLevelDeclarations(@NotNull PsiScopeProcessor processor);
   boolean processInstanceLevelDeclarations(@NotNull PsiScopeProcessor processor, @Nullable PsiElement location);
+
+  //TODO: Add "addMetaClass" or move methods out of here
+  /**
+   * Returns the type representing the metaclass of the class if it is explicitly set, null otherwise.
+   *
+   * The metaclass might be defined outside the class in case of Python 2 file-level __metaclass__ attributes.
+   */
+  @Nullable
+  PyType getMetaClassType(@NotNull TypeEvalContext context);
+
+  /**
+   * Returns the expression that defines the metaclass of the class.
+   *
+   * Operates at the AST level.
+   */
+  @Nullable
+  PyExpression getMetaClassExpression();
 }

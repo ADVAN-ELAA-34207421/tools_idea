@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ package com.intellij.ide.actions;
 
 import com.intellij.ide.BrowserUtil;
 import com.intellij.ide.IdeBundle;
-import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CustomShortcutSet;
 import com.intellij.openapi.application.ApplicationInfo;
@@ -35,6 +34,7 @@ import com.intellij.ui.LicensingFacade;
 import com.intellij.ui.UI;
 import com.intellij.util.text.DateFormatUtil;
 import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.*;
@@ -106,6 +106,7 @@ public class AboutDialog extends JDialog {
       }
 
       public void windowLostFocus(WindowEvent e) {
+        if (e.getOppositeWindow() == null) return;
         long eventTime = System.currentTimeMillis();
         if (eventTime - showTime.get() > delta && e.getOppositeWindow() != e.getWindow()) {
           dispose();
@@ -118,7 +119,7 @@ public class AboutDialog extends JDialog {
 
     new ClickListener() {
       @Override
-      public boolean onClick(MouseEvent event, int clickCount) {
+      public boolean onClick(@NotNull MouseEvent event, int clickCount) {
         dispose();
         return true;
       }
@@ -219,7 +220,7 @@ public class AboutDialog extends JDialog {
         public void mousePressed(MouseEvent event) {
           if (myActiveLink != null) {
             event.consume();
-            BrowserUtil.launchBrowser(myActiveLink.url);
+            BrowserUtil.browse(myActiveLink.url);
           }
         }
       });
@@ -254,13 +255,16 @@ public class AboutDialog extends JDialog {
       UIUtil.applyRenderingHints(g);
 
       Font labelFont = UIUtil.getLabelFont();
+      if (SystemInfo.isWindows) {
+        labelFont = new Font("Tahoma", Font.PLAIN, 12);
+      }
       for (int labelSize = 10; labelSize != 6; labelSize -= 1) {
         myLinks.clear();
         g2.setPaint(col);
         myImage.paintIcon(this, g2, 0, 0);
 
         g2.setColor(col);
-        TextRenderer renderer = new TextRenderer(0, 145, 398, 120, g2);
+        TextRenderer renderer = new TextRenderer(0, 165, 398, 120, g2);
         UIUtil.setupComposite(g2);
         myFont = labelFont.deriveFont(Font.PLAIN, labelSize);
         myBoldFont = labelFont.deriveFont(Font.BOLD, labelSize + 1);

@@ -379,11 +379,15 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
     List<BranchInfo> branches = task.getBranches(false);
     VcsTaskHandler.TaskInfo info = fromBranches(branches);
 
+    switchBranch(info);
+    return task;
+  }
+
+  public void switchBranch(VcsTaskHandler.TaskInfo info) {
     VcsTaskHandler[] handlers = VcsTaskHandler.getAllHandlers(myProject);
     for (VcsTaskHandler handler : handlers) {
-      handler.switchToTask(info);
+      handler.switchToTask(info, null);
     }
-    return task;
   }
 
   private static VcsTaskHandler.TaskInfo fromBranches(List<BranchInfo> branches) {
@@ -921,10 +925,10 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
   }
 
   public String getChangelistName(Task task) {
-    if (task.isIssue() && myConfig.changelistNameFormat != null) {
-      return TaskUtil.formatTask(task, myConfig.changelistNameFormat);
-    }
-    return task.getSummary();
+    String name = task.isIssue() && myConfig.changelistNameFormat != null
+               ? TaskUtil.formatTask(task, myConfig.changelistNameFormat)
+               : task.getSummary();
+    return StringUtil.shortenTextWithEllipsis(name, 100, 0);
   }
 
   public String suggestBranchName(Task task) {
@@ -943,6 +947,17 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
   @TestOnly
   public ChangeListAdapter getChangeListListener() {
     return myChangeListListener;
+  }
+
+  /**
+   * Reconfigure repository's HTTP clients probably to apply new connection settings.
+   */
+  public void reconfigureRepositoryClients() {
+    for (TaskRepository repository : myRepositories) {
+      if (repository instanceof BaseRepositoryImpl) {
+        ((BaseRepositoryImpl)repository).reconfigureClient();
+      }
+    }
   }
 
   public static class Config {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,10 +34,8 @@ import com.intellij.ide.ui.UISettings;
 import com.intellij.lang.LangBundle;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
-import com.intellij.openapi.application.AccessToken;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
-import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.*;
@@ -415,6 +413,7 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
     }
     requestResize();
     refreshUi(false, true);
+    ensureSelectionVisible(true);
   }
 
   public void setStartCompletionWhenNothingMatches(boolean startCompletionWhenNothingMatches) {
@@ -427,6 +426,11 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
 
   public void ensureSelectionVisible(boolean forceTopSelection) {
     if (isSelectionVisible() && !forceTopSelection) {
+      return;
+    }
+
+    if (!forceTopSelection) {
+      ListScrollingUtil.ensureIndexIsVisible(myList, myList.getSelectedIndex(), 1);
       return;
     }
 
@@ -461,6 +465,7 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
     requestResize();
     if (shouldUpdate) {
       refreshUi(false, true);
+      ensureSelectionVisible(true);
     }
 
     return true;
@@ -647,13 +652,17 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
     }
 
     myFinishing = true;
-    AccessToken token = WriteAction.start();
-    try {
-      insertLookupString(item, getPrefixLength(item));
-    }
-    finally {
-      token.finish();
-    }
+    ApplicationManager.getApplication().runWriteAction(new Runnable() {
+      public void run() {
+        myEditor.getDocument().startGuardedBlockChecking();
+        try {
+          insertLookupString(item, getPrefixLength(item));
+        }
+        finally {
+          myEditor.getDocument().stopGuardedBlockChecking();
+        }
+      }
+    });
 
     if (myDisposed) { // any document listeners could close us
       return;
@@ -669,9 +678,9 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
   }
 
   private void insertLookupString(LookupElement item, final int prefix) {
-    Document document = myEditor.getDocument();
+    final Document document = myEditor.getDocument();
 
-    String lookupString = getCaseCorrectedLookupString(item);
+    final String lookupString = getCaseCorrectedLookupString(item);
 
     if (myEditor.getSelectionModel().hasBlockSelection()) {
       LogicalPosition blockStart = myEditor.getSelectionModel().getBlockStart();
@@ -701,20 +710,25 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
       myEditor.getSelectionModel().setBlockSelection(start, end);
       myEditor.getCaretModel().moveToLogicalPosition(new LogicalPosition(caretLine, end.column));
     } else {
-      EditorModificationUtil.deleteSelectedText(myEditor);
-      final int caretOffset = myEditor.getCaretModel().getOffset();
-      int lookupStart = caretOffset - prefix;
+      myEditor.getCaretModel().runForEachCaret(new CaretAction() {
+        @Override
+        public void perform(Caret caret) {
+          EditorModificationUtil.deleteSelectedText(myEditor);
+          final int caretOffset = myEditor.getCaretModel().getOffset();
+          int lookupStart = caretOffset - prefix;
 
-      int len = document.getTextLength();
-      LOG.assertTrue(lookupStart >= 0 && lookupStart <= len,
-                     "ls: " + lookupStart + " caret: " + caretOffset + " prefix:" + prefix + " doc: " + len);
-      LOG.assertTrue(caretOffset >= 0 && caretOffset <= len, "co: " + caretOffset + " doc: " + len);
+          int len = document.getTextLength();
+          LOG.assertTrue(lookupStart >= 0 && lookupStart <= len,
+                         "ls: " + lookupStart + " caret: " + caretOffset + " prefix:" + prefix + " doc: " + len);
+          LOG.assertTrue(caretOffset >= 0 && caretOffset <= len, "co: " + caretOffset + " doc: " + len);
 
-      document.replaceString(lookupStart, caretOffset, lookupString);
+          document.replaceString(lookupStart, caretOffset, lookupString);
 
-      int offset = lookupStart + lookupString.length();
-      myEditor.getCaretModel().moveToOffset(offset);
-      myEditor.getSelectionModel().removeSelection();
+          int offset = lookupStart + lookupString.length();
+          myEditor.getCaretModel().moveToOffset(offset);
+          myEditor.getSelectionModel().removeSelection();
+        }
+      });
     }
 
     myEditor.getScrollingModel().scrollToCaret(ScrollType.RELATIVE);
@@ -765,12 +779,14 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
     checkValid();
     assert !myChangeGuard : "already in change";
 
+    myEditor.getDocument().startGuardedBlockChecking();
     myChangeGuard = true;
     boolean result;
     try {
       result = myOffsets.performGuardedChange(change, debug);
     }
     finally {
+      myEditor.getDocument().stopGuardedBlockChecking();
       myChangeGuard = false;
     }
     if (!result || myDisposed) {
@@ -925,7 +941,7 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
 
     new ClickListener() {
       @Override
-      public boolean onClick(MouseEvent e, int clickCount) {
+      public boolean onClick(@NotNull MouseEvent e, int clickCount) {
         setFocusDegree(FocusDegree.FOCUSED);
         markSelectionTouched();
 
@@ -1311,7 +1327,7 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
       HintManagerImpl.updateLocation(this, myEditor, rectangle.getLocation());
 
       if (reused || selectionVisible || onExplicitAction) {
-        ensureSelectionVisible(onExplicitAction);
+        ensureSelectionVisible(false);
       }
     }
   }
@@ -1513,7 +1529,7 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
   private class ChangeLookupSorting extends ClickListener {
 
     @Override
-    public boolean onClick(MouseEvent e, int clickCount) {
+    public boolean onClick(@NotNull MouseEvent e, int clickCount) {
       DataContext context = DataManager.getInstance().getDataContext(mySortingLabel);
       DefaultActionGroup group = new DefaultActionGroup();
       group.add(createSortingAction(true));

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,13 +39,14 @@ import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.application.Result;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.editor.markup.GutterIconRenderer;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.MessageType;
+import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.ToolWindowId;
 import com.intellij.ui.AppUIUtil;
 import com.intellij.util.EventDispatcher;
@@ -66,6 +67,7 @@ import com.intellij.xdebugger.impl.ui.XDebugSessionTab;
 import com.intellij.xdebugger.impl.ui.XDebuggerUIConstants;
 import com.intellij.xdebugger.stepping.XSmartStepIntoHandler;
 import com.intellij.xdebugger.stepping.XSmartStepIntoVariant;
+import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -143,6 +145,7 @@ public class XDebugSessionImpl implements XDebugSession {
   @NotNull
   public RunContentDescriptor getRunContentDescriptor() {
     assertSessionTabInitialized();
+    //noinspection ConstantConditions
     return mySessionTab.getRunContentDescriptor();
   }
 
@@ -156,13 +159,13 @@ public class XDebugSessionImpl implements XDebugSession {
   }
 
   @Override
-  public void setPauseActionSupported(final boolean isSupported) {
-    myPauseActionSupported = isSupported;
+  public void setAutoInitBreakpoints(boolean value) {
+    autoInitBreakpoints = value;
   }
 
   @Override
-  public void setAutoInitBreakpoints(boolean value) {
-    autoInitBreakpoints = value;
+  public void setPauseActionSupported(final boolean isSupported) {
+    myPauseActionSupported = isSupported;
   }
 
   public List<AnAction> getRestartActions() {
@@ -234,7 +237,7 @@ public class XDebugSessionImpl implements XDebugSession {
     myDebugProcess = process;
     mySessionData = sessionData;
 
-    if (autoInitBreakpoints) {
+    if (autoInitBreakpoints && myDebugProcess.checkCanInitBreakpoints()) {
       initBreakpoints();
     }
 
@@ -294,7 +297,11 @@ public class XDebugSessionImpl implements XDebugSession {
 
   private void disableSlaveBreakpoints(final XDependentBreakpointManager dependentBreakpointManager) {
     Set<XBreakpoint<?>> slaveBreakpoints = dependentBreakpointManager.getAllSlaveBreakpoints();
-    Set<XBreakpointType<?, ?>> breakpointTypes = new HashSet<XBreakpointType<?, ?>>();
+    if (slaveBreakpoints.isEmpty()) {
+      return;
+    }
+
+    Set<XBreakpointType<?, ?>> breakpointTypes = new THashSet<XBreakpointType<?, ?>>();
     for (XBreakpointHandler<?> handler : myDebugProcess.getBreakpointHandlers()) {
       breakpointTypes.add(getBreakpointTypeClass(handler));
     }
@@ -322,7 +329,7 @@ public class XDebugSessionImpl implements XDebugSession {
     return myValueMarkers;
   }
 
-  private static <B extends XBreakpoint<?>> XBreakpointType<?, ?> getBreakpointTypeClass(final XBreakpointHandler<B> handler) {
+  private static XBreakpointType getBreakpointTypeClass(final XBreakpointHandler handler) {
     return XDebuggerUtil.getInstance().findBreakpointType(handler.getBreakpointTypeClass());
   }
 
@@ -595,14 +602,15 @@ public class XDebugSessionImpl implements XDebugSession {
     CustomizedBreakpointPresentation presentation;
     synchronized (myRegisteredBreakpoints) {
       presentation = myRegisteredBreakpoints.get(breakpoint);
-      if (presentation != null) {
-        presentation.setErrorMessage(errorMessage);
-        presentation.setIcon(icon);
+      if (presentation == null ||
+          (Comparing.equal(presentation.getIcon(), icon) && Comparing.strEqual(presentation.getErrorMessage(), errorMessage))) {
+        return;
       }
+
+      presentation.setErrorMessage(errorMessage);
+      presentation.setIcon(icon);
     }
-    if (presentation != null) {
-      myDebuggerManager.getBreakpointManager().getLineBreakpointManager().queueBreakpointUpdate((XLineBreakpointImpl<?>)breakpoint);
-    }
+    myDebuggerManager.getBreakpointManager().getLineBreakpointManager().queueBreakpointUpdate((XLineBreakpointImpl<?>)breakpoint);
   }
 
   @Override
@@ -746,28 +754,19 @@ public class XDebugSessionImpl implements XDebugSession {
     myDispatcher.getMulticaster().sessionPaused();
   }
 
+  @Nullable
   private Editor getEditor(@NotNull XSourcePosition position) {
-    final VirtualFile psiFile = position.getFile();
-    if (!psiFile.isValid()) {
-      return null;
-    }
-
-    final int offset = position.getOffset();
-    if (offset < 0 || offset > psiFile.getLength()) {
-      LOG.error("Incorrect offset " + offset + " in file " + psiFile.getName());
-      return null;
-    }
-
-    return FileEditorManager.getInstance(myProject).openTextEditor(new OpenFileDescriptor(myProject, psiFile, offset), false);
+    OpenFileDescriptor descriptor = XSourcePositionImpl.createOpenFileDescriptor(myProject, position);
+    return descriptor.canNavigate() ? FileEditorManager.getInstance(myProject).openTextEditor(descriptor, false) : null;
   }
 
   private void adjustMouseTrackingCounter(@NotNull XSourcePosition position, int increment) {
     final Editor editor = getEditor(position);
     if (editor != null) {
       JComponent component = editor.getComponent();
-      Object o = component.getClientProperty(Editor.IGNORE_MOUSE_TRACKING);
+      Object o = component.getClientProperty(EditorImpl.IGNORE_MOUSE_TRACKING);
       Integer value = ((o instanceof Integer) ? (Integer)o : 0) + increment;
-      component.putClientProperty(Editor.IGNORE_MOUSE_TRACKING, value > 0 ? value : null);
+      component.putClientProperty(EditorImpl.IGNORE_MOUSE_TRACKING, value > 0 ? value : null);
     }
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.datatransfer.DataFlavor;
-import java.awt.datatransfer.Transferable;
 import java.util.List;
 import java.util.Map;
 
@@ -49,6 +48,8 @@ import java.util.Map;
  */
 public class CommonEditActionsProvider implements DeleteProvider, CopyProvider, PasteProvider, CutProvider {
   private static final DataFlavor DATA_FLAVOR = FileCopyPasteUtil.createJvmDataFlavor(SerializedComponentData.class);
+
+  public static boolean isDeleting;
 
   private final DesignerEditorPanel myDesigner;
 
@@ -141,12 +142,19 @@ public class CommonEditActionsProvider implements DeleteProvider, CopyProvider, 
   }
 
   public static void updateSelectionBeforeDelete(EditableArea area, RadComponent component, List<RadComponent> excludes) {
-    RadComponent newSelection = getNewSelection(component, excludes);
-    if (newSelection == null) {
-      area.deselectAll();
+    try {
+      isDeleting = true;
+
+      RadComponent newSelection = getNewSelection(component, excludes);
+      if (newSelection == null) {
+        area.deselectAll();
+      }
+      else {
+        area.select(newSelection);
+      }
     }
-    else {
-      area.select(newSelection);
+    finally {
+      isDeleting = false;
     }
   }
 
@@ -251,17 +259,7 @@ public class CommonEditActionsProvider implements DeleteProvider, CopyProvider, 
   @Nullable
   private String getSerializedComponentData() {
     try {
-      CopyPasteManager copyPasteManager = CopyPasteManager.getInstance();
-      if (!copyPasteManager.isDataFlavorAvailable(DATA_FLAVOR)) {
-        return null;
-      }
-
-      Transferable content = copyPasteManager.getContents();
-      if (content == null) {
-        return null;
-      }
-
-      Object transferData = content.getTransferData(DATA_FLAVOR);
+      Object transferData = CopyPasteManager.getInstance().getContents(DATA_FLAVOR);
       if (transferData instanceof SerializedComponentData) {
         SerializedComponentData data = (SerializedComponentData)transferData;
         String xmlComponents = data.getSerializedComponents();
@@ -270,8 +268,7 @@ public class CommonEditActionsProvider implements DeleteProvider, CopyProvider, 
         }
       }
     }
-    catch (Throwable e) {
-    }
+    catch (Throwable ignored) { }
 
     return null;
   }

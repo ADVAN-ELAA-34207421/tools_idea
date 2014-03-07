@@ -148,6 +148,7 @@ public class PyClassImpl extends PyPresentableElementImpl<PyClassStub> implement
     pyVisitor.visitPyClass(this);
   }
 
+  @Override
   @NotNull
   public PyStatementList getStatementList() {
     final PyStatementList statementList = childToPsi(PyElementTypes.STATEMENT_LIST);
@@ -585,7 +586,7 @@ public class PyClassImpl extends PyPresentableElementImpl<PyClassStub> implement
 
   @Nullable
   @Override
-  public Property findProperty(@NotNull final String name) {
+  public Property findProperty(@NotNull final String name, boolean inherited) {
     Property property = findLocalProperty(name);
     if (property != null) {
       return property;
@@ -593,10 +594,12 @@ public class PyClassImpl extends PyPresentableElementImpl<PyClassStub> implement
     if (findMethodByName(name, false) != null || findClassAttribute(name, false) != null) {
       return null;
     }
-    for (PyClass aClass : getAncestorClasses()) {
-      final Property ancestorProperty = ((PyClassImpl)aClass).findLocalProperty(name);
-      if (ancestorProperty != null) {
-        return ancestorProperty;
+    if (inherited) {
+      for (PyClass aClass : getAncestorClasses()) {
+        final Property ancestorProperty = ((PyClassImpl)aClass).findLocalProperty(name);
+        if (ancestorProperty != null) {
+          return ancestorProperty;
+        }
       }
     }
     return null;
@@ -1165,6 +1168,67 @@ public class PyClassImpl extends PyPresentableElementImpl<PyClassStub> implement
     // TODO: Return different cached copies depending on the type eval context parameters
     final CachedValuesManager manager = CachedValuesManager.getManager(getProject());
     return manager.getParameterizedCachedValue(this, myCachedValueKey, myCachedAncestorsProvider, false, context);
+  }
+
+  @Nullable
+  @Override
+  public PyType getMetaClassType(@NotNull TypeEvalContext context) {
+    if (context.maySwitchToAST(this)) {
+      final PyExpression expression = getMetaClassExpression();
+      if (expression != null) {
+        final PyType type = context.getType(expression);
+        if (type != null) {
+          return type;
+        }
+      }
+    }
+    else {
+      final PyClassStub stub = getStub();
+      final QualifiedName name = stub != null ? stub.getMetaClass() : PyPsiUtils.asQualifiedName(getMetaClassExpression());
+      final PsiFile file = getContainingFile();
+      if (file instanceof PyFile) {
+        final PyFile pyFile = (PyFile)file;
+        if (name != null) {
+          return classTypeFromQName(name, pyFile, context);
+        }
+      }
+    }
+    final LanguageLevel level = LanguageLevel.forElement(this);
+    if (level.isOlderThan(LanguageLevel.PYTHON30)) {
+      final PsiFile file = getContainingFile();
+      if (file instanceof PyFile) {
+        final PyFile pyFile = (PyFile)file;
+        final PsiElement element = pyFile.getElementNamed(PyNames.DUNDER_METACLASS);
+        if (element instanceof PyTypedElement) {
+          return context.getType((PyTypedElement)element);
+        }
+      }
+    }
+    return null;
+  }
+
+  @Nullable
+  @Override
+  public PyExpression getMetaClassExpression() {
+    final LanguageLevel level = LanguageLevel.forElement(this);
+    if (level.isAtLeast(LanguageLevel.PYTHON30)) {
+      // Requires AST access
+      for (PyExpression expression : getSuperClassExpressions()) {
+        if (expression instanceof PyKeywordArgument) {
+          final PyKeywordArgument argument = (PyKeywordArgument)expression;
+          if (PyNames.METACLASS.equals(argument.getKeyword())) {
+            return argument.getValueExpression();
+          }
+        }
+      }
+    }
+    else {
+      final PyTargetExpression attribute = findClassAttribute(PyNames.DUNDER_METACLASS, false);
+      if (attribute != null) {
+        return attribute;
+      }
+    }
+    return null;
   }
 
   @NotNull

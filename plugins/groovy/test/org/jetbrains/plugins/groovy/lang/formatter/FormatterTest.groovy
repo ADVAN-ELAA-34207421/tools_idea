@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.jetbrains.plugins.groovy.lang.formatter
 
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.codeStyle.CommonCodeStyleSettings
+import org.jetbrains.plugins.groovy.GroovyFileType
 import org.jetbrains.plugins.groovy.codeStyle.GroovyCodeStyleSettings
 import org.jetbrains.plugins.groovy.util.TestUtils
 /**
@@ -35,6 +36,7 @@ public class FormatterTest extends GroovyFormatterTestCase {
   public void testArg2() throws Throwable { doTest(); }
   public void testBin1() throws Throwable { doTest(); }
   public void testBin2() throws Throwable { doTest(); }
+  public void testBin3() throws Throwable { doTest(); }
   public void testBlockExpr1() throws Throwable {
     //groovySettings.KEEP_CONTROL_STATEMENT_IN_ONE_LINE = false
     groovySettings.KEEP_SIMPLE_BLOCKS_IN_ONE_LINE = false
@@ -711,6 +713,15 @@ print abc ?:
 '''
   }
 
+  void testConditional2() {
+    groovySettings.ALIGN_MULTILINE_TERNARY_OPERATION = true
+    checkFormatting('''\
+print abc ? cde
+:xyz''', '''\
+print abc ? cde
+          : xyz''')
+  }
+
   void testLabelsInBasicMode() {
     groovySettings.indentOptions.INDENT_SIZE = 4
     groovySettings.indentOptions.LABEL_INDENT_SIZE = -2
@@ -761,15 +772,41 @@ def foo() {
     checkFormatting('foo in  bar', 'foo in bar')
   }
 
-  private void doGeeseTest() {
-    GroovyCodeStyleSettings customSettings = myTempSettings.getCustomSettings(GroovyCodeStyleSettings.class);
-    boolean oldvalue = customSettings.USE_FLYING_GEESE_BRACES;
+  void testGDocAfterImports() { doTest() }
+  void testGroovyDocAfterImports2() { doTest() }
+
+  void testRegexExpressions() { doTest() }
+
+  void testSpreadArg() { doTest() }
+
+  void testExtraLines() { doTest() }
+
+  void testLabelWithDescription() {
+    GroovyCodeStyleSettings customSettings = myTempSettings.getCustomSettings(GroovyCodeStyleSettings.class)
+    CommonCodeStyleSettings commonSettings = myTempSettings.getCommonSettings(GroovyFileType.GROOVY_LANGUAGE)
+
+    boolean indentLabelBlocks = customSettings.INDENT_LABEL_BLOCKS
+    int labelIndentSize = commonSettings.indentOptions.LABEL_INDENT_SIZE
     try {
-      customSettings.USE_FLYING_GEESE_BRACES = true;
-      doTest();
+      customSettings.INDENT_LABEL_BLOCKS = true
+      commonSettings.indentOptions.LABEL_INDENT_SIZE = 2
+      doTest()
     }
     finally {
-      customSettings.USE_FLYING_GEESE_BRACES = oldvalue;
+      customSettings.INDENT_LABEL_BLOCKS = indentLabelBlocks
+      commonSettings.indentOptions.LABEL_INDENT_SIZE = labelIndentSize
+    }
+  }
+
+  private void doGeeseTest() {
+    GroovyCodeStyleSettings customSettings = myTempSettings.getCustomSettings(GroovyCodeStyleSettings.class)
+    boolean oldvalue = customSettings.USE_FLYING_GEESE_BRACES
+    try {
+      customSettings.USE_FLYING_GEESE_BRACES = true
+      doTest()
+    }
+    finally {
+      customSettings.USE_FLYING_GEESE_BRACES = oldvalue
     }
   }
 }

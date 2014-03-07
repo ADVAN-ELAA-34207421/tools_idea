@@ -18,6 +18,8 @@ package org.jetbrains.plugins.groovy.config;
 import com.intellij.ide.util.projectWizard.JavaModuleBuilder;
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
 import com.intellij.ide.util.projectWizard.SettingsStep;
+import com.intellij.ide.util.projectWizard.WizardContext;
+import com.intellij.openapi.roots.ui.configuration.ModulesProvider;
 import icons.JetgroovyIcons;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -37,7 +39,7 @@ public class GroovyAwareModuleBuilder extends JavaModuleBuilder {
 
   @SuppressWarnings("UnusedDeclaration")
   public GroovyAwareModuleBuilder() {
-    this("groovy", "Groovy", "Simple module with attached Groovy library", null);
+    this("groovy", "Groovy", "Simple module with attached Groovy library", JetgroovyIcons.Groovy.GroovyModule);
   }
 
   protected GroovyAwareModuleBuilder(String builderId, String presentableName, String description, Icon bigIcon) {
@@ -51,6 +53,11 @@ public class GroovyAwareModuleBuilder extends JavaModuleBuilder {
   @Override
   public ModuleWizardStep modifySettingsStep(@NotNull SettingsStep settingsStep) {
     return new GroovySdkForNewModuleWizardStep(this, settingsStep.getContext(), getFramework(), settingsStep);
+  }
+
+  @Override
+  public ModuleWizardStep[] createWizardSteps(@NotNull WizardContext wizardContext, @NotNull ModulesProvider modulesProvider) {
+    return ModuleWizardStep.EMPTY_ARRAY;
   }
 
   @Override
@@ -81,6 +88,16 @@ public class GroovyAwareModuleBuilder extends JavaModuleBuilder {
   @Override
   public String getGroupName() {
     return "Groovy";
+  }
+
+  @Override
+  public String getParentGroup() {
+    return getModuleTypeName();
+  }
+
+  @Override
+  public boolean isTemplateBased() {
+    return true;
   }
 
   @Nullable

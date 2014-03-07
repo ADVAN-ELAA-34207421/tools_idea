@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,9 +60,10 @@ import static org.jetbrains.plugins.groovy.lang.psi.controlFlow.ReadWriteVariabl
  */
 public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
   private static final Logger LOG = Logger.getInstance(ControlFlowBuilder.class);
-  private List<InstructionImpl> myInstructions;
 
-  private Deque<InstructionImpl> myProcessingStack;
+  private final List<InstructionImpl> myInstructions = new ArrayList<InstructionImpl>();
+
+  private final Deque<InstructionImpl> myProcessingStack = new ArrayDeque<InstructionImpl>();
   private final PsiConstantEvaluationHelper myConstantEvaluator;
   private GroovyPsiElement myScope;
 
@@ -70,12 +71,12 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
   /**
    * stack of current catch blocks
    */
-  private Deque<ExceptionInfo> myCaughtExceptionInfos;
+  private final Deque<ExceptionInfo> myCaughtExceptionInfos = new ArrayDeque<ExceptionInfo>();
 
   /**
    * stack of current conditions
    */
-  private Deque<ConditionInstruction> myConditions;
+  private final Deque<ConditionInstruction> myConditions = new ArrayDeque<ConditionInstruction>();
 
 
   /**
@@ -91,7 +92,7 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
   /**
    * list of pending nodes and corresponding scopes sorted by scopes from the biggest to smallest.
    */
-  private List<Pair<InstructionImpl, GroovyPsiElement>> myPending;
+  private List<Pair<InstructionImpl, GroovyPsiElement>> myPending = new ArrayList<Pair<InstructionImpl, GroovyPsiElement>>();
 
   private int myInstructionNumber;
   private final GrControlFlowPolicy myPolicy;
@@ -135,20 +136,16 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
   }
 
 
-  private void handlePossibleReturn(@NotNull GrStatement possibleReturn) {
+  @Nullable
+  private InstructionImpl handlePossibleReturn(@NotNull GrStatement possibleReturn) {
     if (possibleReturn instanceof GrExpression && ControlFlowBuilderUtil.isCertainlyReturnStatement(possibleReturn)) {
-      addNodeAndCheckPending(new MaybeReturnInstruction((GrExpression)possibleReturn));
+      return addNodeAndCheckPending(new MaybeReturnInstruction((GrExpression)possibleReturn));
     }
+    return null;
   }
 
   public Instruction[] buildControlFlow(GroovyPsiElement scope) {
-    myInstructions = new ArrayList<InstructionImpl>();
-    myProcessingStack = new ArrayDeque<InstructionImpl>();
-    myCaughtExceptionInfos = new ArrayDeque<ExceptionInfo>();
-    myConditions = new ArrayDeque<ConditionInstruction>();
-
     myFinallyCount = 0;
-    myPending = new ArrayList<Pair<InstructionImpl, GroovyPsiElement>>();
     myInstructionNumber = 0;
 
     myScope = scope;
@@ -411,8 +408,8 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
     GrExpression rValue = expression.getRValue();
     if (rValue != null) {
       rValue.accept(this);
-      lValue.accept(this);
     }
+    lValue.accept(this);
   }
 
   @Override
@@ -617,12 +614,12 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
     addNode(new InstanceOfInstruction(expression, cond));
     NegatingGotoInstruction negation = new NegatingGotoInstruction(expression, cond);
     addNode(negation);
-    handlePossibleReturn(expression);
-    addPendingEdge(expression, negation);
+    InstructionImpl possibleReturn = handlePossibleReturn(expression);
+    addPendingEdge(expression, possibleReturn != null ? possibleReturn : negation);
 
     myHead = cond;
     addNode(new InstanceOfInstruction(expression, cond));
-    handlePossibleReturn(expression);
+    //handlePossibleReturn(expression);
     myConditions.removeFirstOccurrence(cond);
   }
 
@@ -1123,7 +1120,9 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
   private void finishNode(InstructionImpl instruction) {
     final InstructionImpl popped = myProcessingStack.pop();
     if (!instruction.equals(popped)) {
-      String description = "popped: " + popped.toString() + " : " + popped.hashCode() + "   ,  expected: " + instruction.toString() + " : " + instruction.hashCode();
+      String description = "popped: " + popped.toString() + " : " + popped.hashCode() +
+                           "   ,  expected: " + instruction.toString() + " : " + instruction.hashCode() +
+                           "same objects:" + (popped == instruction);
       error(description);
     }
   }

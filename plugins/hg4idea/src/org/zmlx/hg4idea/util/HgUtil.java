@@ -12,6 +12,7 @@
 // limitations under the License.
 package org.zmlx.hg4idea.util;
 
+import com.intellij.dvcs.DvcsUtil;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.diagnostic.Logger;
@@ -23,6 +24,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.TextEditor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.ShutDownTracker;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
@@ -38,8 +40,6 @@ import com.intellij.openapi.wm.StatusBar;
 import com.intellij.openapi.wm.WindowManager;
 import com.intellij.openapi.wm.impl.status.StatusBarUtil;
 import com.intellij.ui.GuiUtils;
-import com.intellij.util.Function;
-import com.intellij.util.containers.ContainerUtil;
 import com.intellij.vcsUtil.VcsUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -351,9 +351,10 @@ public abstract class HgUtil {
 
   @NotNull
   public static HgFile getFileNameInTargetRevision(Project project, HgRevisionNumber vcsRevisionNumber, HgFile localHgFile) {
-    HgStatusCommand statCommand = new HgStatusCommand.Builder(true).unknown(false).baseRevision(vcsRevisionNumber).build(project);
+    //get file name in target revision if it was moved/renamed
+    HgStatusCommand statCommand = new HgStatusCommand.Builder(false).copySource(true).baseRevision(vcsRevisionNumber).build(project);
 
-    Set<HgChange> changes = statCommand.execute(localHgFile.getRepo());
+    Set<HgChange> changes = statCommand.execute(localHgFile.getRepo(), Collections.singletonList(localHgFile.toFilePath()));
 
     for (HgChange change : changes) {
       if (change.afterFile().equals(localHgFile)) {
@@ -470,13 +471,15 @@ public abstract class HgUtil {
     if (rev1 != null) {
       revNumber1 = rev1.getRevisionNumber();
       //rev2==null means "compare with local version"
-      statusCommand = new HgStatusCommand.Builder(true).copySource(false).baseRevision(revNumber1)
+      statusCommand = new HgStatusCommand.Builder(true).ignored(false).unknown(false).copySource(false).baseRevision(revNumber1)
         .targetRevision(rev2 != null ? rev2.getRevisionNumber() : null).build(project);
     }
     else {
       LOG.assertTrue(rev2 != null, "revision1 and revision2 can't both be null. Path: " + path); //rev1 and rev2 can't be null both//
       //get initial changes//
-      statusCommand = new HgStatusCommand.Builder(true).copySource(false).baseRevision(rev2.getRevisionNumber()).build(project);
+      statusCommand =
+        new HgStatusCommand.Builder(true).ignored(false).unknown(false).copySource(false).baseRevision(rev2.getRevisionNumber())
+          .build(project);
     }
 
     Collection<HgChange> hgChanges = statusCommand.execute(root, Collections.singleton(path));
@@ -484,11 +487,11 @@ public abstract class HgUtil {
     //convert output changes to standart Change class
     for (HgChange hgChange : hgChanges) {
       FileStatus status = convertHgDiffStatus(hgChange.getStatus());
-      if (status != FileStatus.UNKNOWN && status!= FileStatus.IGNORED) {
+     if (status != FileStatus.UNKNOWN) {
         changes.add(createChange(project, root, hgChange.beforeFile().getRelativePath(), revNumber1,
                                  hgChange.afterFile().getRelativePath(),
                                  rev2 != null ? rev2.getRevisionNumber() : null, status));
-      }
+     }
     }
     return changes;
   }
@@ -548,18 +551,34 @@ public abstract class HgUtil {
     return path;
   }
 
-  public static String getDisplayableBranchText(HgRepository repository) {
+  @NotNull
+  public static String getDisplayableBranchOrBookmarkText(@NotNull HgRepository repository) {
     HgRepository.State state = repository.getState();
     String branchText = "";
     if (state == HgRepository.State.MERGING) {
       branchText += state.toString() + " ";
     }
-    return branchText + repository.getCurrentBranch();
+    String branchOrBookMarkName = repository.getCurrentBookmark();
+    if (StringUtil.isEmptyOrSpaces(branchOrBookMarkName)) {
+      branchOrBookMarkName = repository.getCurrentBranch();
+    }
+    return branchText + branchOrBookMarkName;
   }
 
   @NotNull
   public static HgRepositoryManager getRepositoryManager(@NotNull Project project) {
     return ServiceManager.getService(project, HgRepositoryManager.class);
+  }
+
+  @Nullable
+  public static HgRepository getCurrentRepository(@NotNull Project project) {
+    HgRepositoryManager repositoryManager = getRepositoryManager(project);
+    VirtualFile file = DvcsUtil.getSelectedFile(project);
+    if (file == null) {
+      return null;
+    }
+    VirtualFile root = getHgRootOrNull(project, file);
+    return repositoryManager.getRepositoryForRoot(root);
   }
 
   @Nullable
@@ -600,7 +619,7 @@ public abstract class HgUtil {
         return false;
       }
       HgCommandResult result = getVersionOutput(executable);
-      return result.getRawError().isEmpty();
+      return result.getExitValue() == 0 && !result.getRawOutput().isEmpty();
     }
     catch (Throwable e) {
       LOG.info("Error during hg executable validation: ", e);
@@ -616,15 +635,47 @@ public abstract class HgUtil {
     cmdArgs.add("version");
     cmdArgs.add("-q");
     ShellCommand shellCommand = new ShellCommand(cmdArgs, null, CharsetToolkit.getDefaultSystemCharset());
-    return shellCommand.execute();
+    return shellCommand.execute(false);
   }
 
   public static List<String> getNamesWithoutHashes(Collection<HgNameWithHashInfo> namesWithHashes) {
-    return ContainerUtil.map(namesWithHashes, new Function<HgNameWithHashInfo, String>() {
-      @Override
-      public String fun(HgNameWithHashInfo info) {
-        return info.getName();
+    //return names without duplication (actually for several heads in one branch)
+    List<String> names = new ArrayList<String>();
+    for (HgNameWithHashInfo hash : namesWithHashes) {
+      if (!names.contains(hash.getName())) {
+        names.add(hash.getName());
       }
-    });
+    }
+    return names;
+  }
+
+  @NotNull
+  public static Pair<String, String> parseUserNameAndEmail(@NotNull String authorString) {
+    // Vasya Pupkin <vasya.pupkin@jetbrains.com> -> Vasya Pupkin , vasya.pupkin@jetbrains.com
+    int startEmailIndex = authorString.indexOf('<');
+    int startDomainIndex = authorString.indexOf('@');
+    int endEmailIndex = authorString.indexOf('>');
+    String userName;
+    String email;
+    if (0 < startEmailIndex && startEmailIndex < startDomainIndex && startDomainIndex < endEmailIndex) {
+      email = authorString.substring(startEmailIndex + 1, endEmailIndex);
+      userName = convertUserName(authorString.substring(0, startEmailIndex));
+    }
+
+    // vasya.pupkin@email.com --> vasya pupkin, vasya.pupkin@email.com
+    else if (!authorString.contains(" ") && startDomainIndex > 0) { //simple e-mail check. john@localhost
+      userName = convertUserName(authorString.substring(0, startDomainIndex));
+      email = authorString;
+    }
+
+    else {
+      userName = convertUserName(authorString);
+      email = "";
+    }
+    return Pair.create(userName, email);
+  }
+
+  private static String convertUserName(@NotNull String userNameInfo) {
+    return userNameInfo.trim().replace('.', ' ').replace('_', ' ').replace('-', ' ');
   }
 }

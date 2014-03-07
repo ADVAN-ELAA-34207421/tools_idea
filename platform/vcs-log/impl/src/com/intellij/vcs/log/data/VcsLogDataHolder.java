@@ -23,6 +23,8 @@ import com.intellij.openapi.progress.BackgroundTaskQueue;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.vcs.VcsException;
@@ -89,19 +91,6 @@ public class VcsLogDataHolder implements Disposable {
 
   private static final Logger LOG = Logger.getInstance(VcsLogDataHolder.class);
 
-  /**
-   * Don't load more than ourDetailsLoadingRateLimit times of standard recent commits details per repository.
-   * If this amount of commits is not enough, ask the VCS directly.
-   */
-  private static final int MORE_DETAILS_LOADING_RATE_LIMIT = 10;
-
-  /**
-   * If more details of recent commits are requested, multiply the number of commits to load by this value on each step,
-   * until this value reaches {@link #MORE_DETAILS_LOADING_RATE_LIMIT} times of
-   * {@link VcsLogSettings#getRecentCommitsCount() the standard recent commits count}.
-   */
-  public static final int MORE_DETAILS_LOADING_STEP_MULTIPLIER = 10;
-
   @NotNull private final Project myProject;
   @NotNull private final VcsLogObjectsFactory myFactory;
   @NotNull private final Map<VirtualFile, VcsLogProvider> myLogProviders;
@@ -158,9 +147,11 @@ public class VcsLogDataHolder implements Disposable {
   private final VcsLogHashMap myHashMap;
   private final NotNullFunction<Integer, Hash> myHashGetter;
   private final NotNullFunction<Hash, Integer> myIndexGetter;
+  private final ContainingBranchesGetter myContainingBranchesGetter;
 
-  public VcsLogDataHolder(@NotNull Project project,
+  public VcsLogDataHolder(@NotNull Project project, @NotNull Disposable parentDisposable,
                           @NotNull Map<VirtualFile, VcsLogProvider> logProviders, @NotNull VcsLogSettings settings) {
+    Disposer.register(parentDisposable, this);
     myProject = project;
     myLogProviders = logProviders;
     myDataLoaderQueue = new BackgroundTaskQueue(project, "Loading history...");
@@ -192,6 +183,7 @@ public class VcsLogDataHolder implements Disposable {
         return putHash(hash);
       }
     };
+    myContainingBranchesGetter = new ContainingBranchesGetter(this, this);
   }
 
   @NotNull
@@ -306,13 +298,16 @@ public class VcsLogDataHolder implements Disposable {
     }, "Loading log structure...");
   }
 
-  private List<CompactCommit> compactHashes(List<TimedVcsCommit> commits) {
-    return ContainerUtil.map(commits, new Function<TimedVcsCommit, CompactCommit>() {
+  @NotNull
+  private List<CompactCommit> compactHashes(@NotNull List<? extends TimedVcsCommit> commits) {
+    List<CompactCommit> compactedHashes = ContainerUtil.map(commits, new Function<TimedVcsCommit, CompactCommit>() {
       @Override
       public CompactCommit fun(final TimedVcsCommit commit) {
         return commit instanceof CompactCommit ? (CompactCommit)commit : new CompactCommit(commit);
       }
     });
+    myHashMap.flush();
+    return compactedHashes;
   }
 
   /**
@@ -346,7 +341,7 @@ public class VcsLogDataHolder implements Disposable {
 //          throw new RuntimeException(e);
 //        }
 
-        List<TimedVcsCommit> compoundLog = myMultiRepoJoiner.join(myLogData.myLogsByRoot.values());
+        List<? extends TimedVcsCommit> compoundLog = myMultiRepoJoiner.join(myLogData.myLogsByRoot.values());
         DataPack fullDataPack = DataPack.build(convertToGraphCommits(compoundLog), myLogData.getAllRefs(), indicator, myHashGetter, myIndexGetter);
         myLogData = new LogData(myLogData.getLogs(), myLogData.getRefs(), myLogData.getTopCommits(), fullDataPack, true);
         myFullLogShowing = true;
@@ -361,7 +356,7 @@ public class VcsLogDataHolder implements Disposable {
     }, "Building full log...");
   }
 
-  private List<? extends GraphCommit> convertToGraphCommits(List<TimedVcsCommit> log) {
+  private List<? extends GraphCommit> convertToGraphCommits(List<? extends TimedVcsCommit> log) {
     return compactHashes(log);
   }
 
@@ -386,8 +381,12 @@ public class VcsLogDataHolder implements Disposable {
       VirtualFile root = entry.getKey();
       RecentCommitsInfo info = entry.getValue();
 
-      Pair<List<TimedVcsCommit>, Integer> joinResult = myLogJoiner.addCommits(myLogData.getLog(root), myLogData.getRefs(root),
+      Collection<VcsRef> oldRefs = myLogData.getRefs(root);
+      Pair<List<TimedVcsCommit>, Integer> joinResult = myLogJoiner.addCommits(myLogData.getLog(root), oldRefs,
                                                                               info.firstBlockCommits, info.newRefs);
+      if (!Comparing.haveEqualElements(oldRefs, info.newRefs)) {
+        myContainingBranchesGetter.clearCache();
+      }
       List<TimedVcsCommit> refreshedLog = joinResult.getFirst();
       int newCommitsCount = joinResult.getSecond();
       // the value can significantly increase if user keeps IDEA open for a long time, and frequently receives many new commits,
@@ -398,10 +397,10 @@ public class VcsLogDataHolder implements Disposable {
       refsByRoot.put(root, info.newRefs);
     }
 
-    List<TimedVcsCommit> compoundLog = myMultiRepoJoiner.join(logsToBuild.values());
-    List<TimedVcsCommit> topPartOfTheLog = compoundLog.subList(0, topCommitCount);
+    List<? extends TimedVcsCommit> compoundLog = myMultiRepoJoiner.join(logsToBuild.values());
+    List<? extends TimedVcsCommit> topPartOfTheLog = compoundLog.subList(0, topCommitCount);
 
-    List<TimedVcsCommit> logToBuild = myFullLogShowing ? compoundLog : topPartOfTheLog; // keep looking at the full log after refresh
+    List<? extends TimedVcsCommit> logToBuild = myFullLogShowing ? compoundLog : topPartOfTheLog; // keep looking at the full log after refresh
     DataPack dataPack = DataPack.build(convertToGraphCommits(logToBuild), collectAllRefs(refsByRoot), indicator,
                                        myHashGetter, myIndexGetter);
 
@@ -433,7 +432,7 @@ public class VcsLogDataHolder implements Disposable {
       refsByRoot.put(root, info.newRefs);
     }
 
-    List<TimedVcsCommit> compoundLog = myMultiRepoJoiner.join(logsToBuild.values());
+    List<? extends TimedVcsCommit> compoundLog = myMultiRepoJoiner.join(logsToBuild.values());
 
     // even if the full log was already loaded (and possibly presented to the user),
     // build only the data that was retrieved from the VCS:
@@ -450,6 +449,7 @@ public class VcsLogDataHolder implements Disposable {
       myLogData = new LogData(logsToBuild, refsByRoot, compoundLog, dataPack, false);
     }
 
+    myContainingBranchesGetter.clearCache();
     handleOnSuccessInEdt(onSuccess, dataPack);
   }
 
@@ -482,22 +482,30 @@ public class VcsLogDataHolder implements Disposable {
     return myUserRegistry.getUsers();
   }
 
-  public void getFilteredDetailsFromTheVcs(final Collection<VcsLogFilter> filters, final Consumer<List<VcsFullCommitDetails>> success) {
+  public void getFilteredDetailsFromTheVcs(@NotNull final VcsLogFilterCollection filterCollection, 
+                                           @NotNull final Consumer<List<VcsFullCommitDetails>> success,
+                                           final int maxCount) {
     runInBackground(new ThrowableConsumer<ProgressIndicator, VcsException>() {
       @Override
       public void consume(ProgressIndicator indicator) throws VcsException {
-
         Collection<List<? extends TimedVcsCommit>> logs = ContainerUtil.newArrayList();
         final Map<Hash, VcsFullCommitDetails> allDetails = ContainerUtil.newHashMap();
         for (Map.Entry<VirtualFile, VcsLogProvider> entry : myLogProviders.entrySet()) {
-          List<? extends VcsFullCommitDetails> details = entry.getValue().getFilteredDetails(entry.getKey(), filters);
+          VirtualFile root = entry.getKey();
+
+          if (filterCollection.getStructureFilter() != null && filterCollection.getStructureFilter().getFiles(root).isEmpty()) {
+            // there is a structure filter, but it doesn't match this root
+            continue;
+          }
+
+          List<? extends VcsFullCommitDetails> details = entry.getValue().getFilteredDetails(root, filterCollection, maxCount);
           logs.add(getCommitsFromDetails(details));
           for (VcsFullCommitDetails detail : details) {
             allDetails.put(detail.getHash(), detail);
           }
         }
 
-        final List<TimedVcsCommit> compoundLog = myMultiRepoJoiner.join(logs);
+        final List<? extends TimedVcsCommit> compoundLog = myMultiRepoJoiner.join(logs);
 
         final List<VcsFullCommitDetails> list = ContainerUtil.mapNotNull(compoundLog, new Function<TimedVcsCommit, VcsFullCommitDetails>() {
           @Override
@@ -531,6 +539,17 @@ public class VcsLogDataHolder implements Disposable {
   }
 
   @NotNull
+  private static List<VcsLogStructureFilter> filterStructureFiltersByRoot(@NotNull final VirtualFile root,
+                                                                          @NotNull List<VcsLogStructureFilter> structureFilters) {
+    return ContainerUtil.filter(structureFilters, new Condition<VcsLogStructureFilter>() {
+      @Override
+      public boolean value(VcsLogStructureFilter filter) {
+        return !filter.getFiles(root).isEmpty();
+      }
+    });
+  }
+
+  @NotNull
   public Map<VirtualFile, VcsUser> getCurrentUser() {
     return myCurrentUser;
   }
@@ -556,6 +575,15 @@ public class VcsLogDataHolder implements Disposable {
   @NotNull
   public Collection<VcsLogProvider> getLogProviders() {
     return myLogProviders.values();
+  }
+
+  @NotNull
+  public VcsLogSettings getSettings() {
+    return mySettings;
+  }
+
+  public ContainingBranchesGetter getContainingBranchesGetter() {
+    return myContainingBranchesGetter;
   }
 
   private static class RecentCommitsInfo {
@@ -594,92 +622,14 @@ public class VcsLogDataHolder implements Disposable {
   }
 
   private List<TimedVcsCommit> getCommitsFromDetails(List<? extends VcsFullCommitDetails> firstBlockDetails) {
-    return ContainerUtil.map(firstBlockDetails, new Function<VcsFullCommitDetails, TimedVcsCommit>() {
+    List<TimedVcsCommit> commits = ContainerUtil.map(firstBlockDetails, new Function<VcsFullCommitDetails, TimedVcsCommit>() {
       @Override
       public TimedVcsCommit fun(VcsFullCommitDetails details) {
-        return new CompactCommit(details.getHash(), details.getParents(), details.getAuthorTime());
+        return new CompactCommit(details.getHash(), details.getParents(), details.getTime());
       }
     });
-  }
-
-  /**
-   * The state of "load more" procedure.
-   */
-  public enum LoadingState {
-    /**
-     * currently in the process of loading more details;
-     */
-    LOADING,
-    /**
-     * details of all commit of the entire history have been loaded, nothing to load more
-     */
-    ALL_COMMITS_LOADED,
-    /**
-     * reached the limit to load more commit details; need to query the VCS directly if needed.
-     */
-    LIMIT_REACHED
-  }
-
-  @NotNull
-  public LoadingState loadMoreDetails(@NotNull final Runnable onSuccess) {
-    if (myLoadMoreInProgress.get()) { // quick check
-      return LoadingState.LOADING;
-    }
-
-    final int topCommitsCount = myLogData.getTopCommitsCount();
-    int rootsCount = getRootCount();
-    if (topCommitsCount >= MORE_DETAILS_LOADING_RATE_LIMIT * mySettings.getRecentCommitsCount() * rootsCount) {
-      return LoadingState.LIMIT_REACHED;
-    }
-
-    if (entireLogDetailsLoaded()) { // the entire history was small enough
-      return LoadingState.ALL_COMMITS_LOADED;
-    }
-
-    if (myLogData.isFullLogReady()) {
-      int totalSize = 0;
-      for (List<? extends TimedVcsCommit> commits : myLogData.getLogs().values()) {
-        totalSize += commits.size();
-      }
-      if (topCommitsCount >= totalSize) {
-        // nothing more to load
-        return LoadingState.ALL_COMMITS_LOADED;
-      }
-    }
-
-    if (myLoadMoreInProgress.compareAndSet(false, true)) {
-      runInBackground(new ThrowableConsumer<ProgressIndicator, VcsException>() {
-        @Override
-        public void consume(ProgressIndicator indicator) throws VcsException {
-          loadFromVcs(topCommitsCount * MORE_DETAILS_LOADING_STEP_MULTIPLIER, indicator, new Consumer<DataPack>() {
-            @Override
-            public void consume(DataPack dataPack) {
-              myLoadMoreInProgress.set(false);
-              onSuccess.run();
-            }
-          });
-        }
-      }, "Loading more details to filter...");
-    }
-    return LoadingState.LOADING;
-  }
-
-  private int getRootCount() {
-    return myLogProviders.keySet().size();
-  }
-
-  private boolean entireLogDetailsLoaded() {
-    LogData logData = myLogData;
-    if (logData.isFullLogReady()) {
-      int totalSize = 0;
-      for (List<? extends TimedVcsCommit> commits : logData.getLogs().values()) {
-        totalSize += commits.size();
-      }
-      if (logData.getTopCommitsCount() >= totalSize) {
-        return true;
-      }
-    }
-    return false;
+    myHashMap.flush();
+    return commits;
   }
 
   private void runInBackground(final ThrowableConsumer<ProgressIndicator, VcsException> task, final String title) {
@@ -790,48 +740,6 @@ public class VcsLogDataHolder implements Disposable {
   }
 
   /**
-   * Returns the ordered part of the recent commits, details of which are always stored in the cache.
-   */
-  @NotNull
-  public Collection<TimedVcsCommit> getTopCommits() {
-    return myLogData.getTopCommits();
-  }
-
-  /**
-   * Returns details of recent commits ordered in the "right way" (as in the log).
-   */
-  @NotNull
-  public Collection<VcsFullCommitDetails> getTopCommitDetails() {
-    final Collection<TimedVcsCommit> topCommits = getTopCommits();
-    final AtomicBoolean errorDetailsAttached = new AtomicBoolean();
-    return ContainerUtil.mapNotNull(topCommits, new Function<TimedVcsCommit, VcsFullCommitDetails>() {
-      @Nullable
-      @Override
-      public VcsFullCommitDetails fun(TimedVcsCommit commit) {
-        Hash hash = commit.getHash();
-        VcsFullCommitDetails details = myTopCommitsDetailsCache.get(hash);
-        if (details != null) {
-          return details;
-        }
-
-        // shouldn't happen
-        String errorMessage = "No details were stored for commit " + hash;
-        // log the error only once for the getTopCommitDetails request
-        if (!errorDetailsAttached.get()) {
-          errorDetailsAttached.set(true);
-          // temporary disable the error message until the bug is properly fixed.
-          // the bug is: we store 1000 commit details per root, but iterate through the roots_num * 1000 latest commits
-          // therefore this error shouldn't happen only in the case when commits of all repositories are evently distributed in time.
-//          LOG.error(errorMessage,
-//                    new Attachment("details_cache.txt", myTopCommitsDetailsCache.toString()),
-//                    new Attachment("top_commits.txt", topCommits.toString()));
-        }
-        return null;
-      }
-    });
-  }
-
-  /**
    * Simply checks for isDisposed.
    */
   private void invokeAndWait(final Runnable task) {
@@ -854,12 +762,12 @@ public class VcsLogDataHolder implements Disposable {
   private static class LogData {
     @NotNull private final Map<VirtualFile, List<? extends TimedVcsCommit>> myLogsByRoot;
     @NotNull private final Map<VirtualFile, Collection<VcsRef>> myRefsByRoot;
-    @NotNull private final List<TimedVcsCommit> myCompoundTopCommits;
+    @NotNull private final List<? extends TimedVcsCommit> myCompoundTopCommits;
     @NotNull private final DataPack myDataPack;
     private final boolean myFullLog;
 
     private LogData(@NotNull Map<VirtualFile, List<? extends TimedVcsCommit>> logsByRoot,
-                    @NotNull Map<VirtualFile, Collection<VcsRef>> refsByRoot, @NotNull List<TimedVcsCommit> compoundTopCommits,
+                    @NotNull Map<VirtualFile, Collection<VcsRef>> refsByRoot, @NotNull List<? extends TimedVcsCommit> compoundTopCommits,
                     @NotNull DataPack dataPack, boolean fullLog) {
       myLogsByRoot = logsByRoot;
       myRefsByRoot = refsByRoot;
@@ -893,7 +801,7 @@ public class VcsLogDataHolder implements Disposable {
     }
 
     public boolean isFullLogReady() {
-      return myFullLog;
+      return myFullLog && getTopCommitsCount() > 0;
     }
 
     @NotNull
@@ -911,7 +819,7 @@ public class VcsLogDataHolder implements Disposable {
     }
 
     @NotNull
-    public List<TimedVcsCommit> getTopCommits() {
+    public List<? extends TimedVcsCommit> getTopCommits() {
       return myCompoundTopCommits;
     }
   }
@@ -920,15 +828,15 @@ public class VcsLogDataHolder implements Disposable {
     private final int myHashIndex;
     private final int myParent; // there is almost always one parent
     private final int[] myOtherParents;
-    private final long myAuthorTime;
+    private final long myTime;
 
     public CompactCommit(TimedVcsCommit commit) {
-      this(commit.getHash(), commit.getParents(), commit.getAuthorTime());
+      this(commit.getHash(), commit.getParents(), commit.getTime());
     }
 
     public CompactCommit(Hash hash, List<Hash> parents, long time) {
       myHashIndex = putHash(hash);
-      myAuthorTime = time;
+      myTime = time;
 
       if (!parents.isEmpty()) {
         myParent = putHash(parents.get(0));
@@ -949,8 +857,8 @@ public class VcsLogDataHolder implements Disposable {
     }
 
     @Override
-    public long getAuthorTime() {
-      return myAuthorTime;
+    public long getTime() {
+      return myTime;
     }
 
     @NotNull

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -166,12 +166,12 @@ public abstract class AbstractFileTreeTable<T> extends TreeTable {
     }
     int ret = Messages.showYesNoCancelDialog(myProject, message, title, "Override", "Do Not Override", "Cancel",
                                              Messages.getWarningIcon());
-    if (ret == 0) {
+    if (ret == Messages.YES) {
       for (VirtualFile file : subdirectoryMappings.keySet()) {
         myModel.setValueAt(null, new DefaultMutableTreeNode(file), 1);
       }
     }
-    return ret != 2;
+    return ret != Messages.CANCEL;
   }
 
   @NotNull
@@ -336,7 +336,7 @@ public abstract class AbstractFileTreeTable<T> extends TreeTable {
   }
 
   public static class ProjectRootNode extends ConvenientNode<Project> {
-    private VirtualFileFilter myFilter;
+    private final VirtualFileFilter myFilter;
 
     public ProjectRootNode(@NotNull Project project) {
       this(project, VirtualFileFilter.ALL);
@@ -437,7 +437,7 @@ public abstract class AbstractFileTreeTable<T> extends TreeTable {
 
   public static class FileNode extends ConvenientNode<VirtualFile> {
     private final Project myProject;
-    private VirtualFileFilter myFilter;
+    private final VirtualFileFilter myFilter;
 
     public FileNode(@NotNull VirtualFile file, @NotNull final Project project) {
       this(file, project, VirtualFileFilter.ALL);

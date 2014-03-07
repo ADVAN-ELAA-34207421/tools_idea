@@ -35,14 +35,14 @@ import org.jetbrains.jps.model.java.JpsJavaExtensionService;
 public class MarkGeneratedSourceRootAction extends MarkRootActionBase {
   public MarkGeneratedSourceRootAction() {
     Presentation presentation = getTemplatePresentation();
-    presentation.setIcon(AllIcons.Modules.SourceRoot);
+    presentation.setIcon(AllIcons.Modules.GeneratedSourceRoot);
     presentation.setText("Generated Sources Root");
     presentation.setDescription("Mark directory as a source root for generated files");
   }
 
   @Override
   protected boolean isEnabled(@NotNull RootsSelection selection, @NotNull Module module) {
-    if (!(ModuleType.get(module) instanceof JavaModuleType)) return false;
+    if (!isJavaModule(module)) return false;
 
     if (selection.myHaveSelectedFilesUnderSourceRoots) {
       return false;
@@ -59,6 +59,12 @@ public class MarkGeneratedSourceRootAction extends MarkRootActionBase {
       }
     }
     return false;
+  }
+
+  private static boolean isJavaModule(Module module) {
+    ModuleType moduleType = ModuleType.get(module);
+    //this additional check can be removed when we get rid of PluginModuleType
+    return moduleType instanceof JavaModuleType || moduleType != null && "PLUGIN_MODULE".equals(moduleType.getId());
   }
 
   @Override

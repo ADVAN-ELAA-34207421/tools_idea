@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -176,22 +176,6 @@ public class ArrayUtil extends ArrayUtilRt {
       ret[i++] = e.intValue();
     }
     return ret;
-  }
-
-  /** @deprecated use {@linkplain #mergeArrays(Object[], Object[], com.intellij.util.ArrayFactory)} (to remove in IDEA 13) */
-  @NotNull
-  public static <T> T[] mergeArrays(@NotNull T[] a1, @NotNull T[] a2, @NotNull Class<T> aClass) {
-    if (a1.length == 0) {
-      return a2;
-    }
-    if (a2.length == 0) {
-      return a1;
-    }
-
-    @SuppressWarnings("unchecked") T[] result = (T[])Array.newInstance(aClass, a1.length + a2.length);
-    System.arraycopy(a1, 0, result, 0, a1.length);
-    System.arraycopy(a2, 0, result, a1.length, a2.length);
-    return result;
   }
 
   @NotNull
@@ -386,7 +370,7 @@ public class ArrayUtil extends ArrayUtilRt {
   }
 
   @NotNull
-  public static <T> T[] remove(@NotNull final T[] src, int idx, ArrayFactory<T> factory) {
+  public static <T> T[] remove(@NotNull final T[] src, int idx, @NotNull ArrayFactory<T> factory) {
     int length = src.length;
     if (idx < 0 || idx >= length) {
       throw new IllegalArgumentException("invalid index: " + idx);
@@ -406,7 +390,7 @@ public class ArrayUtil extends ArrayUtilRt {
   }
 
   @NotNull
-  public static <T> T[] remove(@NotNull final T[] src, T element, ArrayFactory<T> factory) {
+  public static <T> T[] remove(@NotNull final T[] src, T element, @NotNull ArrayFactory<T> factory) {
     final int idx = find(src, element);
     if (idx == -1) return src;
 
@@ -457,14 +441,14 @@ public class ArrayUtil extends ArrayUtilRt {
     return indexOf(src, obj);
   }
 
-  public static boolean startsWith(byte[] array, byte[] prefix) {
+  public static <T> int find(@NotNull final T[] src, final T obj) {
+    return ArrayUtilRt.find(src, obj);
+  }
+
+  public static boolean startsWith(@NotNull byte[] array, @NotNull byte[] prefix) {
     if (array == prefix) {
       return true;
     }
-    if (array == null || prefix == null) {
-      return false;
-    }
-
     int length = prefix.length;
     if (array.length < length) {
       return false;
@@ -479,14 +463,10 @@ public class ArrayUtil extends ArrayUtilRt {
     return true;
   }
 
-  public static <E> boolean startsWith(E[] array, E[] subArray) {
+  public static <E> boolean startsWith(@NotNull E[] array, @NotNull E[] subArray) {
     if (array == subArray) {
       return true;
     }
-    if (array == null || subArray == null) {
-      return false;
-    }
-
     int length = subArray.length;
     if (array.length < length) {
       return false;
@@ -516,12 +496,9 @@ public class ArrayUtil extends ArrayUtilRt {
     return true;
   }
 
-  public static <T> boolean equals(T[] a1, T[] a2, @NotNull Equality<? super T> comparator) {
+  public static <T> boolean equals(@NotNull T[] a1, @NotNull T[] a2, @NotNull Equality<? super T> comparator) {
     if (a1 == a2) {
       return true;
-    }
-    if (a1 == null || a2 == null) {
-      return false;
     }
 
     int length = a2.length;
@@ -537,14 +514,10 @@ public class ArrayUtil extends ArrayUtilRt {
     return true;
   }
 
-  public static <T> boolean equals(T[] a1, T[] a2, @NotNull Comparator<? super T> comparator) {
+  public static <T> boolean equals(@NotNull T[] a1, @NotNull T[] a2, @NotNull Comparator<? super T> comparator) {
     if (a1 == a2) {
       return true;
     }
-    if (a1 == null || a2 == null) {
-      return false;
-    }
-
     int length = a2.length;
     if (a1.length != length) {
       return false;
@@ -697,11 +670,11 @@ public class ArrayUtil extends ArrayUtilRt {
     return -1;
   }
 
-  public static boolean contains(@Nullable final Object o, final Object... objects) {
+  public static boolean contains(@Nullable final Object o, @NotNull Object... objects) {
     return indexOf(objects, o) >= 0;
   }
 
-  public static boolean contains(@Nullable final String s, final String... strings) {
+  public static boolean contains(@Nullable final String s, @NotNull String... strings) {
     if (s == null) {
       for (String str : strings) {
         if (str == null) return true;

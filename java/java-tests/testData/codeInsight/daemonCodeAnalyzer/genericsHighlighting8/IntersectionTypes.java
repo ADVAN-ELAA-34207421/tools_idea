@@ -128,7 +128,7 @@ class Maps {
 class Client {
     void f(Date d) {
         //this call should be OK
-        Maps.asMap(Maps.entry(fieldName(), "Test"),
+        <warning descr="Unchecked generics array creation for varargs parameter">Maps.asMap</warning>(Maps.entry(fieldName(), "Test"),
                    Maps.entry(fieldName(), 1),
                    Maps.entry(fieldName(), d));
     }
@@ -167,7 +167,7 @@ class Axx {
 }
 ///////////////
 interface L {}
-public class MaximalType  {
+class MaximalType  {
     public static <T> T getParentOfType(Class<? extends T>... classes) {
        classes.hashCode();
        return null;

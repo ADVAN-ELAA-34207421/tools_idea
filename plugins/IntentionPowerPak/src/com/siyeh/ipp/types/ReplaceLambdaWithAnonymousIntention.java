@@ -52,9 +52,8 @@ public class ReplaceLambdaWithAnonymousIntention extends Intention {
     final PsiLambdaExpression lambdaExpression = PsiTreeUtil.getParentOfType(element, PsiLambdaExpression.class);
     LOG.assertTrue(lambdaExpression != null);
     final PsiParameter[] paramListCopy = ((PsiParameterList)lambdaExpression.getParameterList().copy()).getParameters();
-    PsiType functionalInterfaceType = lambdaExpression.getFunctionalInterfaceType();
+    final PsiType functionalInterfaceType = lambdaExpression.getFunctionalInterfaceType();
     LOG.assertTrue(functionalInterfaceType != null);
-    functionalInterfaceType = GenericsUtil.eliminateWildcards(functionalInterfaceType);
     final PsiMethod method = LambdaUtil.getFunctionalInterfaceMethod(functionalInterfaceType);
     LOG.assertTrue(method != null);
 
@@ -74,6 +73,9 @@ public class ReplaceLambdaWithAnonymousIntention extends Intention {
       final Map<PsiElement, PsiElement> replacements = new HashMap<PsiElement, PsiElement>();
       blockFromText.accept(new JavaRecursiveElementWalkingVisitor() {
         @Override
+        public void visitClass(PsiClass aClass) {}
+
+        @Override
         public void visitSuperExpression(PsiSuperExpression expression) {
           super.visitSuperExpression(expression);
           if (expression.getQualifier() == null) {
@@ -81,6 +83,13 @@ public class ReplaceLambdaWithAnonymousIntention extends Intention {
           }
         }
 
+        @Override
+        public void visitMethodCallExpression(PsiMethodCallExpression expression) {
+          super.visitMethodCallExpression(expression);
+          if (thisAccessExpr != null && expression.getMethodExpression().getQualifierExpression() == null) {
+            replacements.put(expression, psiElementFactory.createExpressionFromText(thisAccessExpr.getText() + "." + expression.getText(), expression));
+          }
+        }
       });
       for (PsiElement psiElement : replacements.keySet()) {
         psiElement.replace(replacements.get(psiElement));
@@ -152,7 +161,7 @@ public class ReplaceLambdaWithAnonymousIntention extends Intention {
         return functionalInterfaceType != null &&
                LambdaUtil.getFunctionalInterfaceMethod(functionalInterfaceType) != null &&
                LambdaUtil.isLambdaFullyInferred(lambdaExpression, functionalInterfaceType) &&
-               LambdaHighlightingUtil.checkInterfaceFunctional(functionalInterfaceType) == null;
+               LambdaUtil.isFunctionalType(functionalInterfaceType);
       }
       return false;
     }

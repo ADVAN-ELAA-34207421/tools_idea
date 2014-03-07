@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,12 @@
 package org.jetbrains.plugins.groovy.refactoring.introduce.constant;
 
 import com.intellij.psi.*;
+import com.intellij.refactoring.JavaRefactoringSettings;
 import com.intellij.refactoring.introduce.inplace.OccurrencesChooser;
 import com.intellij.refactoring.introduceField.IntroduceConstantHandler;
 import com.intellij.ui.components.JBCheckBox;
+import com.intellij.util.ArrayUtil;
+import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyFileBase;
@@ -27,10 +30,12 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrExpres
 import org.jetbrains.plugins.groovy.refactoring.GroovyNameSuggestionUtil;
 import org.jetbrains.plugins.groovy.refactoring.introduce.GrAbstractInplaceIntroducer;
 import org.jetbrains.plugins.groovy.refactoring.introduce.GrIntroduceContext;
+import org.jetbrains.plugins.groovy.refactoring.introduce.GrIntroduceHandlerBase;
 import org.jetbrains.plugins.groovy.refactoring.introduce.StringPartInfo;
 import org.jetbrains.plugins.groovy.refactoring.introduce.field.GroovyInplaceFieldValidator;
 
 import javax.swing.*;
+import java.util.ArrayList;
 
 /**
  * Created by Max Medvedev on 8/29/13
@@ -47,13 +52,26 @@ public class GrInplaceConstantIntroducer extends GrAbstractInplaceIntroducer<GrI
 
     myPanel = new GrInplaceIntroduceConstantPanel();
 
-    mySuggestedNames = GroovyNameSuggestionUtil.suggestVariableNames(context.getExpression(), new GroovyInplaceFieldValidator(context),
-                                                                     true);
+    GrVariable localVar = GrIntroduceHandlerBase.resolveLocalVar(context);
+    if (localVar != null) {
+      ArrayList<String> result = ContainerUtil.newArrayList(localVar.getName());
+
+      GrExpression initializer = localVar.getInitializerGroovy();
+      if (initializer != null) {
+        ContainerUtil.addAll(result, GroovyNameSuggestionUtil.suggestVariableNames(initializer, new GroovyInplaceFieldValidator(context), true));
+      }
+      mySuggestedNames = ArrayUtil.toStringArray(result);
+    }
+    else {
+      GrExpression expression = context.getExpression();
+      assert expression != null;
+      mySuggestedNames = GroovyNameSuggestionUtil.suggestVariableNames(expression, new GroovyInplaceFieldValidator(context), true);
+    }
   }
 
   @Override
   protected String getActionName() {
-    return null;
+    return GrIntroduceConstantHandler.REFACTORING_NAME;
   }
 
   @Override
@@ -162,6 +180,34 @@ public class GrInplaceConstantIntroducer extends GrAbstractInplaceIntroducer<GrI
   @Override
   protected PsiElement checkLocalScope() {
     return ((PsiField)getVariable()).getContainingClass();
+  }
+
+
+  @Override
+  protected boolean performRefactoring() {
+    JavaRefactoringSettings.getInstance().INTRODUCE_CONSTANT_MOVE_TO_ANOTHER_CLASS = myPanel.isMoveToAnotherClass();
+    if (myPanel.isMoveToAnotherClass()) {
+      try {
+        myEditor.putUserData(INTRODUCE_RESTART, true);
+        myEditor.putUserData(ACTIVE_INTRODUCE, this);
+        final GrIntroduceConstantHandler constantHandler = new GrIntroduceConstantHandler();
+        final PsiLocalVariable localVariable = (PsiLocalVariable)getLocalVariable();
+        constantHandler.getContextAndInvoke(myProject, myEditor, ((GrExpression)myExpr), (GrVariable)localVariable, null);
+      }
+      finally {
+        myEditor.putUserData(INTRODUCE_RESTART, false);
+        myEditor.putUserData(ACTIVE_INTRODUCE, null);
+        releaseResources();
+        if (myLocalMarker != null) {
+          myLocalMarker.dispose();
+        }
+        if (myExprMarker != null) {
+          myExprMarker.dispose();
+        }
+      }
+      return false;
+    }
+    return super.performRefactoring();
   }
 
   /**

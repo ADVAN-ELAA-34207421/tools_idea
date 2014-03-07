@@ -34,14 +34,17 @@ import com.intellij.openapi.externalSystem.model.execution.ExternalTaskExecution
 import com.intellij.openapi.externalSystem.model.project.ModuleData;
 import com.intellij.openapi.externalSystem.model.project.ProjectData;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotificationListener;
+import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskType;
 import com.intellij.openapi.externalSystem.service.ImportCanceledException;
 import com.intellij.openapi.externalSystem.service.execution.AbstractExternalSystemTaskConfigurationType;
 import com.intellij.openapi.externalSystem.service.execution.ExternalSystemRunConfiguration;
 import com.intellij.openapi.externalSystem.service.execution.ProgressExecutionMode;
+import com.intellij.openapi.externalSystem.service.internal.ExternalSystemProcessingManager;
 import com.intellij.openapi.externalSystem.service.internal.ExternalSystemResolveProjectTask;
 import com.intellij.openapi.externalSystem.service.notification.ExternalSystemIdeNotificationManager;
 import com.intellij.openapi.externalSystem.service.project.ExternalProjectRefreshCallback;
 import com.intellij.openapi.externalSystem.service.project.PlatformFacade;
+import com.intellij.openapi.externalSystem.service.project.ProjectStructureHelper;
 import com.intellij.openapi.externalSystem.service.project.manage.ModuleDataService;
 import com.intellij.openapi.externalSystem.service.project.manage.ProjectDataManager;
 import com.intellij.openapi.externalSystem.service.settings.ExternalSystemConfigLocator;
@@ -55,6 +58,8 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ex.ProjectRootManagerEx;
+import com.intellij.openapi.roots.libraries.Library;
+import com.intellij.openapi.roots.libraries.LibraryTable;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
@@ -71,6 +76,7 @@ import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentManager;
 import com.intellij.util.Consumer;
 import com.intellij.util.Function;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.ContainerUtilRt;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
@@ -216,6 +222,8 @@ public class ExternalSystemUtil {
                 projectDataManager.importData(externalProject.getKey(), Collections.singleton(externalProject), project, true);
               }
             });
+
+            processOrphanProjectLibraries();
           }
         });
         if (--counter[0] <= 0) {
@@ -260,14 +268,30 @@ public class ExternalSystemUtil {
           ruleOrphanModules(orphanIdeModules, project, externalSystemId);
         }
       }
+
+      private void processOrphanProjectLibraries() {
+        PlatformFacade platformFacade = ServiceManager.getService(PlatformFacade.class);
+        List<Library> orphanIdeLibraries = ContainerUtilRt.newArrayList();
+
+        LibraryTable projectLibraryTable = platformFacade.getProjectLibraryTable(project);
+        for (Library library : projectLibraryTable.getLibraries()) {
+          if (!ExternalSystemApiUtil.isExternalSystemLibrary(library, externalSystemId)) continue;
+          if (ProjectStructureHelper.isOrphanProjectLibrary(library, platformFacade.getModules(project))) {
+            orphanIdeLibraries.add(library);
+          }
+        }
+        for (Library orphanIdeLibrary : orphanIdeLibraries) {
+          projectLibraryTable.removeLibrary(orphanIdeLibrary);
+        }
+      }
     };
 
     Map<String, Long> modificationStamps = manager.getLocalSettingsProvider().fun(project).getExternalConfigModificationStamps();
     Set<String> toRefresh = ContainerUtilRt.newHashSet();
     for (ExternalProjectSettings setting : projectsSettings) {
       Long oldModificationStamp = modificationStamps.get(setting.getExternalProjectPath());
-      long currentModificationStamp = getTimeStamp(setting.getExternalProjectPath(), externalSystemId);
-      if (force || currentModificationStamp < 0 || oldModificationStamp == null || oldModificationStamp < currentModificationStamp) {
+      long currentModificationStamp = getTimeStamp(setting, externalSystemId);
+      if (force || oldModificationStamp == null || oldModificationStamp < currentModificationStamp) {
         toRefresh.add(setting.getExternalProjectPath());
       }
     }
@@ -280,21 +304,17 @@ public class ExternalSystemUtil {
     }
   }
 
-  private static long getTimeStamp(@NotNull String path, @NotNull ProjectSystemId externalSystemId) {
-    VirtualFile vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(new File(path));
-    if (vFile == null) {
-      return -1;
-    }
+  private static long getTimeStamp(@NotNull ExternalProjectSettings externalProjectSettings, @NotNull ProjectSystemId externalSystemId) {
+    long timeStamp = 0;
     for (ExternalSystemConfigLocator locator : ExternalSystemConfigLocator.EP_NAME.getExtensions()) {
       if (!externalSystemId.equals(locator.getTargetExternalSystemId())) {
         continue;
       }
-      VirtualFile adjusted = locator.adjust(vFile);
-      if (adjusted != null) {
-        vFile = adjusted;
+      for (VirtualFile virtualFile : locator.findAll(externalProjectSettings)) {
+        timeStamp += virtualFile.getTimeStamp();
       }
     }
-    return vFile.getTimeStamp();
+    return timeStamp;
   }
 
   /**
@@ -435,20 +455,43 @@ public class ExternalSystemUtil {
       public void execute(@NotNull ProgressIndicator indicator) {
         if(project.isDisposed()) return;
 
+        ExternalSystemProcessingManager processingManager = ServiceManager.getService(ExternalSystemProcessingManager.class);
+        if (processingManager.findTask(ExternalSystemTaskType.RESOLVE_PROJECT, externalSystemId, externalProjectPath) != null) {
+          callback.onFailure(ExternalSystemBundle.message("error.resolve.already.running", externalProjectPath), null);
+          return;
+        }
+
         ExternalSystemResolveProjectTask task
           = new ExternalSystemResolveProjectTask(externalSystemId, project, externalProjectPath, isPreviewMode);
 
         task.execute(indicator, ExternalSystemTaskNotificationListener.EP_NAME.getExtensions());
+        if(project.isDisposed()) return;
+
         final Throwable error = task.getError();
         if (error == null) {
-          long stamp = getTimeStamp(externalProjectPath, externalSystemId);
-          if (stamp > 0) {
-            ExternalSystemManager<?, ?, ?, ?, ?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
-            assert manager != null;
-            if(project.isDisposed()) return;
-            manager.getLocalSettingsProvider().fun(project).getExternalConfigModificationStamps().put(externalProjectPath, stamp);
-          }
+          ExternalSystemManager<?, ?, ?, ?, ?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
+          assert manager != null;
           DataNode<ProjectData> externalProject = task.getExternalProject();
+
+          if(externalProject != null) {
+            Set<String> externalModulePaths = ContainerUtil.newHashSet();
+            Collection<DataNode<ModuleData>> moduleNodes = ExternalSystemApiUtil.findAll(externalProject, ProjectKeys.MODULE);
+            for (DataNode<ModuleData> node : moduleNodes) {
+              externalModulePaths.add(node.getData().getLinkedExternalProjectPath());
+            }
+
+            String projectPath = externalProject.getData().getLinkedExternalProjectPath();
+            ExternalProjectSettings linkedProjectSettings = manager.getSettingsProvider().fun(project).getLinkedProjectSettings(projectPath);
+            if (linkedProjectSettings != null) {
+              linkedProjectSettings.setModules(externalModulePaths);
+
+              long stamp = getTimeStamp(linkedProjectSettings, externalSystemId);
+              if (stamp > 0) {
+                manager.getLocalSettingsProvider().fun(project).getExternalConfigModificationStamps().put(externalProjectPath, stamp);
+              }
+            }
+          }
+
           callback.onSuccess(externalProject);
           return;
         }
@@ -459,8 +502,7 @@ public class ExternalSystemUtil {
         String message = ExternalSystemApiUtil.buildErrorMessage(error);
         if (StringUtil.isEmpty(message)) {
           message = String.format(
-            "Can't resolve %s project at '%s'. Reason: %s",
-            externalSystemId.getReadableName(), externalProjectPath, message
+            "Can't resolve %s project at '%s'. Reason: %s", externalSystemId.getReadableName(), externalProjectPath, message
           );
         }
 

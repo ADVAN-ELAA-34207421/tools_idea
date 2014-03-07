@@ -56,6 +56,7 @@ import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.util.Consumer;
 import com.intellij.util.Processor;
 import com.intellij.util.ThreeState;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.Convertor;
 import com.intellij.util.containers.SoftHashMap;
 import com.intellij.util.messages.MessageBus;
@@ -203,8 +204,8 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
   };
   private SvnCheckoutProvider myCheckoutProvider;
 
-  private final ClientFactory cmdClientFactory;
-  private final ClientFactory svnKitClientFactory;
+  @NotNull private final ClientFactory cmdClientFactory;
+  @NotNull private final ClientFactory svnKitClientFactory;
 
   private final boolean myLogExceptions;
 
@@ -393,12 +394,10 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
       @Override
       public void processLoadedLists(final List<LocalChangeList> lists) {
         if (lists.isEmpty()) return;
-        SvnConfiguration.SvnSupportOptions supportOptions = null;
         try {
           ChangeListManager.getInstance(myProject).setReadOnly(SvnChangeProvider.ourDefaultListName, true);
-          supportOptions = myConfiguration.getSupportOptions(myProject);
 
-          if (!supportOptions.changeListsSynchronized()) {
+          if (!myConfiguration.changeListsSynchronized()) {
             processChangeLists(lists);
           }
         }
@@ -406,9 +405,7 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
           //
         }
         finally {
-          if (supportOptions != null) {
-            supportOptions.upgrade();
-          }
+          myConfiguration.upgrade();
         }
 
         connection.disconnect();
@@ -497,11 +494,7 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
       }
     }
 
-    final SvnConfiguration.UseAcceleration accelerationType = SvnConfiguration.getInstance(myProject).myUseAcceleration;
-    if (SvnConfiguration.UseAcceleration.javaHL.equals(accelerationType)) {
-      CheckJavaHL.runtimeCheck(myProject);
-    }
-    else if (!ApplicationManager.getApplication().isHeadlessEnvironment()) {
+    if (!ApplicationManager.getApplication().isHeadlessEnvironment()) {
       checkCommandLineVersion();
     }
 
@@ -983,6 +976,33 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
     return result;
   }
 
+  public void collectInfo(@NotNull Collection<File> files, @Nullable ISVNInfoHandler handler) {
+    File first = ContainerUtil.getFirstItem(files);
+
+    if (first != null) {
+      ClientFactory factory = getFactory(first);
+
+      try {
+        if (factory instanceof CmdClientFactory) {
+          factory.createInfoClient().doInfo(files, handler);
+        }
+        else {
+          // TODO: Generally this should be moved in SvnKit info client implementation.
+          // TODO: Currently left here to have exception logic as in handleInfoException to be applied for each file separately.
+          for (File file : files) {
+            SVNInfo info = getInfo(file);
+            if (handler != null) {
+              handler.handleInfo(info);
+            }
+          }
+        }
+      }
+      catch (SVNException e) {
+        handleInfoException(e);
+      }
+    }
+  }
+
   @Nullable
   public SVNInfo getInfo(@NotNull File ioFile, @NotNull SVNRevision revision) {
     SVNInfo result = null;
@@ -1031,11 +1051,11 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
 
   public void refreshSSLProperty() {
     if (ourSSLProtocolsExplicitlySet) return;
-    if (SvnConfiguration.SSLProtocols.all.equals(myConfiguration.SSL_PROTOCOLS)) {
+    if (SvnConfiguration.SSLProtocols.all.equals(myConfiguration.getSslProtocols())) {
       System.clearProperty(SVNKIT_HTTP_SSL_PROTOCOLS);
-    } else if (SvnConfiguration.SSLProtocols.sslv3.equals(myConfiguration.SSL_PROTOCOLS)) {
+    } else if (SvnConfiguration.SSLProtocols.sslv3.equals(myConfiguration.getSslProtocols())) {
       System.setProperty(SVNKIT_HTTP_SSL_PROTOCOLS, "SSLv3");
-    } else if (SvnConfiguration.SSLProtocols.tlsv1.equals(myConfiguration.SSL_PROTOCOLS)) {
+    } else if (SvnConfiguration.SSLProtocols.tlsv1.equals(myConfiguration.getSslProtocols())) {
       System.setProperty(SVNKIT_HTTP_SSL_PROTOCOLS, "TLSv1");
     }
   }
@@ -1412,6 +1432,16 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
   @NotNull
   public ClientFactory getFactoryFromSettings() {
     return myConfiguration.isCommandLine() ? cmdClientFactory : svnKitClientFactory;
+  }
+
+  @NotNull
+  public ClientFactory getOtherFactory() {
+    return myConfiguration.isCommandLine() ? svnKitClientFactory : cmdClientFactory;
+  }
+
+  @NotNull
+  public ClientFactory getOtherFactory(@NotNull ClientFactory factory) {
+    return factory.equals(cmdClientFactory) ? svnKitClientFactory : cmdClientFactory;
   }
 
   @NotNull

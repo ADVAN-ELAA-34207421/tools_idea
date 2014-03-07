@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ import java.util.List;
  * @author yole
  */
 public class IssueNavigationConfigurationPanel extends JPanel implements SearchableConfigurable, Configurable.NoScroll {
-  private JBTable myLinkTable;
+  private final JBTable myLinkTable;
   private final Project myProject;
   private List<IssueNavigationLink> myLinks;
   private ListTableModel<IssueNavigationLink> myModel;
@@ -86,7 +86,7 @@ public class IssueNavigationConfigurationPanel extends JPanel implements Searcha
         @Override
         public void run(AnActionButton button) {
           if (Messages.showOkCancelDialog(myProject, VcsBundle.message("issue.link.delete.prompt"),
-                                          VcsBundle.message("issue.link.delete.title"), Messages.getQuestionIcon()) == 0) {
+                                          VcsBundle.message("issue.link.delete.title"), Messages.getQuestionIcon()) == Messages.OK) {
             int selRow = myLinkTable.getSelectedRow();
             myLinks.remove(selRow);
             myModel.fireTableDataChanged();
@@ -101,7 +101,7 @@ public class IssueNavigationConfigurationPanel extends JPanel implements Searcha
       }).setEditAction(new AnActionButtonRunnable() {
         @Override
         public void run(AnActionButton button) {
-          IssueNavigationLink link = (IssueNavigationLink) myModel.getItem(myLinkTable.getSelectedRow());
+          IssueNavigationLink link = myModel.getItem(myLinkTable.getSelectedRow());
           IssueLinkConfigurationDialog dlg = new IssueLinkConfigurationDialog(myProject);
           dlg.setTitle(VcsBundle.message("issue.link.edit.title"));
           dlg.setLink(link);

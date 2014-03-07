@@ -105,6 +105,7 @@ public interface IdeaPlugin extends DomElement {
 
   @NotNull
   @SubTagList("extensions")
+  @Stubbed
   List<Extensions> getExtensions();
   Extensions addExtensions();
 
@@ -116,10 +117,16 @@ public interface IdeaPlugin extends DomElement {
 
 
   @NotNull
-  ApplicationComponents getApplicationComponents();
+  @SubTagList("application-components")
+  List<ApplicationComponents> getApplicationComponents();
+
+  ApplicationComponents addApplicationComponent();
 
   @NotNull
-  ProjectComponents getProjectComponents();
+  @SubTagList("project-components")
+  List<ProjectComponents> getProjectComponents();
+
+  ProjectComponents addProjectComponent();
 
   @NotNull
   ModuleComponents getModuleComponents();

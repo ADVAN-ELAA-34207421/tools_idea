@@ -33,18 +33,12 @@ public interface CustomLiveTemplate {
 
   boolean supportsWrapping();
 
-  void expand(String key, @NotNull CustomTemplateCallback callback);
+  void expand(@NotNull String key, @NotNull CustomTemplateCallback callback);
 
-  void wrap(String selection, @NotNull CustomTemplateCallback callback);
+  void wrap(@NotNull String selection, @NotNull CustomTemplateCallback callback);
 
   @NotNull
   String getTitle();
 
   char getShortcut();
-
-  /**
-   * Implementation should returns {@code true} if it has own lookup item in completion autopopup
-   * and it is supposed that template should be expanded while completion auto-popup is active.
-   */
-  boolean hasCompletionItem(@NotNull PsiFile file, int offset);
 }

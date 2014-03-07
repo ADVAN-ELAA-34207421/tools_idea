@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.SearchableConfigurable;
 import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.Splitter;
 import com.intellij.openapi.util.Comparing;
@@ -344,7 +343,7 @@ public class AllFileTemplatesConfigurable implements SearchableConfigurable, Con
     if (selected instanceof BundledFileTemplate) {
       if (Messages.showOkCancelDialog(IdeBundle.message("prompt.reset.to.original.template"),
                                       IdeBundle.message("title.reset.template"), Messages.getQuestionIcon()) !=
-          DialogWrapper.OK_EXIT_CODE) {
+          Messages.OK) {
         return;
       }
       ((BundledFileTemplate)selected).revertToDefaults();
@@ -358,6 +357,8 @@ public class AllFileTemplatesConfigurable implements SearchableConfigurable, Con
   }
 
   private void onTabChanged() {
+    applyEditor(myCurrentTab.getSelectedTemplate());
+    
     final int selectedIndex = myTabbedPane.getSelectedIndex();
     if (0 <= selectedIndex && selectedIndex < myTabs.length) {
       myCurrentTab = myTabs[selectedIndex];
@@ -371,17 +372,8 @@ public class AllFileTemplatesConfigurable implements SearchableConfigurable, Con
     if (prevTemplate != selectedValue) {
       LOG.assertTrue(myEditor != null, "selected:" + selectedValue + "; prev:" + prevTemplate);
       //selection has changed
-      if (myEditor.isModified() && Arrays.asList(myCurrentTab.getTemplates()).contains(prevTemplate)) {
-        try {
-          myModified = true;
-          myEditor.apply();
-          fireListChanged();
-        }
-        catch (ConfigurationException e) {
-          myCurrentTab.selectTemplate(prevTemplate);
-          Messages.showErrorDialog(myMainPanel, e.getMessage(), IdeBundle.message("title.cannot.save.current.template"));
-          return;
-        }
+      if (Arrays.asList(myCurrentTab.getTemplates()).contains(prevTemplate) && !applyEditor(prevTemplate)) {
+        return;
       }
       if (selectedValue == null) {
         myEditor.setTemplate(null, FileTemplateManagerImpl.getInstanceImpl().getDefaultTemplateDescription());
@@ -391,6 +383,24 @@ public class AllFileTemplatesConfigurable implements SearchableConfigurable, Con
         selectTemplate(selectedValue);
       }
     }
+  }
+
+  private boolean applyEditor(FileTemplate prevTemplate) {
+    if (myEditor.isModified()) {
+      try {
+        myModified = true;
+        myEditor.apply();
+        fireListChanged();
+      }
+      catch (ConfigurationException e) {
+        if (Arrays.asList(myCurrentTab.getTemplates()).contains(prevTemplate)) {
+          myCurrentTab.selectTemplate(prevTemplate);
+        }
+        Messages.showErrorDialog(myMainPanel, e.getMessage(), IdeBundle.message("title.cannot.save.current.template"));
+        return false;
+      }
+    }
+    return true;
   }
 
   private void selectTemplate(FileTemplate template) {
@@ -478,7 +488,7 @@ public class AllFileTemplatesConfigurable implements SearchableConfigurable, Con
       }
       if (allNames.contains(currName)) {
         itemWithError = template;
-        errorString = IdeBundle.message("error.template.with.such.name.already.exists");
+        errorString = "Template with name \'" + currName + "\' already exists. Please specify a different template name";
         break;
       }
       if (currExt.length() == 0) {
@@ -560,28 +570,37 @@ public class AllFileTemplatesConfigurable implements SearchableConfigurable, Con
     }
   }
 
+  public void selectTemplatesTab() {
+    selectTab(TEMPLATES_TITLE);
+  }
+  
+  private boolean selectTab(String tabName) {
+    int idx = 0;
+    for (FileTemplateTab tab : myTabs) {
+      if (Comparing.strEqual(tab.getTitle(), tabName)) {
+        myCurrentTab = tab;
+        myTabbedPane.setSelectedIndex(idx);
+        return true;
+      }
+      idx++;
+    }
+    return false;
+  }
+
   @Override
   public void reset() {
     myEditor.reset();
     initLists();
     final PropertiesComponent propertiesComponent = PropertiesComponent.getInstance();
     final String tabName = propertiesComponent.getValue(CURRENT_TAB);
-    int idx = 0;
-    for (FileTemplateTab tab : myTabs) {
-      if (Comparing.strEqual(tab.getTitle(), tabName)) {
-        myCurrentTab = tab;
-        myTabbedPane.setSelectedIndex(idx);
-        final String selectedTemplateName = propertiesComponent.getValue(SELECTED_TEMPLATE);
-        final FileTemplate[] templates = myCurrentTab.getTemplates();
-        for (FileTemplate template : templates) {
-          if (Comparing.strEqual(template.getName(), selectedTemplateName)) {
-            tab.selectTemplate(template);
-            break;
-          }
+    if (selectTab(tabName)) {
+      final String selectedTemplateName = propertiesComponent.getValue(SELECTED_TEMPLATE);
+      for (FileTemplate template : myCurrentTab.getTemplates()) {
+        if (Comparing.strEqual(template.getName(), selectedTemplateName)) {
+          myCurrentTab.selectTemplate(template);
+          break;
         }
-        break;
       }
-      idx++;
     }
     myModified = false;
   }

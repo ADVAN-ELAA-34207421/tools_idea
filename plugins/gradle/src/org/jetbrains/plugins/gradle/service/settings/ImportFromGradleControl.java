@@ -35,7 +35,7 @@ public class ImportFromGradleControl
   extends AbstractImportFromExternalSystemControl<GradleProjectSettings, GradleSettingsListener, GradleSettings>
 {
   public ImportFromGradleControl() {
-    super(GradleConstants.SYSTEM_ID, new GradleSettings(ProjectManager.getInstance().getDefaultProject()), getInitialProjectSettings());
+    super(GradleConstants.SYSTEM_ID, new GradleSettings(ProjectManager.getInstance().getDefaultProject()), getInitialProjectSettings(), true);
   }
 
   @NotNull
@@ -51,7 +51,9 @@ public class ImportFromGradleControl
   @NotNull
   @Override
   protected ExternalSystemSettingsControl<GradleProjectSettings> createProjectSettingsControl(@NotNull GradleProjectSettings settings) {
-    return new GradleProjectSettingsControl(settings);
+    GradleProjectSettingsControl settingsControl = new GradleProjectSettingsControl(settings);
+    settingsControl.hideUseAutoImportBox();
+    return settingsControl;
   }
 
   @Nullable

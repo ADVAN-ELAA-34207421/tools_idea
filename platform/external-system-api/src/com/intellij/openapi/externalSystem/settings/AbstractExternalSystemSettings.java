@@ -18,6 +18,7 @@ package com.intellij.openapi.externalSystem.settings;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.util.containers.ContainerUtilRt;
 import com.intellij.util.messages.Topic;
 import org.jetbrains.annotations.NotNull;
@@ -99,7 +100,18 @@ public abstract class AbstractExternalSystemSettings<
 
   @Nullable
   public PS getLinkedProjectSettings(@NotNull String linkedProjectPath) {
-    return myLinkedProjectsSettings.get(linkedProjectPath);
+    PS ps = myLinkedProjectsSettings.get(linkedProjectPath);
+    if(ps == null) {
+      for (PS ps1 : myLinkedProjectsSettings.values()) {
+        for (String modulePath : ps1.getModules()) {
+          if(linkedProjectPath.equals(modulePath)) return ps1;
+        }
+      }
+    }
+    if (ps == null) {
+      ps = myLinkedProjectsSettings.get(FileUtil.toSystemIndependentName(linkedProjectPath));
+    }
+    return ps;
   }
 
   public void linkProject(@NotNull PS settings) throws IllegalArgumentException {

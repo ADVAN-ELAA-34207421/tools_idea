@@ -15,6 +15,7 @@
  */
 package com.siyeh.ig.migration;
 
+import com.intellij.codeInsight.NullableNotNullManager;
 import com.intellij.codeInspection.ui.MultipleCheckboxOptionsPanel;
 import com.intellij.psi.*;
 import com.intellij.psi.util.PsiUtil;
@@ -38,6 +39,9 @@ public class MethodCanBeVariableArityMethodInspection extends BaseInspection {
   @SuppressWarnings("PublicField")
   public boolean ignoreOverridingMethods = false;
 
+  @SuppressWarnings("PublicField")
+  public boolean onlyReportPublicMethods = false;
+
   @Nls
   @NotNull
   @Override
@@ -56,8 +60,8 @@ public class MethodCanBeVariableArityMethodInspection extends BaseInspection {
     final MultipleCheckboxOptionsPanel panel = new MultipleCheckboxOptionsPanel(this);
     panel.addCheckbox(InspectionGadgetsBundle.message("method.can.be.variable.arity.method.ignore.byte.short.option"),
                       "ignoreByteAndShortArrayParameters");
-    panel.addCheckbox(InspectionGadgetsBundle.message("ignore.methods.overriding.super.method"),
-                      "ignoreOverridingMethods");
+    panel.addCheckbox(InspectionGadgetsBundle.message("ignore.methods.overriding.super.method"), "ignoreOverridingMethods");
+    panel.addCheckbox(InspectionGadgetsBundle.message("only.report.public.methods.option"), "onlyReportPublicMethods");
     return panel;
   }
 
@@ -79,17 +83,20 @@ public class MethodCanBeVariableArityMethodInspection extends BaseInspection {
         return;
       }
       super.visitMethod(method);
+      if (onlyReportPublicMethods && !method.hasModifierProperty(PsiModifier.PUBLIC)) {
+        return;
+      }
       final PsiParameterList parameterList = method.getParameterList();
       if (parameterList.getParametersCount() == 0) {
         return;
       }
       final PsiParameter[] parameters = parameterList.getParameters();
       final PsiParameter lastParameter = parameters[parameters.length - 1];
-      final PsiType type = lastParameter.getType();
-      if (!(type instanceof PsiArrayType)) {
+      if (NullableNotNullManager.isNullable(lastParameter)) {
         return;
       }
-      if (type instanceof PsiEllipsisType) {
+      final PsiType type = lastParameter.getType();
+      if (!(type instanceof PsiArrayType) || type instanceof PsiEllipsisType) {
         return;
       }
       final PsiArrayType arrayType = (PsiArrayType)type;

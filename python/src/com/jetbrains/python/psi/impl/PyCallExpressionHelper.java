@@ -43,6 +43,7 @@ public class PyCallExpressionHelper {
   }
 
   /**
+   * TODO: Copy/Paste with {@link com.jetbrains.python.psi.PyArgumentList#addArgument(com.jetbrains.python.psi.PyExpression)}
    * Adds an argument to the end of argument list.
    * @param us the arg list
    * @param expression what to add
@@ -490,7 +491,7 @@ public class PyCallExpressionHelper {
               if (first_arg instanceof PyReferenceExpression) {
                 final PyReferenceExpression firstArgRef = (PyReferenceExpression)first_arg;
                 final PyExpression qualifier = firstArgRef.getQualifier();
-                if (qualifier != null && PyNames.CLASS.equals(firstArgRef.getReferencedName())) {
+                if (qualifier != null && PyNames.__CLASS__.equals(firstArgRef.getReferencedName())) {
                   final PsiReference qRef = qualifier.getReference();
                   final PsiElement element = qRef == null ? null : qRef.resolve();
                   if (element instanceof PyParameter) {
@@ -507,7 +508,9 @@ public class PyCallExpressionHelper {
                 }
               }
             }
-            else if (((PyFile)call.getContainingFile()).getLanguageLevel().isPy3K() && containingClass != null) {
+            else if ((call.getContainingFile() instanceof PyFile) &&
+                     ((PyFile)call.getContainingFile()).getLanguageLevel().isPy3K() &&
+                     (containingClass != null)) {
               return new Maybe<PyType>(getSuperClassUnionType(containingClass));
             }
           }

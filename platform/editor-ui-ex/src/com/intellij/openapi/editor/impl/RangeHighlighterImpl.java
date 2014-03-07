@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,7 +86,8 @@ class RangeHighlighterImpl extends RangeMarkerImpl implements RangeHighlighterEx
     getData().setTextAttributes(textAttributes);
   }
 
-  boolean changeAttributesNoEvents(@NotNull Consumer<RangeHighlighterEx> change) {
+  @NotNull
+  RangeHighlighterData.ChangeResult changeAttributesNoEvents(@NotNull Consumer<RangeHighlighterEx> change) {
     return getData().changeAttributesInBatch(change);
   }
 
@@ -96,6 +97,7 @@ class RangeHighlighterImpl extends RangeMarkerImpl implements RangeHighlighterEx
     return node == null ? -1 : node.myLayer;
   }
 
+  @NotNull
   @Override
   public HighlighterTargetArea getTargetArea() {
     return getData().getTargetArea();
@@ -208,8 +210,8 @@ class RangeHighlighterImpl extends RangeMarkerImpl implements RangeHighlighterEx
   }
 
   @Override
-  public void setAfterEndOfLine(boolean afterEndOfLine) {
-    getData().setAfterEndOfLine(afterEndOfLine);
+  public void setAfterEndOfLine(boolean value) {
+    getData().setAfterEndOfLine(value);
   }
 
   @Override

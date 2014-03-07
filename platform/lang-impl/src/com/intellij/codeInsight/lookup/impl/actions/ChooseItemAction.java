@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import com.intellij.codeInsight.lookup.Lookup;
 import com.intellij.codeInsight.lookup.LookupManager;
 import com.intellij.codeInsight.lookup.impl.LookupImpl;
 import com.intellij.codeInsight.template.CustomLiveTemplate;
+import com.intellij.codeInsight.template.CustomLiveTemplateBase;
 import com.intellij.codeInsight.template.CustomTemplateCallback;
 import com.intellij.codeInsight.template.impl.*;
 import com.intellij.featureStatistics.FeatureUsageTracker;
@@ -111,18 +112,22 @@ public abstract class ChooseItemAction extends EditorAction {
     PsiDocumentManager.getInstance(file.getProject()).commitDocument(editor.getDocument());
 
     final LiveTemplateLookupElement liveTemplateLookup = ContainerUtil.findInstance(lookup.getItems(), LiveTemplateLookupElement.class);
-    if (liveTemplateLookup == null) {
-      // Lookup doesn't contain live templates. It means that 
-      // - there are no any live template:
+    if (liveTemplateLookup == null || !liveTemplateLookup.sudden) {
+      // Lookup doesn't contain sudden live templates. It means that 
+      // - there are no live template with given key:
       //    in this case we should find live template with appropriate prefix (custom live templates doesn't participate in this action). 
       // - completion provider worked too long:
       //    in this case we should check custom templates that provides completion lookup.
       
       final CustomTemplateCallback callback = new CustomTemplateCallback(editor, file, false);
       for (CustomLiveTemplate customLiveTemplate : CustomLiveTemplate.EP_NAME.getExtensions()) {
-        final int offset = editor.getCaretModel().getOffset();
-        if (customLiveTemplate.getShortcut() == shortcutChar && customLiveTemplate.hasCompletionItem(file, offset)) {
-          return customLiveTemplate.computeTemplateKey(callback) != null;
+        if (customLiveTemplate instanceof CustomLiveTemplateBase) {
+          final int offset = editor.getCaretModel().getOffset();
+          if (customLiveTemplate.getShortcut() == shortcutChar 
+              && TemplateManagerImpl.isApplicable(customLiveTemplate, editor, file)
+              && ((CustomLiveTemplateBase)customLiveTemplate).hasCompletionItem(file, offset)) {
+            return customLiveTemplate.computeTemplateKey(callback) != null;
+          }
         }
       }
 
@@ -145,7 +150,7 @@ public abstract class ChooseItemAction extends EditorAction {
       return false;
     }
 
-    return TemplateSettings.getInstance().getShortcutChar(liveTemplateLookup.getTemplate()) == shortcutChar;
+    return liveTemplateLookup.getTemplateShortcut() == shortcutChar;
   }
 
   public static class Always extends ChooseItemAction {

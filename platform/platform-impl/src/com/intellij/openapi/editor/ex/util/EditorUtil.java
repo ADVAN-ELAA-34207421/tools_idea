@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,15 +36,16 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
+import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.util.Arrays;
 import java.util.List;
 
-public class EditorUtil {
+public final class EditorUtil {
+  private static final Logger LOG = Logger.getInstance(EditorUtil.class);
 
-  private static final Logger LOG = Logger.getInstance("#" + EditorUtil.class.getName());
-
-  private EditorUtil() { }
+  private EditorUtil() {
+  }
 
   public static int getLastVisualLineColumnNumber(@NotNull Editor editor, final int line) {
     Document document = editor.getDocument();
@@ -191,7 +192,7 @@ public class EditorUtil {
     if (!filler.isEmpty()) {
       new WriteAction(){
         @Override
-        protected void run(final Result result) throws Throwable {
+        protected void run(@NotNull Result result) throws Throwable {
           editor.getDocument().insertString(offset, filler);
           editor.getCaretModel().moveToOffset(offset + filler.length());
         }
@@ -301,14 +302,14 @@ public class EditorUtil {
     // text fragment.
     boolean useOptimization = true;
     boolean hasTabs;
-    if ((editor instanceof EditorImpl) && !((EditorImpl)editor).hasTabs()) {
+    if (editor instanceof EditorImpl && !((EditorImpl)editor).hasTabs()) {
       hasTabs = false;
       useOptimization = true;
     }
     else {
-      boolean hasNonTabs = false;
       hasTabs = false;
       int scanEndOffset = Math.min(end, start + columnNumber - currentColumn[0] + 1);
+      boolean hasNonTabs = false;
       for (int i = start; i < scanEndOffset; i++) {
         char c = text.charAt(i);
         if (debugBuffer != null) {
@@ -463,7 +464,7 @@ public class EditorUtil {
     }
     boolean hasTabs = true;
     if (useOptimization) {
-      if ((editor instanceof EditorImpl) && !((EditorImpl)editor).hasTabs()) {
+      if (editor instanceof EditorImpl && !((EditorImpl)editor).hasTabs()) {
         hasTabs = false;
       }
       else {
@@ -791,6 +792,19 @@ public class EditorUtil {
     int start = starts.length > 0 ? starts[0] : selection.getSelectionStart();
     int end = ends.length > 0 ? ends[ends.length - 1] : selection.getSelectionEnd();
     return TextRange.create(start, end);
+  }
+
+  public static int yPositionToLogicalLine(@NotNull Editor editor, @NotNull MouseEvent event) {
+    return yPositionToLogicalLine(editor, event.getY());
+  }
+
+  public static int yPositionToLogicalLine(@NotNull Editor editor, @NotNull Point point) {
+    return yPositionToLogicalLine(editor, point.y);
+  }
+
+  public static int yPositionToLogicalLine(@NotNull Editor editor, int y) {
+    int line = y / editor.getLineHeight();
+    return line > 0 ? editor.visualToLogicalPosition(new VisualPosition(line, 0)).line : 0;
   }
 }
 

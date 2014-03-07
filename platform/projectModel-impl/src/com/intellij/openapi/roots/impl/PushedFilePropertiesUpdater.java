@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,9 @@
 package com.intellij.openapi.roots.impl;
 
 import com.intellij.ProjectTopics;
-import com.intellij.diagnostic.PluginException;
-import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.extensions.ExtensionException;
 import com.intellij.openapi.extensions.Extensions;
-import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.progress.ProgressIndicator;
@@ -38,6 +36,7 @@ import com.intellij.openapi.vfs.impl.BulkVirtualFileListenerAdapter;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.messages.MessageBus;
 import com.intellij.util.messages.MessageBusConnection;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 
@@ -82,14 +81,14 @@ public class PushedFilePropertiesUpdater {
 
         connection.subscribe(VirtualFileManager.VFS_CHANGES, new BulkVirtualFileListenerAdapter(new VirtualFileAdapter() {
           @Override
-          public void fileCreated(final VirtualFileEvent event) {
+          public void fileCreated(@NotNull final VirtualFileEvent event) {
             final VirtualFile file = event.getFile();
             final FilePropertyPusher[] pushers = file.isDirectory() ? myPushers : myFilePushers;
             pushRecursively(file, project, pushers);
           }
 
           @Override
-          public void fileMoved(final VirtualFileMoveEvent event) {
+          public void fileMoved(@NotNull final VirtualFileMoveEvent event) {
             final VirtualFile file = event.getFile();
             final FilePropertyPusher[] pushers = file.isDirectory() ? myPushers : myFilePushers;
             for (FilePropertyPusher pusher : pushers) {
@@ -151,7 +150,7 @@ public class PushedFilePropertiesUpdater {
     ProgressIndicator indicator = ProgressManager.getInstance().getProgressIndicator();
     if (indicator != null) {
       indicator.pushState();
-      indicator.setText("Updating file properties...");
+      indicator.setText("Initializing file system cache...");
     }
     Module[] modules = ModuleManager.getInstance(myProject).getModules();
     for (int i1 = 0; i1 < modules.length; i1++) {
@@ -193,8 +192,7 @@ public class PushedFilePropertiesUpdater {
       }
     }
     catch (AbstractMethodError ame) { // acceptsDirectory is missed
-      PluginId pluginId = pusher != null ? PluginManagerCore.getPluginByClassName(pusher.getClass().getName()) : null;
-      if (pluginId != null) throw new PluginException("Incompatible plugin", ame, pluginId);
+      if (pusher != null) throw new ExtensionException(pusher.getClass());
       throw ame;
     }
   }

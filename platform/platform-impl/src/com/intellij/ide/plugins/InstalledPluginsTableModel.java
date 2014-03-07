@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
-import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.updateSettings.impl.PluginDownloader;
 import com.intellij.openapi.updateSettings.impl.UpdateChecker;
@@ -76,7 +75,7 @@ public class InstalledPluginsTableModel extends PluginTableModel {
 
 
   public InstalledPluginsTableModel() {
-    super.columns = new ColumnInfo[]{new EnabledPluginInfo(), new MyPluginManagerColumnInfo()};
+    super.columns = new ColumnInfo[]{new MyPluginManagerColumnInfo(), new EnabledPluginInfo()};
     view = new ArrayList<IdeaPluginDescriptor>(Arrays.asList(PluginManager.getPlugins()));
     view.addAll(myInstalled);
     reset(view);
@@ -118,11 +117,11 @@ public class InstalledPluginsTableModel extends PluginTableModel {
   }
 
   public static int getCheckboxColumn() {
-    return 0;
+    return 1;
   }
 
   public int getNameColumn() {
-    return 1;
+    return 0;
   }
 
   private void reset(final List<IdeaPluginDescriptor> list) {
@@ -369,7 +368,7 @@ public class InstalledPluginsTableModel extends PluginTableModel {
   private class EnabledPluginInfo extends ColumnInfo<IdeaPluginDescriptor, Boolean> {
 
     public EnabledPluginInfo() {
-      super(IdeBundle.message("plugin.manager.enable.column.title"));
+      super(/*IdeBundle.message("plugin.manager.enable.column.title")*/"");
     }
 
     public Boolean valueOf(IdeaPluginDescriptor ideaPluginDescriptor) {
@@ -431,6 +430,11 @@ public class InstalledPluginsTableModel extends PluginTableModel {
           }
         }
       };
+    }
+
+    @Override
+    public int getWidth(JTable table) {
+      return new JCheckBox().getPreferredSize().width;
     }
   }
 
@@ -503,7 +507,7 @@ public class InstalledPluginsTableModel extends PluginTableModel {
                                        "<br>Would you like to disable them too?</html>"
                                      : "<html>The following plugins on which " + listOfSelectedPlugins + " depend" + (ideaPluginDescriptors.length == 1 ? "s" : "") +
                                        " are disabled:<br>" + listOfDependencies + "<br>Would you like to enable them?</html>";
-      if (Messages.showOkCancelDialog(message, newVal ? "Enable Dependant Plugins" : "Disable Plugins with Dependency on this", Messages.getQuestionIcon()) == DialogWrapper.OK_EXIT_CODE) {
+      if (Messages.showOkCancelDialog(message, newVal ? "Enable Dependant Plugins" : "Disable Plugins with Dependency on this", Messages.getQuestionIcon()) == Messages.OK) {
         for (PluginId pluginId : deps) {
           myEnabled.put(pluginId, newVal);
         }
@@ -638,7 +642,7 @@ public class InstalledPluginsTableModel extends PluginTableModel {
 
     @Override
     public TableCellRenderer getRenderer(final IdeaPluginDescriptor pluginDescriptor) {
-      return new InstalledPluginsTableRenderer(pluginDescriptor);
+      return new PluginsTableRenderer(pluginDescriptor, false);
     }
 
     @Override
@@ -702,6 +706,11 @@ public class InstalledPluginsTableModel extends PluginTableModel {
           return comparator.compare(o1, o2);
         }
       };
+    }
+
+    @Override
+    public int getWidth(JTable table) {
+      return super.getWidth(table);
     }
   }
 }

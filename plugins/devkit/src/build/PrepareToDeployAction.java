@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.LangDataKeys;
-import com.intellij.openapi.actionSystem.PlatformDataKeys;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.compiler.CompileContext;
 import com.intellij.openapi.compiler.CompileStatusNotification;
@@ -29,14 +28,12 @@ import com.intellij.openapi.compiler.make.ManifestBuilder;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
-import com.intellij.openapi.module.ModuleType;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.CompilerModuleExtension;
 import com.intellij.openapi.roots.OrderRootType;
 import com.intellij.openapi.roots.libraries.Library;
-import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
@@ -77,7 +74,7 @@ public class PrepareToDeployAction extends AnAction {
 
   public void actionPerformed(final AnActionEvent e) {
     final Module module = LangDataKeys.MODULE.getData(e.getDataContext());
-    if (module != null && ModuleType.get(module) instanceof PluginModuleType) {
+    if (module != null && PluginModuleType.isOfType(module)) {
       doPrepare(Arrays.asList(module), CommonDataKeys.PROJECT.getData(e.getDataContext()));
     }
   }
@@ -144,7 +141,7 @@ public class PrepareToDeployAction extends AnAction {
     if (oldFile.exists()) {
       if (Messages
         .showYesNoDialog(module.getProject(), DevKitBundle.message("suggest.to.delete", oldPath), DevKitBundle.message("info.message"),
-                         Messages.getInformationIcon()) == DialogWrapper.OK_EXIT_CODE) {
+                         Messages.getInformationIcon()) == Messages.YES) {
         FileUtil.delete(oldFile);
       }
     }
@@ -400,7 +397,7 @@ public class PrepareToDeployAction extends AnAction {
 
   public void update(AnActionEvent e) {
     final Module module = LangDataKeys.MODULE.getData(e.getDataContext());
-    boolean enabled = module != null && ModuleType.get(module) instanceof PluginModuleType;
+    boolean enabled = module != null && PluginModuleType.isOfType(module);
     e.getPresentation().setVisible(enabled);
     e.getPresentation().setEnabled(enabled);
     if (enabled) {

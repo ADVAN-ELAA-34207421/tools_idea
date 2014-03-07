@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -173,7 +173,7 @@ public class GroovyCompletionUtil {
    * return true, if the element is first element after modifiers and there is no type element
    */
   public static boolean isFirstElementAfterPossibleModifiersInVariableDeclaration(PsiElement element, boolean acceptParameter) {
-    if (element.getParent() instanceof GrTypeDefinitionBody) {
+    if (element.getParent() instanceof GrTypeDefinitionBody && !(element instanceof PsiComment)) {
       //is first on the line?
       String text = element.getContainingFile().getText();
       int i = CharArrayUtil.shiftBackward(text, element.getTextRange().getStartOffset() - 1, " \t");
@@ -263,9 +263,9 @@ public class GroovyCompletionUtil {
   }
 
 
-  public static List<? extends LookupElement> createLookupElements(GroovyResolveResult candidate,
+  public static List<? extends LookupElement> createLookupElements(@NotNull GroovyResolveResult candidate,
                                                                    boolean afterNew,
-                                                                   PrefixMatcher matcher,
+                                                                   @NotNull PrefixMatcher matcher,
                                                                    @Nullable PsiElement position) {
     final PsiElement element = candidate.getElement();
     final PsiElement context = candidate.getCurrentFileResolveContext();

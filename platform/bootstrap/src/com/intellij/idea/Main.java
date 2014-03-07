@@ -134,8 +134,9 @@ public class Main {
   private static void installPatch() throws IOException {
     String platform = System.getProperty(PLATFORM_PREFIX_PROPERTY, "idea");
     String patchFileName = ("jetbrains.patch.jar." + platform).toLowerCase();
-    File originalPatchFile = new File(System.getProperty("java.io.tmpdir"), patchFileName);
-    File copyPatchFile = new File(System.getProperty("java.io.tmpdir"), patchFileName + "_copy");
+    String tempDir = System.getProperty("java.io.tmpdir");
+    File originalPatchFile = new File(tempDir, patchFileName);
+    File copyPatchFile = new File(tempDir, patchFileName + "_copy");
 
     // always delete previous patch copy
     if (!FileUtilRt.delete(copyPatchFile)) {
@@ -164,17 +165,22 @@ public class Main {
       }
 
       Collections.addAll(args,
-                         System.getProperty("java.home") + "/bin/java",
+                         System.getProperty("java.home") + "/bin/java".replace('/', File.separatorChar),
                          "-Xmx500m",
                          "-classpath",
-                         copyPatchFile.getPath(),
+                         copyPatchFile.getPath() + File.pathSeparator +
+                            PathManager.getLibPath() + File.separator + "log4j.jar",
+                         "-Djava.io.tmpdir=" + tempDir,
                          "com.intellij.updater.Runner",
                          "install",
-                         PathManager.getHomePath());
+                         PathManager.getHomePath(),
+                         PathManager.getLogPath());
+
+      appendLog("[Patch] Restarted cmd: %s\n", args.toString());
 
       status = Restarter.scheduleRestart(ArrayUtilRt.toStringArray(args));
 
-      appendLog("[Patch] Restarted status: %d, cmd: %s\n", status, args.toString());
+      appendLog("[Patch] Restarted status: %d\n", status);
     }
     else {
       appendLog("[Patch] Restart is not supported\n");

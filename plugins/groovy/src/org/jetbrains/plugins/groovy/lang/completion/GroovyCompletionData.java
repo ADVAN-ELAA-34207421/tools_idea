@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -132,17 +132,16 @@ public class GroovyCompletionData {
 
       registerControlCompletion(position, result);
 
-      if (parent instanceof GrExpression) {
+      if (parent instanceof GrExpression || isInfixOperatorPosition(position)) {
         addKeywords(result, false, PsiKeyword.TRUE, PsiKeyword.FALSE, PsiKeyword.NULL, PsiKeyword.SUPER, PsiKeyword.THIS);
         result.addElement(keyword(PsiKeyword.NEW, TailType.HUMBLE_SPACE_BEFORE_WORD));
-        result.addElement(keyword("as", TailType.HUMBLE_SPACE_BEFORE_WORD));
       }
 
       if (isAfterForParameter(position)) {
         result.addElement(keyword("in", TailType.HUMBLE_SPACE_BEFORE_WORD));
       }
       if (isInfixOperatorPosition(position)) {
-        addKeywords(result, true, "in", PsiKeyword.INSTANCEOF);
+        addKeywords(result, true, "as", "in", PsiKeyword.INSTANCEOF);
       }
       if (suggestPrimitiveTypes(position)) {
         final boolean addSpace = !IN_CAST_TYPE_ELEMENT.accepts(position) && !GroovySmartCompletionContributor.AFTER_NEW.accepts(position) && !isInExpression(position);
@@ -239,8 +238,11 @@ public class GroovyCompletionData {
       elem = PsiUtil.skipWhitespacesAndComments(context.getPrevSibling(), false);
     }
     else {
-      if (elem.getParent() != null) {
-        elem = elem.getParent().getPrevSibling();
+      if (elem instanceof GrReferenceExpression && PsiUtil.skipWhitespacesAndComments(elem.getPrevSibling(), false) instanceof GrTypeDefinition) {
+        elem = PsiUtil.skipWhitespacesAndComments(elem.getPrevSibling(), false);
+      }
+      else if (elem.getParent() != null) {
+        elem = PsiUtil.skipWhitespacesAndComments(elem.getParent().getPrevSibling(), false);
       }
     }
 
@@ -591,7 +593,7 @@ public class GroovyCompletionData {
       candidate = PsiUtil.skipWhitespacesAndComments(run.getPrevSibling(), false, skipNLs);
     }
     else {
-     candidate = PsiTreeUtil.prevLeaf(context);
+     candidate = PsiUtil.skipWhitespacesAndComments(PsiTreeUtil.prevLeaf(context), false);
     }
     if (candidate instanceof PsiErrorElement) candidate = candidate.getPrevSibling();
 

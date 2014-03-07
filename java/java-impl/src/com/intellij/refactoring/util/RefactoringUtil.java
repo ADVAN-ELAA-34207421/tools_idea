@@ -516,7 +516,11 @@ public class RefactoringUtil {
         continue;
       }
       PsiElement anchor1 = getParentExpressionAnchorElement(occurrence);
-      if (anchor1 == null) return null;
+
+      if (anchor1 == null) {
+        if (occurrence.isPhysical()) return null;
+        continue;
+      }
 
       if (anchor == null) {
         anchor = anchor1;
@@ -549,6 +553,7 @@ public class RefactoringUtil {
       }
     }
 
+    if (anchor == null) return null;
     if (occurrences.length > 1 && anchor.getParent().getParent() instanceof PsiSwitchStatement) {
       PsiSwitchStatement switchStatement = (PsiSwitchStatement)anchor.getParent().getParent();
       if (switchStatement.getBody().equals(anchor.getParent())) {
@@ -743,12 +748,6 @@ public class RefactoringUtil {
     return result;
   }
 
-  /** @deprecated use {@linkplain #makeMethodAbstract(com.intellij.psi.PsiClass, com.intellij.psi.PsiMethod)} (to remove in IDEA 13) */
-  @SuppressWarnings("UnusedDeclaration")
-  public static void abstractizeMethod(PsiClass targetClass, PsiMethod method) throws IncorrectOperationException {
-    makeMethodAbstract(targetClass, method);
-  }
-
   public static void makeMethodAbstract(@NotNull PsiClass targetClass, @NotNull PsiMethod method) throws IncorrectOperationException {
     if (!method.hasModifierProperty(PsiModifier.DEFAULT)) {
       PsiCodeBlock body = method.getBody();
@@ -766,9 +765,9 @@ public class RefactoringUtil {
     }
 
   }
-  
+
   public static void makeMethodDefault(@NotNull PsiMethod method) throws IncorrectOperationException {
-    PsiUtil.setModifierProperty(method, PsiModifier.DEFAULT, true);
+    PsiUtil.setModifierProperty(method, PsiModifier.DEFAULT, !method.hasModifierProperty(PsiModifier.STATIC));
     PsiUtil.setModifierProperty(method, PsiModifier.ABSTRACT, false);
 
     prepareForInterface(method);

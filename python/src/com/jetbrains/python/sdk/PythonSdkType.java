@@ -21,19 +21,14 @@ import com.intellij.facet.Facet;
 import com.intellij.facet.FacetConfiguration;
 import com.intellij.facet.FacetManager;
 import com.intellij.ide.DataManager;
-import com.intellij.notification.Notification;
-import com.intellij.notification.NotificationListener;
-import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
-import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
@@ -50,11 +45,14 @@ import com.intellij.openapi.util.io.FileSystemUtil;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.CharFilter;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vfs.*;
+import com.intellij.openapi.vfs.JarFileSystem;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VfsUtilCore;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
-import com.intellij.remotesdk.RemoteSdkData;
-import com.intellij.remotesdk.RemoteSdkDataHolder;
-import com.intellij.ui.awt.RelativePoint;
+import com.intellij.reference.SoftReference;
+import com.intellij.remotesdk.RemoteSdkCredentials;
+import com.intellij.remotesdk.RemoteSdkCredentialsHolder;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.Consumer;
 import com.intellij.util.NullableConsumer;
@@ -78,10 +76,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-import javax.swing.event.HyperlinkEvent;
 import java.awt.*;
 import java.io.File;
 import java.io.FilenameFilter;
+import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.List;
@@ -149,6 +147,10 @@ public class PythonSdkType extends SdkType {
   @NonNls
   @Nullable
   public String suggestHomePath() {
+    final String pythonFromPath = findPythonInPath();
+    if (pythonFromPath != null) {
+      return pythonFromPath;
+    }
     for (PythonSdkFlavor flavor : PythonSdkFlavor.getApplicableFlavors()) {
       TreeSet<String> candidates = createVersionSet();
       candidates.addAll(flavor.suggestHomePaths());
@@ -156,6 +158,23 @@ public class PythonSdkType extends SdkType {
         // return latest version
         String[] candidateArray = ArrayUtil.toStringArray(candidates);
         return candidateArray[candidateArray.length - 1];
+      }
+    }
+    return null;
+  }
+
+  @Nullable
+  private static String findPythonInPath() {
+    final String defaultCommand = SystemInfo.isWindows ? "python.exe" : "python";
+    final String path = System.getenv("PATH");
+    for (String root : path.split(File.pathSeparator)) {
+      final File file = new File(root, defaultCommand);
+      if (file.exists()) {
+        try {
+          return file.getCanonicalPath();
+        }
+        catch (IOException ignored) {
+        }
       }
     }
     return null;
@@ -260,15 +279,18 @@ public class PythonSdkType extends SdkType {
 
   public void showCustomCreateUI(SdkModel sdkModel, final JComponent parentComponent, final Consumer<Sdk> sdkCreatedCallback) {
     Project project = CommonDataKeys.PROJECT.getData(DataManager.getInstance().getDataContext(parentComponent));
-    InterpreterPathChooser.show(project, sdkModel.getSdks(), RelativePoint.getCenterOf(parentComponent), true, new NullableConsumer<Sdk>() {
-      @Override
-      public void consume(@Nullable Sdk sdk) {
-        if (sdk != null) {
-          sdk.putUserData(SDK_CREATOR_COMPONENT_KEY, new WeakReference<Component>(parentComponent));
-          sdkCreatedCallback.consume(sdk);
+    final Point point = parentComponent.getMousePosition();
+    SwingUtilities.convertPointToScreen(point, parentComponent);
+    PythonSdkDetailsStep
+      .show(project, sdkModel.getSdks(), null, parentComponent, point, false, new NullableConsumer<Sdk>() {
+        @Override
+        public void consume(@Nullable Sdk sdk) {
+          if (sdk != null) {
+            sdk.putUserData(SDK_CREATOR_COMPONENT_KEY, new WeakReference<Component>(parentComponent));
+            sdkCreatedCallback.consume(sdk);
+          }
         }
-      }
-    });
+      });
   }
 
   public static boolean isVirtualEnv(Sdk sdk) {
@@ -406,15 +428,16 @@ public class PythonSdkType extends SdkType {
     return null;
   }
 
-  public void saveAdditionalData(final SdkAdditionalData additionalData, final Element additional) {
+  @Override
+  public void saveAdditionalData(@NotNull final SdkAdditionalData additionalData, @NotNull final Element additional) {
     if (additionalData instanceof PythonSdkAdditionalData) {
       ((PythonSdkAdditionalData)additionalData).save(additional);
     }
   }
 
   @Override
-  public SdkAdditionalData loadAdditionalData(final Sdk currentSdk, final Element additional) {
-    if (RemoteSdkDataHolder.isRemoteSdk(currentSdk.getHomePath())) {
+  public SdkAdditionalData loadAdditionalData(@NotNull final Sdk currentSdk, final Element additional) {
+    if (RemoteSdkCredentialsHolder.isRemoteSdk(currentSdk.getHomePath())) {
       PythonRemoteInterpreterManager manager = PythonRemoteInterpreterManager.getInstance();
       if (manager != null) {
         return manager.loadRemoteSdkData(currentSdk, additional);
@@ -423,42 +446,12 @@ public class PythonSdkType extends SdkType {
     return PythonSdkAdditionalData.load(currentSdk, additional);
   }
 
-  private boolean switchPathToInterpreter(Sdk currentSdk, String... variants) {
-    File sdk_file = new File(currentSdk.getHomePath());
-    final String sdk_name = currentSdk.getName();
-    boolean success = false;
-    for (String interpreter : variants) {
-      File binary = interpreter.startsWith("/") ? new File(interpreter) : new File(sdk_file, interpreter);
-      if (binary.exists()) {
-        if (currentSdk instanceof SdkModificator) {
-          final SdkModificator sdk_as_modificator = (SdkModificator)currentSdk;
-          sdk_as_modificator.setHomePath(binary.getPath());
-          sdk_as_modificator.setName(suggestSdkName(currentSdk.getName(), binary.getAbsolutePath()));
-          //setupSdkPaths(currentSdk);
-          success = true;
-          break;
-        }
-      }
-    }
-    if (!success) {
-      ApplicationManager.getApplication().invokeLater(new Runnable() {
-        public void run() {
-          Messages.showWarningDialog(
-            "Failed to convert Python SDK '" + sdk_name + "'\nplease delete and re-create it",
-            "Converting Python SDK"
-          );
-        }
-      }, ModalityState.NON_MODAL);
-    }
-    return success;
-  }
-
   @Nullable
   public static String findSkeletonsPath(Sdk sdk) {
     final String[] urls = sdk.getRootProvider().getUrls(BUILTIN_ROOT_TYPE);
     for (String url : urls) {
       if (url.contains(SKELETON_DIR_NAME)) {
-        return VfsUtil.urlToPath(url);
+        return VfsUtilCore.urlToPath(url);
       }
     }
     return null;
@@ -495,11 +488,8 @@ public class PythonSdkType extends SdkType {
 
   public void setupSdkPaths(@NotNull final Sdk sdk) {
     final Project project;
-    Component ownerComponent = null;
     final WeakReference<Component> ownerComponentRef = sdk.getUserData(SDK_CREATOR_COMPONENT_KEY);
-    if (ownerComponentRef != null) {
-      ownerComponent = ownerComponentRef.get();
-    }
+    Component ownerComponent = SoftReference.dereference(ownerComponentRef);
     if (ownerComponent != null) {
       project = CommonDataKeys.PROJECT.getData(DataManager.getInstance().getDataContext(ownerComponent));
     }
@@ -532,57 +522,46 @@ public class PythonSdkType extends SdkType {
       LOG.error("For refreshing skeletons of remote SDK, either project or owner component must be specified");
     }
     final ProgressManager progressManager = ProgressManager.getInstance();
-    final Ref<Boolean> success = new Ref<Boolean>();
-    success.set(true);
+    final Ref<Boolean> sdkPathsUpdatedRef = new Ref<Boolean>(false);
     final Task.Modal setupTask = new Task.Modal(project, "Setting up library files for " + sdk.getName(), false) {
-      // TODO: make this a backgroundable task. see #setupSdkPaths(final Sdk sdk) and its modificator handling
       public void run(@NotNull final ProgressIndicator indicator) {
         sdkModificator.removeAllRoots();
         try {
           updateSdkRootsFromSysPath(sdk, sdkModificator, indicator);
           updateUserAddedPaths(sdk, sdkModificator, indicator);
-          if (!ApplicationManager.getApplication().isUnitTestMode()) {
-            PySkeletonRefresher.refreshSkeletonsOfSdk(project, ownerComponent,
-                                                      getSkeletonsPath(PathManager.getSystemPath(), sdk.getHomePath()),
-                                                      null, sdk
-            );
-            PythonSdkUpdater.getInstance().markAlreadyUpdated(sdk.getHomePath());
-          }
+          PythonSdkUpdater.getInstance().markAlreadyUpdated(sdk.getHomePath());
+          sdkPathsUpdatedRef.set(true);
         }
-        catch (InvalidSdkException e) {
-          if (!isInvalid(sdk)) {
-            LOG.warn(e);
-            final Notification notification = createInvalidSdkNotification(project);
-            notification.notify(project);
-          }
+        catch (InvalidSdkException ignored) {
         }
       }
     };
     progressManager.run(setupTask);
-    return success.get();
-  }
-
-  @NotNull
-  public static Notification createInvalidSdkNotification(@Nullable final Project project) {
-    String message = "Cannot run the project interpreter.";
-    if (project != null && !project.isDisposed()) {
-      message += " <a href=\"xxx\">Configure...</a>";
+    final Boolean sdkPathsUpdated = sdkPathsUpdatedRef.get();
+    final Application application = ApplicationManager.getApplication();
+    if (sdkPathsUpdated && !application.isUnitTestMode()) {
+      application.invokeLater(new Runnable() {
+        @Override
+        public void run() {
+          progressManager.run(new Task.Backgroundable(project, PyBundle.message("sdk.gen.updating.skels"), false) {
+            @Override
+            public void run(@NotNull ProgressIndicator indicator) {
+              try {
+                final String skeletonsPath = getSkeletonsPath(PathManager.getSystemPath(), sdk.getHomePath());
+                PySkeletonRefresher.refreshSkeletonsOfSdk(project, ownerComponent, skeletonsPath, null, sdk);
+              }
+              catch (InvalidSdkException e) {
+                // If the SDK is invalid, the user should worry about the SDK itself, not about skeletons generation errors
+                if (!isInvalid(sdk)) {
+                  LOG.error(e);
+                }
+              }
+            }
+          });
+        }
+      });
     }
-    return new Notification("xxx",
-                            "Invalid Project Interpreter",
-                            message,
-                            NotificationType.ERROR,
-                            new NotificationListener() {
-                              @Override
-                              public void hyperlinkUpdate(@NotNull Notification notification,
-                                                          @NotNull HyperlinkEvent event) {
-                                if (project != null && !project.isDisposed()) {
-                                  final ShowSettingsUtil settings = ShowSettingsUtil.getInstance();
-                                  settings.showSettingsDialog(project, "Project Interpreter");
-                                }
-                                notification.expire();
-                              }
-                            });
+    return sdkPathsUpdated;
   }
 
   /**
@@ -959,9 +938,9 @@ public class PythonSdkType extends SdkType {
   }
 
   public static boolean isIncompleteRemote(Sdk sdk) {
-    if (sdk.getSdkAdditionalData() instanceof RemoteSdkData) {
+    if (sdk.getSdkAdditionalData() instanceof RemoteSdkCredentials) {
       //noinspection ConstantConditions
-      if (!((RemoteSdkData)sdk.getSdkAdditionalData()).isInitialized()) {
+      if (!((RemoteSdkCredentials)sdk.getSdkAdditionalData()).isInitialized()) {
         return true;
       }
     }

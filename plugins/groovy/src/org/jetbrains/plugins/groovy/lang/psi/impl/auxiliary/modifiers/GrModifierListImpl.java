@@ -49,8 +49,8 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.members.GrEn
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.members.GrMethod;
 import org.jetbrains.plugins.groovy.lang.psi.api.toplevel.packaging.GrPackageDefinition;
 import org.jetbrains.plugins.groovy.lang.psi.impl.GrStubElementBase;
+import org.jetbrains.plugins.groovy.lang.psi.impl.PsiImplUtil;
 import org.jetbrains.plugins.groovy.lang.psi.stubs.GrModifierListStub;
-import org.jetbrains.plugins.groovy.lang.psi.util.GroovyCommonClassNames;
 
 import java.util.ArrayList;
 import java.util.Map;
@@ -187,8 +187,7 @@ public class GrModifierListImpl extends GrStubElementBase<GrModifierListStub> im
       }
       if (pParent instanceof GrTypeDefinition) {
         PsiModifierList pModifierList = ((GrTypeDefinition)pParent).getModifierList();
-        if (pModifierList != null && (pModifierList.findAnnotation(GroovyCommonClassNames.GROOVY_LANG_IMMUTABLE) != null ||
-                                      pModifierList.findAnnotation(GroovyCommonClassNames.GROOVY_TRANSFORM_IMMUTABLE) != null)) {
+        if (pModifierList != null && !modifierList.hasExplicitVisibilityModifiers() && PsiImplUtil.hasImmutableAnnotation(pModifierList)) {
           if (modifier.equals(GrModifier.FINAL)) return true;
         }
       }
@@ -298,7 +297,7 @@ public class GrModifierListImpl extends GrStubElementBase<GrModifierListStub> im
     if (doSet) {
       if (isEmptyModifierList()) {
         final PsiElement nextSibling = getNextSibling();
-        if (nextSibling != null && !TokenSets.WHITE_SPACES_SET.contains(nextSibling.getNode().getElementType())) {
+        if (nextSibling != null && !PsiImplUtil.isWhiteSpaceOrNls(nextSibling)) {
           getNode().getTreeParent().addLeaf(TokenType.WHITE_SPACE, " ", nextSibling.getNode());
         }
       }
@@ -318,7 +317,7 @@ public class GrModifierListImpl extends GrStubElementBase<GrModifierListStub> im
 
       if (isEmptyModifierList()) {
         final PsiElement nextSibling = getNextSibling();
-        if (nextSibling != null && TokenSets.WHITE_SPACES_SET.contains(nextSibling.getNode().getElementType())) {
+        if (nextSibling != null && PsiImplUtil.isWhiteSpaceOrNls(nextSibling)) {
           nextSibling.delete();
         }
       }
@@ -361,13 +360,13 @@ public class GrModifierListImpl extends GrStubElementBase<GrModifierListStub> im
 
   @NotNull
   public GrAnnotation[] getAnnotations() {
-    return CachedValuesManager.getManager(getProject()).createCachedValue(new CachedValueProvider<GrAnnotation[]>() {
+    return CachedValuesManager.getCachedValue(this, new CachedValueProvider<GrAnnotation[]>() {
       @Nullable
       @Override
       public Result<GrAnnotation[]> compute() {
         return Result.create(GrAnnotationCollector.getResolvedAnnotations(GrModifierListImpl.this), PsiModificationTracker.JAVA_STRUCTURE_MODIFICATION_COUNT);
       }
-    }).getValue();
+    });
   }
 
   @NotNull

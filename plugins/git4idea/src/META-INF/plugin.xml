@@ -20,7 +20,7 @@
 
     <group id="GitFileActions">
       <reference ref="CheckinFiles"/>
-      <reference ref="ChangesView.AddUnversioned"/>
+      <action id="Git.Add" class="git4idea.actions.GitAdd" text="Add" icon="AllIcons.General.Add" use-shortcut-of="ChangesView.AddUnversioned" />
       <separator/>
       <reference ref="Annotate"/>
       <reference ref="Show.Current.Revision"/>
@@ -45,7 +45,9 @@
       <separator/>
       <action id="Git.Fetch" class="git4idea.actions.GitFetch" text="Fetch"/>
       <action id="Git.Pull" class="git4idea.actions.GitPull" text="Pull..." icon="AllIcons.Actions.CheckOut"/>
-      <action id="Git.Push" class="git4idea.actions.GitPushAction" icon="AllIcons.Actions.Commit" text="Push..."/>
+      <action id="Git.Push" class="git4idea.actions.GitPushAction" icon="AllIcons.Actions.Commit" text="Push...">
+        <keyboard-shortcut first-keystroke="control shift K" keymap="$default"/>
+      </action>
       <separator/>
       <action id="Git.Rebase" class="git4idea.actions.GitRebase" text="Rebase..."/>
       <action id="Git.Rebase.Abort" class="git4idea.actions.GitRebaseAbort" text="Abort Rebasing"/>
@@ -116,8 +118,6 @@
     <logProvider implementation="git4idea.log.GitLogProvider"/>
     <vcsChangesViewRefresher implementation="git4idea.changes.GitChangesViewRefresher" />
     
-    <vcs.rootFinder implementation="git4idea.roots.GitRootFinder"/>
-
     <projectService
       serviceInterface="git4idea.history.wholeTree.LogFactoryService"
       serviceImplementation="git4idea.history.wholeTree.LogFactoryService"/>
@@ -194,5 +194,4 @@
   <extensionPoints>
     <extensionPoint qualifiedName="Git4Idea.GitHttpAuthDataProvider" interface="git4idea.jgit.GitHttpAuthDataProvider"/>
   </extensionPoints>
-
 </idea-plugin>

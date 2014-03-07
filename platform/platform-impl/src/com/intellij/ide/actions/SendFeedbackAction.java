@@ -47,7 +47,7 @@ public class SendFeedbackAction extends AnAction implements DumbAware {
       .replace("$VERSION", appInfo.getFullVersion())
       .replace("$EVAL", isEvaluationLicense() ? "true" : "false")
       .replace("$DESCR", getDescription());
-    BrowserUtil.launchBrowser(urlTemplate);
+    BrowserUtil.browse(urlTemplate);
   }
 
   private static String getDescription() {

@@ -233,8 +233,9 @@ public class SearchTextField extends JPanel {
     }
   }
 
-  public void setHistorySize(int aHistorySize) {
-    myHistorySize = aHistorySize;
+  public void setHistorySize(int historySize) {
+    if (historySize <= 0) throw new IllegalArgumentException("history size must be a positive number");
+    myHistorySize = historySize;
   }
 
   public void setHistory(List<String> aHistory) {
@@ -336,7 +337,7 @@ public class SearchTextField extends JPanel {
         // move item to top of the list
         myFullList.remove(index);
       }
-      else if (myFullList.size() >= myHistorySize) {
+      else if (myFullList.size() >= myHistorySize && myFullList.size() > 0) {
         // trim list
         myFullList.remove(myFullList.size() - 1);
       }
@@ -372,6 +373,18 @@ public class SearchTextField extends JPanel {
       myPopup.cancel();
       myPopup = null;
     }
+  }
+
+  @Override
+  public Dimension getPreferredSize() {
+    Dimension size = super.getPreferredSize();
+    Border border = super.getBorder();
+    if (border != null && UIUtil.isUnderAquaLookAndFeel()) {
+      Insets insets = border.getBorderInsets(this);
+      size.height += insets.top + insets.bottom;
+      size.width += insets.left + insets.right;
+    }
+    return size;
   }
 
   protected Runnable createItemChosenCallback(final JList list) {

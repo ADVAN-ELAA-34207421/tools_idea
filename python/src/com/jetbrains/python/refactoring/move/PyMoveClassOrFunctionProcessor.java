@@ -23,6 +23,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtilCore;
+import com.intellij.psi.util.QualifiedName;
 import com.intellij.refactoring.BaseRefactoringProcessor;
 import com.intellij.refactoring.ui.UsageViewDescriptorAdapter;
 import com.intellij.refactoring.util.CommonRefactoringUtil;
@@ -33,9 +34,7 @@ import com.jetbrains.python.PyBundle;
 import com.jetbrains.python.PyNames;
 import com.jetbrains.python.codeInsight.dataflow.scope.ScopeUtil;
 import com.jetbrains.python.codeInsight.imports.PyImportOptimizer;
-import com.jetbrains.python.documentation.DocStringTypeReference;
 import com.jetbrains.python.psi.*;
-import com.intellij.psi.util.QualifiedName;
 import com.jetbrains.python.psi.resolve.QualifiedNameFinder;
 import com.jetbrains.python.refactoring.PyRefactoringUtil;
 import com.jetbrains.python.refactoring.classes.PyClassRefactoringUtil;
@@ -141,7 +140,7 @@ public class PyMoveClassOrFunctionProcessor extends BaseRefactoringProcessor {
     // TODO: Remove extra empty lines after the removed element
     element.delete();
     if (file != null) {
-      optimizeImports(file);
+      PyClassRefactoringUtil.optimizeImports(file);
     }
   }
 
@@ -184,7 +183,7 @@ public class PyMoveClassOrFunctionProcessor extends BaseRefactoringProcessor {
       if (oldElement instanceof PyClass && PyNames.INIT.equals(expr.getName())) {
         return;
       }
-      if (expr.getQualifier() != null) {
+      if (expr.isQualified()) {
         final PyElementGenerator generator = PyElementGenerator.getInstance(expr.getProject());
         final PyExpression generated = generator.createExpressionFromText(LanguageLevel.forElement(expr), expr.getName());
         final PsiElement newExpr = expr.replace(generated);
@@ -193,7 +192,7 @@ public class PyMoveClassOrFunctionProcessor extends BaseRefactoringProcessor {
     }
     if (usage instanceof PyStringLiteralExpression) {
       for (PsiReference ref : usage.getReferences()) {
-        if (ref instanceof DocStringTypeReference && ref.isReferenceTo(oldElement)) {
+        if (ref.isReferenceTo(oldElement)) {
           ref.bindToElement(newElement);
         }
       }
@@ -210,15 +209,12 @@ public class PyMoveClassOrFunctionProcessor extends BaseRefactoringProcessor {
       if (resolvesToLocalStarImport(usage)) {
         PyClassRefactoringUtil.insertImport(usage, newElement);
         if (usageFile != null) {
-          optimizeImports(usageFile);
+          PyClassRefactoringUtil.optimizeImports(usageFile);
         }
       }
     }
   }
 
-  private static void optimizeImports(@NotNull PsiFile file) {
-    new PyImportOptimizer().processFile(file).run();
-  }
 
   private static boolean resolvesToLocalStarImport(@NotNull PsiElement element) {
     final PsiReference ref = element.getReference();

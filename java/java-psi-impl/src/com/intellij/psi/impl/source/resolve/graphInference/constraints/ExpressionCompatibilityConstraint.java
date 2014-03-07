@@ -15,7 +15,6 @@
  */
 package com.intellij.psi.impl.source.resolve.graphInference.constraints;
 
-import com.intellij.openapi.util.Pair;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.source.resolve.graphInference.InferenceSession;
 import com.intellij.psi.impl.source.resolve.graphInference.InferenceVariable;
@@ -25,7 +24,9 @@ import com.intellij.psi.infos.MethodCandidateInfo;
 import com.intellij.psi.util.TypeConversionUtil;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 
 /**
  * User: anna
@@ -47,7 +48,7 @@ public class ExpressionCompatibilityConstraint extends InputOutputConstraintForm
       }
     
       final PsiType exprType = myExpression.getType();
-      if (exprType != null && !exprType.equals(PsiType.NULL)) {
+      if (exprType != null && exprType != PsiType.NULL) {
         constraints.add(new TypeCompatibilityConstraint(myT, exprType));
       }
       return true;
@@ -76,17 +77,14 @@ public class ExpressionCompatibilityConstraint extends InputOutputConstraintForm
     if (myExpression instanceof PsiCallExpression) {
       final PsiExpressionList argumentList = ((PsiCallExpression)myExpression).getArgumentList();
       if (argumentList != null) {
-        final Pair<PsiMethod,PsiSubstitutor> pair = MethodCandidateInfo.getCurrentMethod(argumentList);
-        if (pair != null) return true;
-        final PsiMethod method = ((PsiCallExpression)myExpression).resolveMethod();
+        final JavaResolveResult resolveResult = ((PsiCallExpression)myExpression).resolveMethodGenerics();
+        final PsiMethod method = (PsiMethod)resolveResult.getElement();
         PsiType returnType = null;
-        InferenceSession callSession = null;
+        PsiTypeParameter[] typeParams = null;
         if (method != null && !method.isConstructor()) {
           returnType = method.getReturnType();
           if (returnType != null) {
-            callSession = new InferenceSession(method.getTypeParameters(),
-                                               PsiSubstitutor.EMPTY, myExpression.getManager());
-            
+            typeParams = method.getTypeParameters();
           }
         } else if (myExpression instanceof PsiNewExpression) {  //default constructor
           final PsiJavaCodeReferenceElement classReference = ((PsiNewExpression)myExpression).getClassOrAnonymousClassReference();
@@ -94,29 +92,34 @@ public class ExpressionCompatibilityConstraint extends InputOutputConstraintForm
             final PsiElement psiClass = classReference.resolve();
             if (psiClass instanceof PsiClass) {
               returnType = JavaPsiFacade.getElementFactory(argumentList.getProject()).createType((PsiClass)psiClass, PsiSubstitutor.EMPTY);
-              callSession = new InferenceSession(((PsiClass)psiClass).getTypeParameters(),
-                                                 PsiSubstitutor.EMPTY, myExpression.getManager());
+              typeParams = ((PsiClass)psiClass).getTypeParameters();
             }
           }
         }
 
-        if (callSession != null) {
+        if (typeParams != null) {
 
-          for (PsiTypeParameter typeParameter : session.getTypeParams()) {
-            callSession.addCapturedVariable(typeParameter);
+          for (PsiTypeParameter typeParam : typeParams) {
+            session.addCapturedVariable(typeParam);
           }
-          callSession.addConstraint(new TypeCompatibilityConstraint(myT, returnType));
-          final PsiSubstitutor callSubstitutor = callSession.infer();
-
-          if (myExpression instanceof PsiMethodCallExpression) {
-            returnType = PsiMethodCallExpressionImpl.captureReturnType((PsiMethodCallExpression)myExpression, method, returnType, callSubstitutor);
+          PsiSubstitutor substitutor = PsiSubstitutor.EMPTY;
+          if (method != null) {
+            //typeParams are already included
+            final Collection<PsiTypeParameter> params = session.getTypeParams();
+            InferenceSession callSession = new InferenceSession(params.toArray(new PsiTypeParameter[params.size()]), resolveResult instanceof MethodCandidateInfo ? ((MethodCandidateInfo)resolveResult).getSiteSubstitutor() 
+                                                                                                                                                                  : PsiSubstitutor.EMPTY, myExpression.getManager(), myExpression);
+            final PsiExpression[] args = argumentList.getExpressions();
+            final PsiParameter[] parameters = method.getParameterList().getParameters();
+            callSession.initExpressionConstraints(parameters, args, myExpression, method);
+            callSession.registerConstraints(returnType, myT);
+            if (callSession.repeatInferencePhases(true)) {
+              session.liftBounds(callSession.getInferenceVariables());
+            }
           }
-          else {
-            returnType = callSubstitutor.substitute(returnType);
-          }
-          if (!TypeConversionUtil.isAssignable(myT, returnType)) {
-            constraints.add(new TypeCompatibilityConstraint(GenericsUtil.eliminateWildcards(myT, false), returnType));
-          }
+          final PsiType capturedReturnType = myExpression instanceof PsiMethodCallExpression
+                                             ? PsiMethodCallExpressionImpl.captureReturnType((PsiMethodCallExpression)myExpression, method, returnType, substitutor)
+                                             : substitutor.substitute(returnType);
+          constraints.add(new TypeCompatibilityConstraint(myT, capturedReturnType));
         }
       }
       return true;
@@ -144,16 +147,13 @@ public class ExpressionCompatibilityConstraint extends InputOutputConstraintForm
     ExpressionCompatibilityConstraint that = (ExpressionCompatibilityConstraint)o;
 
     if (!myExpression.equals(that.myExpression)) return false;
-    if (!myT.equals(that.myT)) return false;
 
     return true;
   }
 
   @Override
   public int hashCode() {
-    int result = myExpression.hashCode();
-    result = 31 * result + myT.hashCode();
-    return result;
+    return myExpression.hashCode();
   }
 
   @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import com.intellij.codeInsight.lookup.LookupManager
 import com.intellij.codeInsight.lookup.PsiTypeLookupItem
 import com.intellij.codeInsight.lookup.impl.LookupImpl
 import com.intellij.codeInsight.template.*
+import com.intellij.codeInsight.template.impl.LiveTemplateDocumentationProvider
 import com.intellij.codeInsight.template.impl.TemplateImpl
 import com.intellij.codeInsight.template.impl.TemplateManagerImpl
 import com.intellij.codeInsight.template.impl.TemplateSettings
@@ -52,6 +53,7 @@ import com.intellij.psi.PsiJavaFile
 import com.intellij.psi.statistics.StatisticsManager
 import com.intellij.psi.statistics.impl.StatisticsManagerImpl
 import com.intellij.util.containers.ContainerUtil
+import org.jetbrains.annotations.NotNull
 
 import java.awt.event.KeyEvent
 /**
@@ -81,7 +83,7 @@ class JavaAutoPopupTest extends CompletionAutoPopupTestCase {
     les = myFixture.lookupElementStrings
     assert 'iterable' in les
     assert 'iter' in les
-    assertEquals 'iterable', lookup.currentItem.lookupString
+    assertEquals 'iter', lookup.currentItem.lookupString
     assert lookup.focused
 
     type 'a'
@@ -116,7 +118,7 @@ class JavaAutoPopupTest extends CompletionAutoPopupTestCase {
       }
     """)
     type "r"
-    myFixture.assertPreferredCompletionItems 1, "iter", "iterable"
+    myFixture.assertPreferredCompletionItems 0, "iter", "iterable"
 
     type '\b'
     assertContains "iterable"
@@ -131,7 +133,7 @@ class JavaAutoPopupTest extends CompletionAutoPopupTestCase {
     assertContains "iterable"
 
     type "r"
-    myFixture.assertPreferredCompletionItems 1, "iter", "iterable"
+    myFixture.assertPreferredCompletionItems 0, "iter", "iterable"
   }
 
   public void testExplicitSelectionShouldSurvive() {
@@ -546,7 +548,7 @@ public interface Test {
 
   static class LongReplacementOffsetContributor extends CompletionContributor {
     @Override
-    void duringCompletion(CompletionInitializationContext cxt) {
+    void duringCompletion(@NotNull CompletionInitializationContext cxt) {
       Thread.sleep 500
       ProgressManager.checkCanceled()
       cxt.replacementOffset--;
@@ -1305,7 +1307,7 @@ class Foo {
     type 'e'
     myFixture.assertPreferredCompletionItems 0, 'itera', 'itex'
     type 'r'
-    myFixture.assertPreferredCompletionItems 1, 'iter', 'itera'
+    myFixture.assertPreferredCompletionItems 0, 'iter', 'itera'
     type '\b'
     myFixture.assertPreferredCompletionItems 0, 'itera', 'itex'
   }
@@ -1518,6 +1520,25 @@ class X extends Foo {
     assert myFixture.lookupElementStrings == ['public int getField']
   }
 
+  public void "test live template quick doc"() {
+    myFixture.configureByText "a.java", """
+class Cls {
+  void foo() {
+    <caret>
+  }
+  void mySout() {}
+}
+""" 
+    type('sout')
+    assert lookup
+    assert 'sout' in myFixture.lookupElementStrings
+
+    def docProvider = new LiveTemplateDocumentationProvider()
+    def docElement = docProvider.getDocumentationElementForLookupItem(myFixture.psiManager, lookup.currentItem, null)
+    assert docElement.presentation.presentableText == 'sout'
+    assert docProvider.generateDoc(docElement, docElement).contains('System.out')
+  }
+
   public void "test finishing class reference property value completion with dot opens autopopup"() {
     myFixture.configureByText "a.properties", "myprop=ja<caret>"
     type 'v'
@@ -1544,7 +1565,7 @@ class Foo {
 }
 '''
     type 'tpl'
-    myFixture.assertPreferredCompletionItems 1, 'tpl', 'tplMn'
+    myFixture.assertPreferredCompletionItems 0, 'tpl', 'tplMn'
 
     LookupElementPresentation p = LookupElementPresentation.renderElement(myFixture.lookupElements[0])
     assert p.itemText == 'tpl'
@@ -1552,5 +1573,4 @@ class Foo {
     def tabKeyPresentation = KeyEvent.getKeyText(TemplateSettings.TAB_CHAR as int)
     assert p.typeText == "  [$tabKeyPresentation] "
   }
-
 }

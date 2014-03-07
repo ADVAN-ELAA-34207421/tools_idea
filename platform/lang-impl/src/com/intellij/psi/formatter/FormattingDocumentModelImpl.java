@@ -17,6 +17,7 @@
 package com.intellij.psi.formatter;
 
 import com.intellij.formatting.FormattingDocumentModel;
+import com.intellij.lang.ASTNode;
 import com.intellij.lang.Language;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
@@ -63,7 +64,7 @@ public class FormattingDocumentModelImpl implements FormattingDocumentModel {
       if (PsiDocumentManager.getInstance(file.getProject()).isUncommited(document)) {
         LOG.error("Document is uncommitted");
       }
-      if (!document.getText().equals(file.getText())) {
+      if (!file.textMatches(document.getImmutableCharSequence())) {
         LOG.error("Document and psi file texts should be equal: file " + file);
       }
       return new FormattingDocumentModelImpl(document, file);
@@ -149,11 +150,11 @@ public class FormattingDocumentModelImpl implements FormattingDocumentModel {
   @NotNull
   @Override
   public CharSequence adjustWhiteSpaceIfNecessary(@NotNull CharSequence whiteSpaceText, int startOffset, int endOffset,
-                                                  boolean changedViaPsi)
+                                                  ASTNode nodeAfter, boolean changedViaPsi)
   {
     if (!changedViaPsi) {
       return myWhiteSpaceStrategy.adjustWhiteSpaceIfNecessary(whiteSpaceText, myDocument.getCharsSequence(), startOffset, endOffset,
-                                                              mySettings);
+                                                              mySettings, nodeAfter);
     }
 
     final PsiElement element = myFile.findElementAt(startOffset);

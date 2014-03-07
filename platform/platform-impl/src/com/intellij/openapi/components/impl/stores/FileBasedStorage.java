@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.components.StateStorageException;
+import com.intellij.openapi.components.StoragePathMacros;
 import com.intellij.openapi.components.TrackingPathMacroSubstitutor;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.JDOMUtil;
@@ -91,17 +92,17 @@ public class FileBasedStorage extends XmlElementStorage {
       final Listener listener = messageBus.syncPublisher(STORAGE_TOPIC);
       virtualFileTracker.addTracker(fileUrl, new VirtualFileAdapter() {
         @Override
-        public void fileMoved(VirtualFileMoveEvent event) {
+        public void fileMoved(@NotNull VirtualFileMoveEvent event) {
           myCachedVirtualFile = null;
         }
 
         @Override
-        public void fileDeleted(VirtualFileEvent event) {
+        public void fileDeleted(@NotNull VirtualFileEvent event) {
           myCachedVirtualFile = null;
         }
 
         @Override
-        public void contentsChanged(final VirtualFileEvent event) {
+        public void contentsChanged(@NotNull final VirtualFileEvent event) {
           if (!isDisposed()) {
             listener.storageFileChanged(event, FileBasedStorage.this);
           }
@@ -271,7 +272,7 @@ public class FileBasedStorage extends XmlElementStorage {
   @Nullable
   private Document processReadException(@Nullable final Exception e) {
     boolean contentTruncated = e == null;
-    myBlockSavingTheContent = isProjectOrModuleFile() && !contentTruncated;
+    myBlockSavingTheContent = isProjectOrModuleOrWorkspaceFile() && !contentTruncated;
     if (!ApplicationManager.getApplication().isUnitTestMode() && !ApplicationManager.getApplication().isHeadlessEnvironment()) {
       if (e != null) {
         LOG.info(e);
@@ -285,12 +286,12 @@ public class FileBasedStorage extends XmlElementStorage {
     return null;
   }
 
-  private boolean isProjectOrModuleFile() {
-    return StorageUtil.isProjectOrModuleFile(myFileSpec);
+  private boolean isProjectOrModuleOrWorkspaceFile() {
+    return StorageUtil.isProjectOrModuleFile(myFileSpec) || myFileSpec.equals(StoragePathMacros.WORKSPACE_FILE);
   }
 
   private String getInvalidContentMessage(boolean contentTruncated) {
-    return isProjectOrModuleFile() && !contentTruncated ? "Please correct the file content" : "File content will be recreated";
+    return isProjectOrModuleOrWorkspaceFile() && !contentTruncated ? "Please correct the file content" : "File content will be recreated";
   }
 
   private static Document loadDocumentImpl(final VirtualFile file) throws IOException, JDOMException {

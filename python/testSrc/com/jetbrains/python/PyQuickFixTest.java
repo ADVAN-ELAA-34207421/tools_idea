@@ -173,13 +173,6 @@ public class PyQuickFixTest extends PyTestCase {
     doInspectionTest("AddClass.py", PyUnresolvedReferencesInspection.class, "Create class 'Xyzzy'", true, true);
   }
 
-  public void testFieldFromUnusedParameter() {  // PY-1398
-    doInspectionTest("FieldFromUnusedParameter.py", PyUnusedLocalInspection.class, "Add field 'foo' to class A", true, true);
-  }
-
-  public void testFieldFromUnusedParameterKeyword() {  // PY-1602
-    doInspectionTest("FieldFromUnusedParameterKeyword.py", PyUnusedLocalInspection.class, "Add field 'foo' to class A", true, true);
-  }
 
   public void testAddFunctionToModule() {  // PY-1602
     doInspectionTest(
@@ -247,16 +240,6 @@ public class PyQuickFixTest extends PyTestCase {
                           PyBundle.message("QFIX.statement.effect"), true, true);
   }
 
-  public void testStatementEffectPrint() {
-    setLanguageLevel(LanguageLevel.PYTHON33);
-    try {
-      doInspectionTest("StatementEffectPrint.py", PyStatementEffectInspection.class,
-                          PyBundle.message("QFIX.statement.effect"), true, true);
-    } finally {
-      setLanguageLevel(LanguageLevel.getDefault());
-    }
-  }
-
   public void testStatementEffectIntroduceVariable() {  // PY-1265
     doInspectionTest("StatementEffectIntroduceVariable.py", PyStatementEffectInspection.class,
                           PyBundle.message("QFIX.statement.effect.introduce.variable"), true, true);
@@ -271,6 +254,15 @@ public class PyQuickFixTest extends PyTestCase {
   public void testUnresolvedRefCreateFunction() {  // PY-2092
     doInspectionTest("UnresolvedRefCreateFunction.py", PyUnresolvedReferencesInspection.class,
                           PyBundle.message("QFIX.unresolved.reference.create.function.$0", "ref"), true, true);
+  }
+
+  public void testUnresolvedRefNoCreateFunction() {
+    myFixture.enableInspections(PyUnresolvedReferencesInspection.class);
+    myFixture.configureByFile("UnresolvedRefNoCreateFunction.py");
+    myFixture.checkHighlighting(true, false, false);
+    final IntentionAction intentionAction = myFixture.getAvailableIntention(
+      PyBundle.message("QFIX.unresolved.reference.create.function.$0", "ref"));
+    assertNull(intentionAction);
   }
 
   public void testReplaceNotEqOperator() {
@@ -313,6 +305,17 @@ public class PyQuickFixTest extends PyTestCase {
                      PyBundle.message("QFIX.add.super"), true, true);
   }
 
+  public void testAddCallSuperAnnotations() {
+    runWithLanguageLevel(LanguageLevel.PYTHON33, new Runnable() {
+      @Override
+      public void run() {
+        doInspectionTest("AddCallSuperAnnotations.py",
+                         PyMissingConstructorInspection.class,
+                         PyBundle.message("QFIX.add.super"), true, true);
+      }
+    });
+  }
+
   public void testAddCallSuperPass() {                      //PY-8654
     doInspectionTest("AddCallSuperPass.py", PyMissingConstructorInspection.class,
                      PyBundle.message("QFIX.add.super"), true, true);
@@ -333,11 +336,6 @@ public class PyQuickFixTest extends PyTestCase {
                      PyBundle.message("QFIX.unresolved.reference.add.param.$0", "test"), true, true);
   }
 
-  public void testMoveDocstring() {                      //PY-4398
-    doInspectionTest("MoveDocstring.py", PyStatementEffectInspection.class,
-                     PyBundle.message("QFIX.statement.effect.move.docstring"), true, true);
-  }
-
   public void testRenameUnresolvedReference() {                      //PY-6595
     doInspectionTest("RenameUnresolvedReference.py", PyUnresolvedReferencesInspection.class,
                      PyBundle.message("QFIX.rename.unresolved.reference"), true, true);
@@ -347,6 +345,11 @@ public class PyQuickFixTest extends PyTestCase {
     setLanguageLevel(LanguageLevel.PYTHON27);
     doInspectionTest("SetFunctionToLiteral.py", PySetFunctionToLiteralInspection.class,
                      PyBundle.message("QFIX.replace.function.set.with.literal"), true, true);
+  }
+
+  public void testDictComprehensionToCall() {
+    doInspectionTest("DictComprehensionToCall.py", PyCompatibilityInspection.class,
+                         PyBundle.message("INTN.convert.dict.comp.to"), true, true);
   }
 
   public void testDocstringParams() {                      //PY-3394

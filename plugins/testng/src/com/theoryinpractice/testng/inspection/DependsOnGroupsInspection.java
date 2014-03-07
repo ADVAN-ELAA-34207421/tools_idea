@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ public class DependsOnGroupsInspection extends BaseJavaLocalInspectionTool {
   private static final Pattern PATTERN = Pattern.compile("\"([a-zA-Z0-9_\\-\\(\\)]*)\"");
 
   public JDOMExternalizableStringList groups = new JDOMExternalizableStringList();
-  @NonNls public static String SHORT_NAME = "groupsTestNG";
+  @NonNls public static final String SHORT_NAME = "groupsTestNG";
 
   @NotNull
   @Override
@@ -114,7 +114,7 @@ public class DependsOnGroupsInspection extends BaseJavaLocalInspectionTool {
       if (dep != null) {
         final PsiAnnotationMemberValue value = dep.getValue();
         if (value != null) {
-          LOGGER.info("Found " + dep.getName() + " with: " + value.getText());
+          LOGGER.debug("Found " + dep.getName() + " with: " + value.getText());
           String text = value.getText();
           if (value instanceof PsiReferenceExpression) {
             final PsiElement resolve = ((PsiReferenceExpression)value).resolve();
@@ -131,7 +131,7 @@ public class DependsOnGroupsInspection extends BaseJavaLocalInspectionTool {
           while (matcher.find()) {
             String methodName = matcher.group(1);
             if (!groups.contains(methodName)) {
-              LOGGER.info("group doesn't exist:" + methodName);
+              LOGGER.debug("group doesn't exist:" + methodName);
               ProblemDescriptor descriptor = manager.createProblemDescriptor(annotation, "Group '" + methodName + "' is undefined.",
                                                                              new GroupNameQuickFix(methodName),
                                                                              ProblemHighlightType.GENERIC_ERROR_OR_WARNING, isOnTheFly);

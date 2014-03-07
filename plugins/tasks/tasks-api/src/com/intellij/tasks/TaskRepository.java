@@ -51,7 +51,7 @@ public abstract class TaskRepository {
    * <p>
    * If server supports this feature it MUST return tasks already filtered according
    * to {@code query} parameter from {@link #getIssues}} method, otherwise they will
-   * be filtered internally in {@link TaskManager#getIssues}
+   * be filtered internally in {@link TaskManager#getIssues}.
    */
   public static final int NATIVE_SEARCH = 0x0010;
 
@@ -130,7 +130,7 @@ public abstract class TaskRepository {
    * @see com.intellij.tasks.TaskRepositoryType#getPossibleTaskStates()
    */
   public void setTaskState(Task task, TaskState state) throws Exception {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("Setting task to state " + state + " is not supported");
   }
 
   // for serialization
@@ -217,7 +217,7 @@ public abstract class TaskRepository {
     return "{id} (e.g. FOO-001), {summary}, {number} (e.g. 001), {project} (e.g. FOO)";
   }
 
-  public void updateTimeSpent(final LocalTask task, final String timeSpent, final String comment) throws Exception {
+  public void updateTimeSpent(@NotNull LocalTask task, @NotNull String timeSpent, @NotNull String comment) throws Exception {
     throw new UnsupportedOperationException();
   }
 

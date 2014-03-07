@@ -208,7 +208,8 @@ public class EditorSearchComponent extends EditorHeaderComponent implements Data
         }
         else {
           setNotFoundBackground();
-          myMatchInfoLabel.setText("No matches");
+          myMatchInfoLabel.setText("No matches ");
+          boldMatchInfo();
         }
       }
       else {
@@ -356,7 +357,7 @@ public class EditorSearchComponent extends EditorHeaderComponent implements Data
   }
 
   private void setupHistoryToSearchField(SearchTextField field, String[] strings) {
-    field.setHistorySize(strings.length);
+    field.setHistorySize(20);
     field.setHistory(ContainerUtil.reverse(Arrays.asList(strings)));
   }
 
@@ -898,7 +899,10 @@ public class EditorSearchComponent extends EditorHeaderComponent implements Data
   }
 
   private void boldMatchInfo() {
-    myMatchInfoLabel.setFont(myMatchInfoLabel.getFont().deriveFont(Font.BOLD));
+    Font font = myMatchInfoLabel.getFont();
+    if (!font.isBold()) {
+      myMatchInfoLabel.setFont(font.deriveFont(Font.BOLD));
+    }
   }
 
   private void setRegularBackground() {

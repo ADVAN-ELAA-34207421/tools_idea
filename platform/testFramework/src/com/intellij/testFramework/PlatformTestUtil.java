@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,6 +69,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.lang.ref.SoftReference;
+import java.lang.reflect.Field;
+import java.nio.charset.Charset;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.*;
@@ -86,6 +88,9 @@ import static org.junit.Assert.assertNotNull;
 public class PlatformTestUtil {
   public static final boolean COVERAGE_ENABLED_BUILD = "true".equals(System.getProperty("idea.coverage.enabled.build"));
   public static final byte[] EMPTY_JAR_BYTES = {0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,};
+
+  private static final boolean SKIP_HEADLESS = GraphicsEnvironment.isHeadless();
+  private static final boolean SKIP_SLOW = Boolean.getBoolean("skip.slow.tests.locally");
 
   public static <T> void registerExtension(final ExtensionPointName<T> name, final T t, final Disposable parentDisposable) {
     registerExtension(Extensions.getRootArea(), name, t, parentDisposable);
@@ -417,14 +422,21 @@ public class PlatformTestUtil {
   }
 
   public static boolean canRunTest(@NotNull Class testCaseClass) {
-    if (GraphicsEnvironment.isHeadless()) {
-      for (Class<?> clazz = testCaseClass; clazz != null; clazz = clazz.getSuperclass()) {
-        if (clazz.getAnnotation(SkipInHeadlessEnvironment.class) != null) {
-          System.out.println("Class '" + testCaseClass.getName() + "' is skipped because it requires working UI environment");
-          return false;
-        }
+    if (!SKIP_SLOW && !SKIP_HEADLESS) {
+      return true;
+    }
+
+    for (Class<?> clazz = testCaseClass; clazz != null; clazz = clazz.getSuperclass()) {
+      if (SKIP_HEADLESS && clazz.getAnnotation(SkipInHeadlessEnvironment.class) != null) {
+        System.out.println("Class '" + testCaseClass.getName() + "' is skipped because it requires working UI environment");
+        return false;
+      }
+      if (SKIP_SLOW && clazz.getAnnotation(SkipSlowTestLocally.class) != null) {
+        System.out.println("Class '" + testCaseClass.getName() + "' is skipped because it is dog slow");
+        return false;
       }
     }
+
     return true;
   }
 
@@ -460,6 +472,7 @@ public class PlatformTestUtil {
     public void assertTiming() {
       assert expectedMs != 0 : "Must call .expect() before run test";
       if (COVERAGE_ENABLED_BUILD) return;
+      Timings.getStatistics(); // warmup, measure
 
       while (true) {
         attempts--;
@@ -780,5 +793,37 @@ public class PlatformTestUtil {
     for (int i = 0; i < 100; i++) {
       list.add(new SoftReference<byte[]>(new byte[(int)Runtime.getRuntime().freeMemory() / 2]));
     }
+  }
+
+  public static void withEncoding(@NotNull String encoding, @NotNull final Runnable r) {
+    withEncoding(encoding, new ThrowableRunnable() {
+      @Override
+      public void run() throws Throwable {
+        r.run();
+      }
+    });
+  }
+
+  public static void withEncoding(@NotNull String encoding, @NotNull ThrowableRunnable r) {
+    Charset oldCharset = Charset.defaultCharset();
+    try {
+      try {
+        patchSystemFileEncoding(encoding);
+        r.run();
+      }
+      finally {
+        patchSystemFileEncoding(oldCharset.name());
+      }
+    }
+    catch (Throwable t) {
+      throw new RuntimeException(t);
+    }
+  }
+
+  private static void patchSystemFileEncoding(String encoding) throws NoSuchFieldException, IllegalAccessException {
+    Field charset = Charset.class.getDeclaredField("defaultCharset");
+    charset.setAccessible(true);
+    charset.set(Charset.class, null);
+    System.setProperty("file.encoding", encoding);
   }
 }

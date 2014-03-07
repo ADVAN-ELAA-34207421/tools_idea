@@ -90,7 +90,7 @@ public class ModuleStructureConfigurable extends BaseStructureConfigurable imple
       final NamedConfigurable configurable1 = o1.getConfigurable();
       final NamedConfigurable configurable2 = o2.getConfigurable();
       if (configurable1.getClass() == configurable2.getClass()) {
-        return o1.getDisplayName().compareToIgnoreCase(o2.getDisplayName());
+        return StringUtil.naturalCompare(o1.getDisplayName(), o2.getDisplayName());
       }
       final Object editableObject1 = configurable1.getEditableObject();
       final Object editableObject2 = configurable2.getEditableObject();
@@ -530,7 +530,7 @@ public class ModuleStructureConfigurable extends BaseStructureConfigurable imple
         if (Messages.showYesNoDialog(parent,
                                      ProjectBundle.message("project.roots.replace.library.entry.message", entry.getPresentableName()),
                                      ProjectBundle.message("project.roots.replace.library.entry.title"),
-                                     Messages.getInformationIcon()) == DialogWrapper.OK_EXIT_CODE) {
+                                     Messages.getInformationIcon()) == Messages.YES) {
           modelProxy.removeOrderEntry(entry);
           break;
         }

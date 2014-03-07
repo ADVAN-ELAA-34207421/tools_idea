@@ -27,10 +27,7 @@ import com.intellij.openapi.options.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.Splitter;
-import com.intellij.openapi.ui.popup.JBPopupFactory;
-import com.intellij.openapi.ui.popup.ListPopup;
-import com.intellij.openapi.ui.popup.ListPopupStep;
-import com.intellij.openapi.ui.popup.PopupStep;
+import com.intellij.openapi.ui.popup.*;
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.IconLoader;
@@ -397,11 +394,6 @@ class RunConfigurable extends BaseConfigurable {
     myRightPanel.add(scrollPane, BorderLayout.CENTER);
     if (configurable instanceof SingleConfigurationConfigurable) {
       myRightPanel.add(((SingleConfigurationConfigurable)configurable).getValidationComponent(), BorderLayout.SOUTH);
-    }
-
-    if (configurable instanceof SingleConfigurationConfigurable) {
-      RunManagerEx.getInstanceEx(myProject)
-        .invalidateConfigurationIcon((RunnerAndConfigurationSettings)((SingleConfigurationConfigurable)configurable).getSettings());
     }
 
     setupDialogBounds();
@@ -1107,7 +1099,7 @@ class RunConfigurable extends BaseConfigurable {
           @Override
           @NotNull
           public String getTextFor(final ConfigurationType type) {
-            return type != null ? type.getDisplayName() : "(" + hiddenCount + " more items)";
+            return type != null ? type.getDisplayName() :  hiddenCount + " items more (irrelevant)...";
           }
 
           @Override
@@ -1199,7 +1191,7 @@ class RunConfigurable extends BaseConfigurable {
             applicableTypes.add(type);
           }
         }
-        if (applicableTypes.size() < allTypes.length - 1) {
+        if (applicableTypes.size() < allTypes.length - 3) {
           return applicableTypes;
         }
       }

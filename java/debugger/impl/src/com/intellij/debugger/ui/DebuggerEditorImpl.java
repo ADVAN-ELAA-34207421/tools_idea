@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ import com.intellij.psi.*;
 import com.intellij.psi.impl.PsiDocumentManagerBase;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.reference.SoftReference;
 import com.intellij.ui.ClickListener;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
@@ -63,6 +64,7 @@ public abstract class DebuggerEditorImpl extends CompletionEditor{
 
   private final Project myProject;
   private PsiElement myContext;
+  private PsiType myThisType;
 
   private final String myRecentsId;
 
@@ -70,6 +72,8 @@ public abstract class DebuggerEditorImpl extends CompletionEditor{
   private Document myCurrentDocument;
   private final JLabel myChooseFactory = new JLabel();
   private WeakReference<ListPopup> myPopup;
+
+  private boolean myExplicitlyChosen = false;
 
   private final PsiTreeChangeListener myPsiListener = new PsiTreeChangeAdapter() {
     public void childRemoved(@NotNull PsiTreeChangeEvent event) {
@@ -111,8 +115,8 @@ public abstract class DebuggerEditorImpl extends CompletionEditor{
     myChooseFactory.setBorder(new EmptyBorder(0, 3, 0, 3));
     new ClickListener() {
       @Override
-      public boolean onClick(MouseEvent e, int clickCount) {
-        ListPopup oldPopup = myPopup != null ? myPopup.get() : null;
+      public boolean onClick(@NotNull MouseEvent e, int clickCount) {
+        ListPopup oldPopup = SoftReference.dereference(myPopup);
         if (oldPopup != null && !oldPopup.isDisposed()) {
           oldPopup.cancel();
           myPopup = null;
@@ -138,6 +142,7 @@ public abstract class DebuggerEditorImpl extends CompletionEditor{
         @Override
         public void actionPerformed(AnActionEvent e) {
           setFactory(fragmentFactory);
+          myExplicitlyChosen = true;
           setText(getText());
           IdeFocusManager.getInstance(getProject()).requestFocus(DebuggerEditorImpl.this, true);
         }
@@ -214,6 +219,10 @@ public abstract class DebuggerEditorImpl extends CompletionEditor{
     getPreferredFocusedComponent().requestFocus();
   }
 
+  public void setThisType(PsiType thisType) {
+    myThisType = thisType;
+  }
+
   @Nullable
   protected Document createDocument(TextWithImports item) {
     LOG.assertTrue(myContext == null || myContext.isValid());
@@ -223,7 +232,10 @@ public abstract class DebuggerEditorImpl extends CompletionEditor{
     }
     JavaCodeFragment codeFragment = getCurrentFactory().createPresentationCodeFragment(item, myContext, getProject());
     codeFragment.forceResolveScope(GlobalSearchScope.allScope(myProject));
-    if (myContext != null) {
+    if (myThisType != null) {
+      codeFragment.setThisType(myThisType);
+    }
+    else if (myContext != null) {
       final PsiClass contextClass = PsiTreeUtil.getNonStrictParentOfType(myContext, PsiClass.class);
       if (contextClass != null) {
         final PsiClassType contextType = JavaPsiFacade.getInstance(codeFragment.getProject()).getElementFactory().createType(contextClass);
@@ -288,12 +300,33 @@ public abstract class DebuggerEditorImpl extends CompletionEditor{
     return DefaultCodeFragmentFactory.getInstance();
   }
 
+  @NotNull
+  private CodeFragmentFactory findFactoryForRestore(@NotNull TextWithImports text, @NotNull PsiElement context) {
+    List<CodeFragmentFactory> factories = DebuggerUtilsEx.getCodeFragmentFactories(context);
+
+    if (myExplicitlyChosen && factories.contains(myFactory)) return myFactory;
+
+    DefaultCodeFragmentFactory defaultFactory = DefaultCodeFragmentFactory.getInstance();
+    factories.remove(defaultFactory);
+    for (CodeFragmentFactory factory : factories) {
+      if (factory.getFileType().equals(text.getFileType())) {
+        return factory;
+      }
+    }
+    if (!factories.isEmpty()) return factories.get(0);
+    else return defaultFactory;
+  }
+
   protected void restoreFactory(TextWithImports text) {
     FileType fileType = text.getFileType();
     if (fileType == null) return;
     if (myContext == null) return;
 
-    setFactory(findAppropriateFactory(text, myContext));
+    CodeFragmentFactory newFactory = findFactoryForRestore(text, myContext);
+    if (!newFactory.equals(myFactory)) {
+      myExplicitlyChosen = false;
+      setFactory(newFactory);
+    }
   }
 
   private void setFactory(@NotNull final CodeFragmentFactory factory) {

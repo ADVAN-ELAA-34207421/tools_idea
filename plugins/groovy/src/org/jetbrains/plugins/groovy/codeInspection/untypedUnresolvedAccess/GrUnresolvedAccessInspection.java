@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,6 +81,7 @@ import org.jetbrains.plugins.groovy.lang.psi.api.util.GrVariableDeclarationOwner
 import org.jetbrains.plugins.groovy.lang.psi.impl.PsiImplUtil;
 import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.GrReferenceResolveUtil;
 import org.jetbrains.plugins.groovy.lang.psi.impl.statements.expressions.TypesUtil;
+import org.jetbrains.plugins.groovy.lang.psi.impl.synthetic.GroovyScriptClass;
 import org.jetbrains.plugins.groovy.lang.psi.util.GroovyCommonClassNames;
 import org.jetbrains.plugins.groovy.lang.psi.util.PsiUtil;
 import org.jetbrains.plugins.groovy.lang.resolve.ResolveUtil;
@@ -224,6 +225,7 @@ public class GrUnresolvedAccessInspection extends GroovySuppressableInspectionTo
           final PsiClass outerClass = clazz.getContainingClass();
           if (com.intellij.psi.util.PsiUtil.isInnerClass(clazz) &&
               outerClass != null &&
+              newExpression.getArgumentList() != null &&
               !PsiUtil.hasEnclosingInstanceInScope(outerClass, newExpression, true) &&
               !hasEnclosingInstanceInArgList(newExpression.getArgumentList(), outerClass)) {
             String qname = clazz.getQualifiedName();
@@ -237,7 +239,7 @@ public class GrUnresolvedAccessInspection extends GroovySuppressableInspectionTo
     return null;
   }
 
-  private static boolean hasEnclosingInstanceInArgList(GrArgumentList list, PsiClass enclosingClass) {
+  private static boolean hasEnclosingInstanceInArgList(@NotNull GrArgumentList list, @NotNull PsiClass enclosingClass) {
     if (PsiImplUtil.hasNamedArguments(list)) return false;
 
     GrExpression[] args = list.getExpressionArguments();
@@ -546,24 +548,26 @@ public class GrUnresolvedAccessInspection extends GroovySuppressableInspectionTo
                                              HighlightInfo info,
                                              boolean compileStatic,
                                              final HighlightDisplayKey key) {
-    PsiClass targetClass = QuickfixUtil.findTargetClass(refExpr, compileStatic);
+   PsiClass targetClass = QuickfixUtil.findTargetClass(refExpr, compileStatic);
     if (targetClass == null) return;
 
-    if (!compileStatic) {
-      addDynamicAnnotation(info, refExpr, key);
-    }
+    if (!(targetClass instanceof SyntheticElement) || (targetClass instanceof GroovyScriptClass)) {
+      if (!compileStatic) {
+        addDynamicAnnotation(info, refExpr, key);
+      }
 
-    QuickFixAction.registerQuickFixAction(info, new CreateFieldFromUsageFix(refExpr), key);
+      QuickFixAction.registerQuickFixAction(info, new CreateFieldFromUsageFix(refExpr), key);
 
-    if (PsiUtil.isAccessedForReading(refExpr)) {
-      QuickFixAction.registerQuickFixAction(info, new CreateGetterFromUsageFix(refExpr, targetClass), key);
-    }
-    if (PsiUtil.isLValue(refExpr)) {
-      QuickFixAction.registerQuickFixAction(info, new CreateSetterFromUsageFix(refExpr), key);
-    }
+      if (PsiUtil.isAccessedForReading(refExpr)) {
+        QuickFixAction.registerQuickFixAction(info, new CreateGetterFromUsageFix(refExpr, targetClass), key);
+      }
+      if (PsiUtil.isLValue(refExpr)) {
+        QuickFixAction.registerQuickFixAction(info, new CreateSetterFromUsageFix(refExpr), key);
+      }
 
-    if (refExpr.getParent() instanceof GrCall && refExpr.getParent() instanceof GrExpression) {
-      QuickFixAction.registerQuickFixAction(info, new CreateMethodFromUsageFix(refExpr), key);
+      if (refExpr.getParent() instanceof GrCall && refExpr.getParent() instanceof GrExpression) {
+        QuickFixAction.registerQuickFixAction(info, new CreateMethodFromUsageFix(refExpr), key);
+      }
     }
 
     if (!refExpr.isQualified()) {

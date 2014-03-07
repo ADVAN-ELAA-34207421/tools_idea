@@ -205,7 +205,7 @@ public class Switcher extends AnAction implements DumbAware {
     final SwitcherSpeedSearch mySpeedSearch;
     final ClickListener myClickListener = new ClickListener() {
       @Override
-      public boolean onClick(MouseEvent e, int clickCount) {
+      public boolean onClick(@NotNull MouseEvent e, int clickCount) {
         if (myPinned && (e.isControlDown() || e.isMetaDown() || e.isShiftDown())) return false;
         final Object source = e.getSource();
         if (source instanceof JList) {
@@ -345,7 +345,12 @@ public class Switcher extends AnAction implements DumbAware {
         final int maxFiles = Math.max(editors.size(), recentFiles.length);
         final int len = isPinnedMode() ? recentFiles.length : Math.min(toolWindows.getModel().getSize(), maxFiles);
         boolean firstRecentMarked = false;
+        final List<VirtualFile> selectedFiles = Arrays.asList(editorManager.getSelectedFiles());
         for (int i = 0; i < len; i++) {
+          if (isPinnedMode() && selectedFiles.contains(recentFiles[i])) {
+            continue;
+          }
+
           final FileInfo info = new FileInfo(recentFiles[i], null);
           boolean add = true;
           if (isPinnedMode()) {
@@ -490,9 +495,9 @@ public class Switcher extends AnAction implements DumbAware {
       this.add(toolWindows, BorderLayout.WEST);
       if (filesModel.size() > 0) {
         files.setAlignmentY(1f);
-        if (files.getModel().getSize() > 30) {
+        if (files.getModel().getSize() > 20) {
           final JScrollPane pane = ScrollPaneFactory.createScrollPane(files, true);
-          pane.setPreferredSize(new Dimension(files.getPreferredSize().width + 10, 30 * 20));
+          pane.setPreferredSize(new Dimension(files.getPreferredSize().width + 10, 20 * 20));
           pane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
           this.add(pane, BorderLayout.EAST);
         } else {
@@ -556,16 +561,9 @@ public class Switcher extends AnAction implements DumbAware {
         }.registerCustomShortcutSet(CustomShortcutSet.fromString("ESCAPE"), this, myPopup);
       }
 
-      Component comp = null;
-      final EditorWindow result = FileEditorManagerEx.getInstanceEx(project).getActiveWindow().getResult();
-      if (result != null) {
-        comp = result.getOwner();
-      }
-      if (comp == null) {
-        comp = ideFrame.getContentPane();
-      }
+      final Window window = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
       myAlarm = new Alarm(Alarm.ThreadToUse.SWING_THREAD, myPopup);
-      myPopup.showInCenterOf(comp);
+      myPopup.showInCenterOf(window);
     }
 
 
@@ -668,47 +666,66 @@ public class Switcher extends AnAction implements DumbAware {
     }
 
     private void closeTabOrToolWindow() {
-      final Object value = getSelectedList().getSelectedValue();
-      if (value instanceof FileInfo) {
-        final FileInfo info = (FileInfo)value;
-        final VirtualFile virtualFile = info.first;
-        final FileEditorManagerImpl editorManager = ((FileEditorManagerImpl)FileEditorManager.getInstance(project));
-        final JList jList = getSelectedList();
-        final EditorWindow wnd = findAppropriateWindow(info);
-        if (wnd == null) {
-          editorManager.closeFile(virtualFile, false, false);
-        } else {
-          editorManager.closeFile(virtualFile, wnd, false);
-        }
-        final int selectedIndex = jList.getSelectedIndex();
-        final IdeFocusManager focusManager = IdeFocusManager.getInstance(project);
-        myAlarm.addRequest(new Runnable() {
-          @Override
-          public void run() {
-            focusManager.requestFocus(SwitcherPanel.this, true);
+      final int[] selected = getSelectedList().getSelectedIndices();
+      Arrays.sort(selected);
+      int selectedIndex = 0;
+      for (int i = selected.length - 1; i>=0; i--) {
+        selectedIndex = selected[i];
+        Object value = getSelectedList().getModel().getElementAt(selectedIndex);
+        if (value instanceof FileInfo) {
+          final FileInfo info = (FileInfo)value;
+          final VirtualFile virtualFile = info.first;
+          final FileEditorManagerImpl editorManager = ((FileEditorManagerImpl)FileEditorManager.getInstance(project));
+          final JList jList = getSelectedList();
+          final EditorWindow wnd = findAppropriateWindow(info);
+          if (wnd == null) {
+            editorManager.closeFile(virtualFile, false, false);
           }
-        }, 300);
-        if (jList.getModel().getSize() == 1) {
-          goLeft();
-          removeElementAt(jList, selectedIndex);
-          this.remove(jList);
-          this.remove(separator);
-          final Dimension size = toolWindows.getSize();
-          myPopup.setSize(new Dimension(size.width, myPopup.getSize().height));
-        } else {
-          goForward();
-          removeElementAt(jList, selectedIndex);
-          jList.setSize(jList.getPreferredSize());
+          else {
+            editorManager.closeFile(virtualFile, wnd, false);
+          }
+
+          final IdeFocusManager focusManager = IdeFocusManager.getInstance(project);
+          myAlarm.cancelAllRequests();
+          myAlarm.addRequest(new Runnable() {
+            @Override
+            public void run() {
+              focusManager.requestFocus(SwitcherPanel.this, true);
+            }
+          }, 300);
+          if (jList.getModel().getSize() == 1) {
+            goLeft();
+            removeElementAt(jList, selectedIndex);
+            this.remove(jList);
+            this.remove(separator);
+            final Dimension size = toolWindows.getSize();
+            myPopup.setSize(new Dimension(size.width, myPopup.getSize().height));
+          }
+          else {
+            removeElementAt(jList, selectedIndex);
+            jList.setSize(jList.getPreferredSize());
+          }
+          if (isPinnedMode()) {
+            EditorHistoryManager.getInstance(project).removeFile(virtualFile);
+          }
         }
-        pack();
-      } else if (value instanceof ToolWindow) {
-        final ToolWindow toolWindow = (ToolWindow)value;
-        if (twManager instanceof ToolWindowManagerImpl) {
-          ToolWindowManagerImpl manager = (ToolWindowManagerImpl)twManager;
-          manager.hideToolWindow(ids.get(toolWindow), false, false);
-        } else {
-          toolWindow.hide(null);
+        else if (value instanceof ToolWindow) {
+          final ToolWindow toolWindow = (ToolWindow)value;
+          if (twManager instanceof ToolWindowManagerImpl) {
+            ToolWindowManagerImpl manager = (ToolWindowManagerImpl)twManager;
+            manager.hideToolWindow(ids.get(toolWindow), false, false);
+          }
+          else {
+            toolWindow.hide(null);
+          }
         }
+      }
+      pack();
+      myPopup.getContent().revalidate();
+      myPopup.getContent().repaint();
+      if (getSelectedList().getModel().getSize() > selectedIndex) {
+        getSelectedList().setSelectedIndex(selectedIndex);
+        getSelectedList().ensureIndexIsVisible(selectedIndex);
       }
     }
 
@@ -1027,6 +1044,10 @@ public class Switcher extends AnAction implements DumbAware {
       public void propertyChange(PropertyChangeEvent evt) {
         final MyList list = getSelectedList();
         final Object value = list.getSelectedValue();
+        if (project.isDisposed()) {
+          myPopup.cancel();
+          return;
+        }
         ((NameFilteringListModel)files.getModel()).refilter();
         ((NameFilteringListModel)toolWindows.getModel()).refilter();
         if (files.getModel().getSize() + toolWindows.getModel().getSize() == 0) {

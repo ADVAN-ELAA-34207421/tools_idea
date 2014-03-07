@@ -21,7 +21,10 @@ import org.gradle.tooling.ProjectConnection;
 import org.gradle.tooling.model.idea.IdeaModule;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.gradle.model.ProjectImportAction;
 import org.jetbrains.plugins.gradle.settings.GradleExecutionSettings;
+
+import java.util.Collection;
 
 /**
  * @author Vladislav.Soroka
@@ -92,5 +95,10 @@ public class ProjectResolverContext {
   @Nullable
   public <T> T getExtraProject(@NotNull IdeaModule module, Class<T> modelClazz) {
     return myModels.getExtraProject(module, modelClazz);
+  }
+
+  @NotNull
+  public Collection<String> findModulesWithModel(@NotNull Class modelClazz) {
+    return myModels.findModulesWithModel(modelClazz);
   }
 }

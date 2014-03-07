@@ -1,5 +1,6 @@
 package com.intellij.vcs.log.impl;
 
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.vcs.changes.Change;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.NotNullFunction;
@@ -13,6 +14,8 @@ import java.util.List;
  * @author Kirill Likhodedov
  */
 public class VcsLogObjectsFactoryImpl implements VcsLogObjectsFactory {
+
+  private static final Logger LOG = Logger.getInstance(VcsLogObjectsFactoryImpl.class);
 
   @NotNull private final VcsLogManager myLogManager;
 
@@ -49,14 +52,14 @@ public class VcsLogObjectsFactoryImpl implements VcsLogObjectsFactory {
 
   @NotNull
   @Override
-  public VcsFullCommitDetails createFullDetails(@NotNull Hash hash, @NotNull List<Hash> parents, long authorTime, @NotNull VirtualFile root,
+  public VcsFullCommitDetails createFullDetails(@NotNull Hash hash, @NotNull List<Hash> parents, long time, @NotNull VirtualFile root,
                                                 @NotNull String subject, @NotNull String authorName, @NotNull String authorEmail,
                                                 @NotNull String message, @NotNull String committerName,
-                                                @NotNull String committerEmail, long commitTime, @NotNull List<Change> changes,
+                                                @NotNull String committerEmail, long authorTime, @NotNull List<Change> changes,
                                                 @NotNull ContentRevisionFactory contentRevisionFactory) {
     VcsUser author = createUser(authorName, authorEmail);
     VcsUser committer = createUser(committerName, committerEmail);
-    return new VcsFullCommitDetailsImpl(hash, parents, authorTime, root, subject, author, message, committer, commitTime,
+    return new VcsFullCommitDetailsImpl(hash, parents, time, root, subject, author, message, committer, authorTime,
                                         changes, contentRevisionFactory);
   }
 
@@ -77,7 +80,12 @@ public class VcsLogObjectsFactoryImpl implements VcsLogObjectsFactory {
       @NotNull
       @Override
       public Integer fun(Hash hash) {
-        return myLogManager.getDataHolder().putHash(hash);
+        VcsLogDataHolder dataHolder = myLogManager.getDataHolder();
+        if (dataHolder == null) {
+          LOG.error("The log data holder should have been initialized at this point");
+          return -1;
+        }
+        return dataHolder.putHash(hash);
       }
     }, commitHash, name, type, root);
   }

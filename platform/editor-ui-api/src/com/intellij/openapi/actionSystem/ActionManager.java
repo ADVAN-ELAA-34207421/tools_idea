@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ public abstract class ActionManager implements ApplicationComponent {
    *
    * @return An instance of <code>ActionToolbar</code>
    */
-  public abstract ActionToolbar createActionToolbar(@NonNls String place, ActionGroup group, boolean horizontal);
+  public abstract ActionToolbar createActionToolbar(@NonNls String place, @NotNull ActionGroup group, boolean horizontal);
 
   /**
    * Returns action associated with the specified actionId.
@@ -151,7 +151,7 @@ public abstract class ActionManager implements ApplicationComponent {
    * @return the created panel.
    * @since 5.1
    */
-  public abstract JComponent createButtonToolbar(final String actionPlace, final ActionGroup messageActionGroup);
+  public abstract JComponent createButtonToolbar(final String actionPlace, @NotNull ActionGroup messageActionGroup);
 
   public abstract AnAction getActionOrStub(@NonNls String id);
 
@@ -161,19 +161,7 @@ public abstract class ActionManager implements ApplicationComponent {
 
   public abstract void addTransparentTimerListener(int delay, TimerListener listener);
 
-  /** @deprecated use {@linkplain #addTransparentTimerListener(int, TimerListener)} (to remove in IDEA 13) */
-  @SuppressWarnings("UnusedDeclaration")
-  public void addTransparrentTimerListener(int delay, TimerListener listener) {
-    addTransparentTimerListener(delay, listener);
-  }
-
   public abstract void removeTransparentTimerListener(TimerListener listener);
-
-  /** @deprecated use {@linkplain #removeTransparentTimerListener(TimerListener)} (to remove in IDEA 13) */
-  @SuppressWarnings("UnusedDeclaration")
-  public void removeTransparrentTimerListener(TimerListener listener) {
-    removeTransparentTimerListener(listener);
-  }
 
   public abstract ActionCallback tryToExecute(@NotNull AnAction action, @NotNull InputEvent inputEvent, @Nullable Component contextComponent,
                                               @Nullable String place, boolean now);
@@ -184,5 +172,5 @@ public abstract class ActionManager implements ApplicationComponent {
   public abstract void removeAnActionListener(AnActionListener listener);
 
   @Nullable
-  public abstract KeyboardShortcut getKeyboardShortcut(@NotNull String actionId);
+  public abstract KeyboardShortcut getKeyboardShortcut(@NonNls @NotNull String actionId);
 }

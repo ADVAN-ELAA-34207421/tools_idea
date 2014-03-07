@@ -17,22 +17,21 @@ package org.jetbrains.io;
 
 import com.intellij.openapi.diagnostic.Logger;
 import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandler;
-import io.netty.channel.ChannelInboundHandlerAdapter;
 
 import java.net.ConnectException;
 
 @ChannelHandler.Sharable
-public final class ChannelExceptionHandler extends ChannelInboundHandlerAdapter {
+public final class ChannelExceptionHandler extends ChannelHandlerAdapter {
   private static final Logger LOG = Logger.getInstance(ChannelExceptionHandler.class);
 
-  private static final ChannelInboundHandler INSTANCE = new ChannelExceptionHandler();
+  private static final ChannelHandler INSTANCE = new ChannelExceptionHandler();
 
   private ChannelExceptionHandler() {
   }
 
-  public static ChannelInboundHandler getInstance() {
+  public static ChannelHandler getInstance() {
     return INSTANCE;
   }
 
@@ -40,7 +39,7 @@ public final class ChannelExceptionHandler extends ChannelInboundHandlerAdapter 
   public void exceptionCaught(ChannelHandlerContext context, Throwable cause) throws Exception {
     // don't report about errors while connecting
     // WEB-7727
-    if (cause instanceof ConnectException || (cause.getMessage() != null && cause.getMessage().startsWith("Connection reset"))) {
+    if (cause instanceof ConnectException) {
       LOG.debug(cause);
     }
     else {

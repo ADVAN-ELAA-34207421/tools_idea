@@ -15,6 +15,8 @@
  */
 package com.intellij.psi;
 
+import com.intellij.openapi.components.ServiceManager;
+import com.intellij.openapi.project.Project;
 import com.intellij.pom.java.LanguageLevel;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.ArrayUtil;
@@ -31,6 +33,11 @@ import static com.intellij.util.ObjectUtils.notNull;
  * @see com.intellij.psi.JavaPsiFacade#getNameHelper()
  */
 public abstract class PsiNameHelper {
+
+  public static PsiNameHelper getInstance(Project project) {
+    return ServiceManager.getService(project, PsiNameHelper.class);
+  }
+  
   /**
    * Checks if the specified text is a Java identifier, using the language level of the project
    * with which the name helper is associated to filter out keywords.
@@ -139,11 +146,6 @@ public abstract class PsiNameHelper {
     }
 
     return buffer.toString();
-  }
-
-  /** deprecated use {@link #getPresentableText(String, PsiAnnotation[], PsiType[])} (to remove in IDEA 13) */
-  public static String getPresentableText(@Nullable String referenceName, @NotNull PsiType[] typeParameters) {
-    return getPresentableText(referenceName, PsiAnnotation.EMPTY_ARRAY, typeParameters);
   }
 
   @NotNull

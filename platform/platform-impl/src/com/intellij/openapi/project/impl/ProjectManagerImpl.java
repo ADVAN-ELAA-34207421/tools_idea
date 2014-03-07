@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import com.intellij.CommonBundle;
 import com.intellij.conversion.ConversionResult;
 import com.intellij.conversion.ConversionService;
 import com.intellij.ide.AppLifecycleListener;
+import com.intellij.ide.RecentProjectsManagerBase;
 import com.intellij.ide.impl.ProjectUtil;
 import com.intellij.ide.startup.impl.StartupManagerImpl;
 import com.intellij.notification.NotificationsManager;
@@ -118,7 +119,10 @@ public class ProjectManagerImpl extends ProjectManagerEx implements NamedJDOMExt
     return array;
   }
 
-  public ProjectManagerImpl(VirtualFileManager virtualFileManager, ProgressManager progressManager) {
+  /** @noinspection UnusedParameters*/
+  public ProjectManagerImpl(VirtualFileManager virtualFileManager,
+                            RecentProjectsManagerBase recentProjectsManager,
+                            ProgressManager progressManager) {
     myProgressManager = progressManager;
     Application app = ApplicationManager.getApplication();
     MessageBus messageBus = app.getMessageBus();
@@ -258,10 +262,9 @@ public class ProjectManagerImpl extends ProjectManagerEx implements NamedJDOMExt
   }
 
   private void initProject(@NotNull ProjectImpl project, @Nullable ProjectImpl template) throws IOException {
-
     final ProgressIndicator indicator = myProgressManager.getProgressIndicator();
     if (indicator != null) {
-      indicator.setText(ProjectBundle.message("loading.components.for", project.isDefault() ? "Default" : project.getName()));
+      indicator.setText(ProjectBundle.message("loading.components.for", project.getName()));
       indicator.setIndeterminate(true);
     }
 
@@ -291,7 +294,7 @@ public class ProjectManagerImpl extends ProjectManagerEx implements NamedJDOMExt
                                     @NotNull String filePath,
                                     boolean isDefault,
                                     boolean isOptimiseTestLoadSpeed) {
-    return isDefault ? new DefaultProject(this, "", isOptimiseTestLoadSpeed, projectName)
+    return isDefault ? new DefaultProject(this, "", isOptimiseTestLoadSpeed)
                      : new ProjectImpl(this, new File(filePath).getAbsolutePath(), isOptimiseTestLoadSpeed, projectName);
   }
 
@@ -347,7 +350,7 @@ public class ProjectManagerImpl extends ProjectManagerEx implements NamedJDOMExt
     LOG.assertTrue(!myDefaultProjectWasDisposed, "Default project has been already disposed!");
     if (myDefaultProject == null) {
       try {
-        myDefaultProject = createProject("Default project", "Default project", true, ApplicationManager.getApplication().isUnitTestMode());
+        myDefaultProject = createProject(null, "", true, ApplicationManager.getApplication().isUnitTestMode());
         initProject(myDefaultProject, null);
         myDefaultProjectRootElement = null;
       }
@@ -655,7 +658,7 @@ public class ProjectManagerImpl extends ProjectManagerEx implements NamedJDOMExt
         message += ApplicationNamesInfo.getInstance().getProductName() + "?";
 
         if (Messages.showYesNoDialog(message,
-                                     "Application Configuration Reload", Messages.getQuestionIcon()) == 0) {
+                                     "Application Configuration Reload", Messages.getQuestionIcon()) == Messages.YES) {
           for (Pair<VirtualFile, StateStorage> cause : causes) {
             StateStorage stateStorage = cause.getSecond();
             if (stateStorage instanceof XmlElementStorage) {

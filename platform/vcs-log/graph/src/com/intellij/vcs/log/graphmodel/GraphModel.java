@@ -18,14 +18,7 @@ public interface GraphModel {
   @NotNull
   public Graph getGraph();
 
-  public void appendCommitsToGraph(@NotNull List<GraphCommit> commitParentses);
-
   public void setVisibleBranchesNodes(@NotNull Function<Node, Boolean> isStartedNode);
-
-  /**
-   * Checks if the node of the given hash is visible, and returns it if so; otherwise return null.
-   */
-  boolean isNodeOfHashVisible(int hash);
 
   @NotNull
   public FragmentManager getFragmentManager();
