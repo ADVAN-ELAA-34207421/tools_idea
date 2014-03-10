@@ -60,6 +60,16 @@ public class LambdaUtil {
     return getFunctionalInterfaceMethod(PsiUtil.resolveGenericsClassInType(functionalInterfaceType));
   }
 
+  public static PsiMethod getFunctionalInterfaceMethod(@Nullable PsiElement element) {
+    if (element instanceof PsiLambdaExpression || element instanceof PsiMethodReferenceExpression) {
+      final PsiType samType = element instanceof PsiLambdaExpression
+                              ? ((PsiLambdaExpression)element).getFunctionalInterfaceType()
+                              : ((PsiMethodReferenceExpression)element).getFunctionalInterfaceType();
+      return getFunctionalInterfaceMethod(samType);
+    }
+    return null;
+  }
+
   @Nullable
   public static PsiMethod getFunctionalInterfaceMethod(PsiClassType.ClassResolveResult result) {
     final PsiClass psiClass = result.getElement();
@@ -308,7 +318,7 @@ public class LambdaUtil {
               final int finalLambdaIdx = adjustLambdaIdx(lambdaIdx, (PsiMethod)resolve, parameters);
               if (finalLambdaIdx < parameters.length) {
                 if (!tryToSubstitute) return getNormalizedType(parameters[finalLambdaIdx]);
-                return PsiResolveHelper.ourGuard.doPreventingRecursion(expression, true, new Computable<PsiType>() {
+                return PsiResolveHelper.ourGraphGuard.doPreventingRecursion(expression, true, new Computable<PsiType>() {
                   @Override
                   public PsiType compute() {
                     return resolveResult.getSubstitutor().substitute(getNormalizedType(parameters[finalLambdaIdx]));

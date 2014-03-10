@@ -34,6 +34,8 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.ui.FileColorManager;
 import com.intellij.util.StringBuilderSpinAllocator;
+import com.intellij.util.ui.TextTransferable;
+import com.intellij.xdebugger.frame.XStackFrame;
 import com.intellij.xdebugger.impl.ui.tree.ValueMarkup;
 import com.sun.jdi.*;
 import org.jetbrains.annotations.Nullable;
@@ -50,6 +52,7 @@ public class StackFrameDescriptorImpl extends NodeDescriptorImpl implements Stac
   private int myUiIndex;
   private String myName = null;
   private Location myLocation;
+  private final XStackFrame myXStackFrame;
   private MethodsTracker.MethodOccurrence myMethodOccurrence;
   private boolean myIsSynthetic;
   private boolean myIsInLibraryContent;
@@ -67,6 +70,7 @@ public class StackFrameDescriptorImpl extends NodeDescriptorImpl implements Stac
       myMethodOccurrence = tracker.getMethodOccurrence(myLocation.method());
       myIsSynthetic = DebuggerUtils.isSynthetic(myMethodOccurrence.getMethod());
       ApplicationManager.getApplication().runReadAction(new Runnable() {
+        @Override
         public void run() {
           final SourcePosition position = ContextUtil.getSourcePosition(StackFrameDescriptorImpl.this);
           final PsiFile file = position != null? position.getFile() : null;
@@ -83,7 +87,7 @@ public class StackFrameDescriptorImpl extends NodeDescriptorImpl implements Stac
         }
       });
     }
-    catch(InternalException e) {
+    catch (InternalException e) {
       LOG.info(e);
       myLocation = null;
       myMethodOccurrence = tracker.getMethodOccurrence(null);
@@ -97,16 +101,20 @@ public class StackFrameDescriptorImpl extends NodeDescriptorImpl implements Stac
       myIsSynthetic = false;
       myIsInLibraryContent = false;
     }
+
+    myXStackFrame = myLocation == null ? null : getDebugProcess().getPositionManager().createStackFrame(myLocation);
   }
 
   public int getUiIndex() {
     return myUiIndex;
   }
 
+  @Override
   public StackFrameProxyImpl getFrameProxy() {
     return myFrame;
   }
 
+  @Override
   public DebugProcess getDebugProcess() {
     return myFrame.getVirtualMachine().getDebugProcess();
   }
@@ -140,12 +148,21 @@ public class StackFrameDescriptorImpl extends NodeDescriptorImpl implements Stac
     return null;
   }
   
+  @Override
   public String getName() {
     return myName;
   }
 
+  @Override
   protected String calcRepresentation(EvaluationContextImpl context, DescriptorLabelListener descriptorLabelListener) throws EvaluateException {
     DebuggerManagerThreadImpl.assertIsManagerThread();
+
+    if (myXStackFrame != null) {
+      TextTransferable.ColoredStringBuilder builder = new TextTransferable.ColoredStringBuilder();
+      myXStackFrame.customizePresentation(builder);
+      return builder.getBuilder().toString();
+    }
+
     if (myLocation == null) {
       return "";
     }
@@ -159,7 +176,7 @@ public class StackFrameDescriptorImpl extends NodeDescriptorImpl implements Stac
         label.append("()");
       }
       if (settings.SHOW_LINE_NUMBER) {
-        String lineNumber = null;
+        String lineNumber;
         try {
           lineNumber = Integer.toString(myLocation.lineNumber());
         }
@@ -172,7 +189,7 @@ public class StackFrameDescriptorImpl extends NodeDescriptorImpl implements Stac
         }
       }
       if (settings.SHOW_CLASS_NAME) {
-        String name = null;
+        String name;
         try {
           ReferenceType refType = myLocation.declaringType();
           name = refType != null ? refType.name() : null;
@@ -206,7 +223,7 @@ public class StackFrameDescriptorImpl extends NodeDescriptorImpl implements Stac
           label.append(", ");
           label.append(sourceName);
         }
-        catch (AbsentInformationException exception) {
+        catch (AbsentInformationException ignored) {
         }
       }
       return label.toString();
@@ -220,10 +237,12 @@ public class StackFrameDescriptorImpl extends NodeDescriptorImpl implements Stac
     return getFrameProxy().equals(d.getFrameProxy());
   }
 
+  @Override
   public boolean isExpandable() {
     return true;
   }
 
+  @Override
   public final void setContext(EvaluationContextImpl context) {
     myIcon = calcIcon();
   }
@@ -246,7 +265,7 @@ public class StackFrameDescriptorImpl extends NodeDescriptorImpl implements Stac
         return AllIcons.Debugger.Db_obsolete;
       }
     }
-    catch (EvaluateException e) {
+    catch (EvaluateException ignored) {
     }
     return AllIcons.Debugger.StackFrame;
   }

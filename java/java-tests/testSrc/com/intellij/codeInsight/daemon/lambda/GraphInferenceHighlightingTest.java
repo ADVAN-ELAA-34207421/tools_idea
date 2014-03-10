@@ -28,7 +28,7 @@ public class GraphInferenceHighlightingTest extends LightDaemonAnalyzerTestCase 
     doTest();
   }
 
-  public void _testNestedCallsSameMethod() throws Exception {
+  public void testNestedCallsSameMethod() throws Exception {
     doTest();
   }
 
@@ -157,6 +157,14 @@ public class GraphInferenceHighlightingTest extends LightDaemonAnalyzerTestCase 
   }
 
   public void testMostSpecificVarargsCase() throws Exception {
+    doTest();
+  }
+
+  public void testLiftedCaptureToOuterCall() throws Exception {
+    doTest();
+  }
+
+  public void testSiteSubstitutionForReturnConstraint() throws Exception {
     doTest();
   }
 
