@@ -251,6 +251,7 @@ public class PluginsAdvertiser implements StartupActivity {
               if (project.isDisposed()) return;
               if (extensions == null) {
                 loadSupportedExtensions(myAllPlugins);
+                if (project.isDisposed()) return;
                 EditorNotifications.getInstance(project).updateAllNotifications();
               }
               final Map<String, Plugin> ids = new HashMap<String, Plugin>();
@@ -280,7 +281,9 @@ public class PluginsAdvertiser implements StartupActivity {
 
               for (IdeaPluginDescriptor loadedPlugin : myAllPlugins) {
                 final PluginId pluginId = loadedPlugin.getPluginId();
-                if (ids.containsKey(pluginId.getIdString()) && !disabledPlugins.contains(pluginId.getIdString())) {
+                if (ids.containsKey(pluginId.getIdString()) && 
+                    !disabledPlugins.contains(pluginId.getIdString()) && 
+                    !PluginManagerCore.isBrokenPlugin(loadedPlugin)) {
                   myPlugins.add(PluginDownloader.createDownloader(loadedPlugin));
                 }
               }

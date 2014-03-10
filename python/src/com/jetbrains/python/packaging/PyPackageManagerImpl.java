@@ -49,8 +49,9 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.openapi.vfs.newvfs.BulkFileListener;
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent;
-import com.intellij.remotesdk.RemoteFile;
-import com.intellij.remotesdk.RemoteSdkCredentials;
+import com.intellij.remote.RemoteSdkAdditionalData;
+import com.intellij.remote.RemoteFile;
+import com.intellij.remote.RemoteSdkCredentials;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.Function;
 import com.intellij.util.SystemProperties;
@@ -778,10 +779,17 @@ public class PyPackageManagerImpl extends PyPackageManager {
     if (homePath == null) {
       throw new PyExternalProcessException(ERROR_INVALID_SDK, helperPath, args, "Cannot find interpreter for SDK");
     }
-    if (sdkData instanceof RemoteSdkCredentials) { //remote interpreter
-      final RemoteSdkCredentials remoteSdkCredentials = (RemoteSdkCredentials)sdkData;
+    if (sdkData instanceof RemoteSdkAdditionalData) { //remote interpreter
+      RemoteSdkCredentials remoteSdkCredentials;
+      try {
+        remoteSdkCredentials = ((RemoteSdkAdditionalData)sdkData).getRemoteSdkCredentials();
+      }
+      catch (InterruptedException e) {
+        LOG.error(e);
+        remoteSdkCredentials = null;
+      }
       final PythonRemoteInterpreterManager manager = PythonRemoteInterpreterManager.getInstance();
-      if (manager != null) {
+      if (manager != null && remoteSdkCredentials != null) {
         final List<String> cmdline = new ArrayList<String>();
         cmdline.add(homePath);
         cmdline.add(RemoteFile.detectSystemByPath(homePath).createRemoteFile(helperPath).getPath());

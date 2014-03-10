@@ -787,9 +787,9 @@ public final class TreeUtil {
       if (rowCount == oldRowCount) break;
       oldRowCount = rowCount;
       for (int i = 0; i < rowCount; i++) {
-        tree.expandRow(i);
+          tree.expandRow(i);
+        }
      }
-    }
     while (true);
   }
 

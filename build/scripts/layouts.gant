@@ -250,7 +250,7 @@ public def layoutCommunityPlugins(String home) {
   }
 
   dir("plugins") {
-    def simplePlugins = ["commander", "copyright", "java-i18n", "hg4idea", "github", "ui-designer-core"] //, "tasks-time-tracking"]
+    def simplePlugins = ["commander", "copyright", "java-i18n", "hg4idea", "github"] //, "tasks-time-tracking"]
 
     simplePlugins.each {
       layoutPlugin it
@@ -678,9 +678,19 @@ def layoutAndroid(String androidHome) {
       }
     }
 
-    layoutPlugin("android-designer") {
-      jar("android-designer.jar") {
-        module("android-designer")
+    dir("android-designer") {
+      dir("lib") {
+        jar("resources_en.jar") {
+          module("ui-designer-core") {
+            patternset(refid: "resources.included")
+          }
+        }
+        jar("android-designer.jar") {
+          module("ui-designer-core") {
+            patternset(refid: "resources.excluded")
+          }
+          module("android-designer")
+        }
       }
     }
   }
@@ -749,8 +759,8 @@ def layoutCommunityJps(String home, String target) {
     dir("test") {
       jar("jps-build-test.jar") {
         moduleTests("jps-builders")
-        moduleTests("jps-model-impl")
-        moduleTests("jps-model-serialization")
+        moduleTests("jps-model-tests")
+        moduleTests("jps-serialization-tests")
       }
     }
     jar("ant-jps-plugin.jar") { module("ant-jps-plugin") }

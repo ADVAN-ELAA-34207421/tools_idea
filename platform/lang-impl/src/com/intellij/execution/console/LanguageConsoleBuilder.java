@@ -147,7 +147,7 @@ public final class LanguageConsoleBuilder {
   }
 
   public LanguageConsoleView build(@NotNull Project project, @NotNull Language language) {
-    GutteredLanguageConsole console = new GutteredLanguageConsole(project, language, gutterContentProvider, psiFileFactory);
+    GutteredLanguageConsole console = new GutteredLanguageConsole(language.getDisplayName() + " Console", project, language, gutterContentProvider, psiFileFactory);
     LanguageConsoleViewImpl consoleView = new LanguageConsoleViewImpl(console, true);
     if (executeActionHandler != null) {
       assert historyType != null;
@@ -184,11 +184,12 @@ public final class LanguageConsoleBuilder {
     @Nullable
     private final PairFunction<VirtualFile, Project, PsiFile> psiFileFactory;
 
-    public GutteredLanguageConsole(@NotNull Project project,
+    public GutteredLanguageConsole(@NotNull String title,
+                                   @NotNull Project project,
                                    @NotNull Language language,
                                    @Nullable GutterContentProvider gutterContentProvider,
                                    @Nullable PairFunction<VirtualFile, Project, PsiFile> psiFileFactory) {
-      super(project, language.getDisplayName() + " Console", language, false);
+      super(project, title, new LightVirtualFile(title, language, ""), false, psiFileFactory);
 
       setShowSeparatorLine(false);
 
@@ -199,6 +200,11 @@ public final class LanguageConsoleBuilder {
     @Override
     boolean isHistoryViewerForceAdditionalColumnsUsage() {
       return gutterContentProvider == null;
+    }
+
+    @Override
+    int getMinHistoryLineCount() {
+      return 1;
     }
 
     @NotNull
@@ -224,8 +230,8 @@ public final class LanguageConsoleBuilder {
         return;
       }
 
-      final ConsoleIconGutterComponent lineStartGutter = new ConsoleIconGutterComponent(editor, gutterContentProvider);
-      final ConsoleGutterComponent lineEndGutter = new ConsoleGutterComponent(editor, gutterContentProvider);
+      final ConsoleGutterComponent lineStartGutter = new ConsoleGutterComponent(editor, gutterContentProvider, true);
+      final ConsoleGutterComponent lineEndGutter = new ConsoleGutterComponent(editor, gutterContentProvider, false);
       JLayeredPane layeredPane = new JBLayeredPane() {
         @Override
         public Dimension getPreferredSize() {
@@ -245,7 +251,7 @@ public final class LanguageConsoleBuilder {
           int w = getWidth();
           int h = getHeight();
           int lineStartGutterWidth = lineStartGutter.getPreferredSize().width;
-          lineStartGutter.setBounds(0, 0, lineStartGutterWidth, h);
+          lineStartGutter.setBounds(0, 0, lineStartGutterWidth + gutterContentProvider.getLineStartGutterOverlap(editor.getEditor()), h);
 
           editor.setBounds(lineStartGutterWidth, 0, w - lineStartGutterWidth, h);
 
@@ -265,7 +271,7 @@ public final class LanguageConsoleBuilder {
         }
       };
 
-      layeredPane.add(lineStartGutter, JLayeredPane.DEFAULT_LAYER);
+      layeredPane.add(lineStartGutter, JLayeredPane.PALETTE_LAYER);
 
       JScrollPane scrollPane = editor.getScrollPane();
       layeredPane.add(scrollPane.getViewport().getView(), JLayeredPane.DEFAULT_LAYER);
@@ -290,13 +296,13 @@ public final class LanguageConsoleBuilder {
     }
 
     private final class GutterUpdateScheduler extends DocumentAdapter implements DocumentBulkUpdateListener {
-      private final ConsoleIconGutterComponent lineStartGutter;
+      private final ConsoleGutterComponent lineStartGutter;
       private final ConsoleGutterComponent lineEndGutter;
 
       private Task gutterSizeUpdater;
       private RangeHighlighterEx lineSeparatorPainter;
 
-      public GutterUpdateScheduler(@NotNull ConsoleIconGutterComponent lineStartGutter, @NotNull ConsoleGutterComponent lineEndGutter) {
+      public GutterUpdateScheduler(@NotNull ConsoleGutterComponent lineStartGutter, @NotNull ConsoleGutterComponent lineEndGutter) {
         this.lineStartGutter = lineStartGutter;
         this.lineEndGutter = lineEndGutter;
 
@@ -393,7 +399,7 @@ public final class LanguageConsoleBuilder {
         @Override
         public void run() {
           if (!getHistoryViewer().isDisposed()) {
-            lineStartGutter.updateSize();
+            lineStartGutter.updateSize(start, end);
             lineEndGutter.updateSize(start, end);
           }
           gutterSizeUpdater = null;
