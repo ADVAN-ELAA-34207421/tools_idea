@@ -80,7 +80,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
   private static final Logger LOG = Logger.getInstance("#com.intellij.compiler.impl.TranslatingCompilerFilesMonitor");
-  private static final boolean ourDebugMode = false;
+  public static boolean ourDebugMode = false;
 
   private static final FileAttribute ourSourceFileAttribute = new FileAttribute("_make_source_file_info_", 3);
   private static final FileAttribute ourOutputFileAttribute = new FileAttribute("_make_output_file_info_", 3);
@@ -89,7 +89,6 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
   private final Object myDataLock = new Object();
 
   private final TIntHashSet mySuspendedProjects = new TIntHashSet(); // projectId for all projects that should not be monitored
-  private volatile int myWatchedProjectsCount;
 
   private final TIntObjectHashMap<TIntHashSet> mySourcesToRecompile = new TIntObjectHashMap<TIntHashSet>(); // ProjectId->set of source file paths
   private PersistentHashMap<Integer, TIntObjectHashMap<Pair<Integer, Integer>>> myOutputRootsStorage; // ProjectId->map[moduleId->Pair(outputDirId, testOutputDirId)]
@@ -196,7 +195,6 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
         return;
       }
       FileUtil.createIfDoesntExist(CompilerPaths.getRebuildMarkerFile(project));
-      --myWatchedProjectsCount;
       // cleanup internal structures to free memory
       mySourcesToRecompile.remove(projectId);
       myOutputsToDelete.remove(projectId);
@@ -217,8 +215,8 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
 
   public void watchProject(Project project) {
     synchronized (myDataLock) {
-      mySuspendedProjects.remove(getProjectId(project));
-      ++myWatchedProjectsCount;
+      int projectId = getProjectId(project);
+      mySuspendedProjects.remove(projectId);
     }
   }
 
@@ -600,7 +598,7 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
 
   private void initOutputRootsFile(File rootsFile) throws IOException {
     myOutputRootsStorage = new PersistentHashMap<Integer, TIntObjectHashMap<Pair<Integer, Integer>>>(rootsFile, EnumeratorIntegerDescriptor.INSTANCE, new DataExternalizer<TIntObjectHashMap<Pair<Integer, Integer>>>() {
-      public void save(DataOutput out, TIntObjectHashMap<Pair<Integer, Integer>> value) throws IOException {
+      public void save(@NotNull DataOutput out, TIntObjectHashMap<Pair<Integer, Integer>> value) throws IOException {
         for (final TIntObjectIterator<Pair<Integer, Integer>> it = value.iterator(); it.hasNext();) {
           it.advance();
           DataInputOutputUtil.writeINT(out, it.key());
@@ -610,7 +608,7 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
         }
       }
 
-      public TIntObjectHashMap<Pair<Integer, Integer>> read(DataInput in) throws IOException {
+      public TIntObjectHashMap<Pair<Integer, Integer>> read(@NotNull DataInput in) throws IOException {
         final DataInputStream _in = (DataInputStream)in;
         final TIntObjectHashMap<Pair<Integer, Integer>> map = new TIntObjectHashMap<Pair<Integer, Integer>>();
         while (_in.available() > 0) {
@@ -1476,7 +1474,6 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
     }
 
     public void beforeFileDeletion(@NotNull final VirtualFileEvent event) {
-      if (myWatchedProjectsCount == 0) return;
       final VirtualFile eventFile = event.getFile();
       if ((LOG.isDebugEnabled() && eventFile.isDirectory()) || ourDebugMode) {
         final String message = "Processing file deletion: " + eventFile.getPresentableUrl();
@@ -1616,7 +1613,6 @@ public class TranslatingCompilerFilesMonitor implements ApplicationComponent {
     }
 
     private void processNewFile(final VirtualFile file, final boolean notifyServer) {
-      if (myWatchedProjectsCount == 0) return;
       final Ref<Boolean> isInContent = Ref.create(false);
       ApplicationManager.getApplication().runReadAction(new Runnable() {
         // need read action to ensure that the project was not disposed during the iteration over the project list

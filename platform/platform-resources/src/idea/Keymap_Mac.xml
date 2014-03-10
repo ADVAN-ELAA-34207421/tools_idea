@@ -349,6 +349,16 @@
     <action id="FindPrevious">
       <keyboard-shortcut first-keystroke="meta shift G"/>
     </action>
+    
+    <action id="SelectNextOccurrence">
+      <keyboard-shortcut first-keystroke="control G"/>
+    </action>
+    <action id="UnselectPreviousOccurrence">
+      <keyboard-shortcut first-keystroke="control shift G"/>
+    </action>
+    <action id="SelectAllOccurrences">
+      <keyboard-shortcut first-keystroke="meta control G"/>
+    </action>
 
     <action id="Run">
       <keyboard-shortcut first-keystroke="control R"/>
@@ -537,6 +547,10 @@
 
     <action id ="Refactorings.QuickListPopupAction">
       <keyboard-shortcut first-keystroke="control T"/>
+    </action>
+
+    <action id="NewScratchFile">
+      <keyboard-shortcut first-keystroke="meta shift N"/>
     </action>
   </keymap>
 </component>

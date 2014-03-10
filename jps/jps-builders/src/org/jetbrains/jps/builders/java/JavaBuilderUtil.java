@@ -21,6 +21,7 @@ import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtil;
 import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.ModuleChunk;
 import org.jetbrains.jps.ProjectPaths;
 import org.jetbrains.jps.builders.BuildRootIndex;
@@ -38,6 +39,7 @@ import org.jetbrains.jps.model.library.JpsTypedLibrary;
 import org.jetbrains.jps.model.library.sdk.JpsSdk;
 import org.jetbrains.jps.model.library.sdk.JpsSdkReference;
 import org.jetbrains.jps.model.module.JpsModule;
+import org.jetbrains.jps.service.JpsServiceManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -79,7 +81,7 @@ public class JavaBuilderUtil {
       final boolean errorsDetected = Utils.errorsDetected(context);
       if (!isForcedRecompilationAllJavaModules(context)) {
         if (context.shouldDifferentiate(chunk)) {
-          context.processMessage(new ProgressMessage("Checking dependencies... [" + chunk.getName() + "]"));
+          context.processMessage(new ProgressMessage("Checking dependencies... [" + chunk.getPresentableShortName() + "]"));
           final Set<File> allCompiledFiles = getAllCompiledFilesContainer(context);
           final Set<File> allAffectedFiles = getAllAffectedFilesContainer(context);
 
@@ -144,7 +146,7 @@ public class JavaBuilderUtil {
             }
           }
           else {
-            final String messageText = "Marking " + chunk.getName() + " and direct dependants for recompilation";
+            final String messageText = "Marking " + chunk.getPresentableShortName() + " and direct dependants for recompilation";
             LOG.info("Non-incremental mode: " + messageText);
             context.processMessage(new ProgressMessage(messageText));
 
@@ -172,7 +174,7 @@ public class JavaBuilderUtil {
         return false;
       }
 
-      context.processMessage(new ProgressMessage("Updating dependency information... [" + chunk.getName() + "]"));
+      context.processMessage(new ProgressMessage("Updating dependency information... [" + chunk.getPresentableShortName() + "]"));
 
       globalMappings.integrate(delta);
 
@@ -279,6 +281,16 @@ public class JavaBuilderUtil {
       throw new StopBuildException();
     }
     return sdkLibrary.getProperties();
+  }
+
+  @Nullable
+  public static JavaCompilingTool findCompilingTool(@NotNull String compilerId) {
+    for (JavaCompilingTool tool : JpsServiceManager.getInstance().getExtensions(JavaCompilingTool.class)) {
+      if (compilerId.equals(tool.getId()) || compilerId.equals(tool.getAlternativeId())) {
+        return tool;
+      }
+    }
+    return null;
   }
 
   private static class ModulesBasedFileFilter implements Mappings.DependentFilesFilter {

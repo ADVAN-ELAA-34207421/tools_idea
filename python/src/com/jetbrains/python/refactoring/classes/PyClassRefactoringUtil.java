@@ -125,7 +125,7 @@ public final class PyClassRefactoringUtil {
   }
 
   @NotNull
-  public static List<PyFunction> copyMethods(Collection<PyFunction> methods, PyClass superClass) {
+  public static List<PyFunction> copyMethods(Collection<PyFunction> methods, PyClass superClass, boolean skipIfExist ) {
     if (methods.isEmpty()) {
       return Collections.emptyList();
     }
@@ -133,7 +133,7 @@ public final class PyClassRefactoringUtil {
       rememberNamedReferences(e);
     }
     final PyFunction[] elements = methods.toArray(new PyFunction[methods.size()]);
-    return addMethods(superClass, true,  elements);
+    return addMethods(superClass, skipIfExist,  elements);
   }
 
   /**
@@ -298,7 +298,7 @@ public final class PyClassRefactoringUtil {
   }
 
   public static boolean insertImport(PsiElement anchor, PsiNamedElement element, @Nullable String asName, boolean preferFromImport) {
-    if (PyBuiltinCache.getInstance(element).hasInBuiltins(element)) return false;
+    if (PyBuiltinCache.getInstance(element).isBuiltin(element)) return false;
     final PsiFile newFile = element.getContainingFile();
     final PsiFile file = anchor.getContainingFile();
     if (newFile == file) return false;
