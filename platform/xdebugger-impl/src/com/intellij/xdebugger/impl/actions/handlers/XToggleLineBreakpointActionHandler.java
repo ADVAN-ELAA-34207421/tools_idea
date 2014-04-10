@@ -70,9 +70,11 @@ public class XToggleLineBreakpointActionHandler extends DebuggerActionHandler {
     // for folded text check each line and find out type with the biggest priority
     int lineStart = position.getLine();
     int linesEnd = lineStart;
-    FoldRegion region = FoldingUtil.findFoldRegionStartingAtLine(editor, lineStart);
-    if (region != null && !region.isExpanded()) {
-      linesEnd = region.getDocument().getLineNumber(region.getEndOffset());
+    if (editor != null) {
+      FoldRegion region = FoldingUtil.findFoldRegionStartingAtLine(editor, lineStart);
+      if (region != null && !region.isExpanded()) {
+        linesEnd = region.getDocument().getLineNumber(region.getEndOffset());
+      }
     }
 
     VirtualFile file = position.getFile();
@@ -81,7 +83,9 @@ public class XToggleLineBreakpointActionHandler extends DebuggerActionHandler {
     XLineBreakpointType<?> typeWinner = null;
     int lineWinner = -1;
     for (int line = lineStart; line <= linesEnd; line++) {
+      int maxPriority = 0;
       for (XLineBreakpointType<?> type : lineTypes) {
+        maxPriority = Math.max(maxPriority, type.getPriority());
         final XLineBreakpoint<? extends XBreakpointProperties> breakpoint = breakpointManager.findBreakpointAtLine(type, file, line);
         if (breakpoint != null && myTemporary && !breakpoint.isTemporary()) {
           breakpoint.setTemporary(true);
@@ -91,6 +95,10 @@ public class XToggleLineBreakpointActionHandler extends DebuggerActionHandler {
             lineWinner = line;
           }
         }
+      }
+      // already found max priority type - stop
+      if (typeWinner != null && typeWinner.getPriority() == maxPriority) {
+        break;
       }
     }
 

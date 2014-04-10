@@ -46,12 +46,13 @@ import java.util.zip.ZipInputStream;
 public class LocalArchivedTemplate extends ArchivedProjectTemplate {
 
   public static final String DESCRIPTION_PATH = Project.DIRECTORY_STORE_FOLDER + "/description.html";
-  static final String IDEA_INPUT_FIELDS_XML = Project.DIRECTORY_STORE_FOLDER + "/project-template.xml";
+  static final String TEMPLATE_DESCRIPTOR = Project.DIRECTORY_STORE_FOLDER + "/project-template.xml";
 
   private final URL myArchivePath;
   private final ModuleType myModuleType;
   private List<WizardInputField> myInputFields = Collections.emptyList();
   private Icon myIcon;
+  private List<String> myFrameworks = Collections.emptyList();
 
   public LocalArchivedTemplate(@NotNull URL archivePath,
                                @NotNull ClassLoader classLoader) {
@@ -62,13 +63,13 @@ public class LocalArchivedTemplate extends ArchivedProjectTemplate {
     String s = readEntry(new Condition<ZipEntry>() {
       @Override
       public boolean value(ZipEntry entry) {
-        return entry.getName().endsWith(IDEA_INPUT_FIELDS_XML);
+        return entry.getName().endsWith(TEMPLATE_DESCRIPTOR);
       }
     });
     if (s != null) {
       try {
         Element templateElement = JDOMUtil.loadDocument(s).getRootElement();
-        myInputFields = RemoteTemplatesFactory.getFields(templateElement, Namespace.NO_NAMESPACE);
+        populateFromElement(templateElement, Namespace.NO_NAMESPACE);
         String iconPath = templateElement.getChildText("icon-path");
         if (iconPath != null) {
           myIcon = IconLoader.findIcon(iconPath, classLoader);
@@ -145,9 +146,16 @@ public class LocalArchivedTemplate extends ArchivedProjectTemplate {
     return myModuleType;
   }
 
+  @NotNull
   @Override
   public List<WizardInputField> getInputFields() {
     return myInputFields;
+  }
+
+  @NotNull
+  @Override
+  public List<String> getFrameworks() {
+    return myFrameworks;
   }
 
   @Override

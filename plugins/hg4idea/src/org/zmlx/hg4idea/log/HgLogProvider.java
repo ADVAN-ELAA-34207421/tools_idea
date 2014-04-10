@@ -68,7 +68,7 @@ public class HgLogProvider implements VcsLogProvider {
   @NotNull
   @Override
   public List<TimedVcsCommit> readAllHashes(@NotNull VirtualFile root, @NotNull Consumer<VcsUser> userRegistry) throws VcsException {
-    return HgHistoryUtil.readAllHashes(myProject, root, userRegistry);
+    return HgHistoryUtil.readAllHashes(myProject, root, userRegistry, Collections.<String>emptyList());
   }
 
   @NotNull
@@ -155,9 +155,9 @@ public class HgLogProvider implements VcsLogProvider {
 
   @NotNull
   @Override
-  public List<? extends VcsFullCommitDetails> getFilteredDetails(@NotNull final VirtualFile root,
-                                                                 @NotNull VcsLogFilterCollection filterCollection,
-                                                                 int maxCount) throws VcsException {
+  public List<TimedVcsCommit> getCommitsMatchingFilter(@NotNull final VirtualFile root,
+                                                                       @NotNull VcsLogFilterCollection filterCollection,
+                                                                       int maxCount) throws VcsException {
     List<String> filterParameters = ContainerUtil.newArrayList();
 
     // branch filter and user filter may be used several times without delimiter
@@ -170,7 +170,7 @@ public class HgLogProvider implements VcsLogProvider {
 
       boolean atLeastOneBranchExists = false;
       for (String branchName : filterCollection.getBranchFilter().getBranchNames()) {
-        if (branchExists(repository, branchName)) {
+        if (branchName.equals("tip") ||  branchExists(repository, branchName)) {
           filterParameters.add(prepareParameter("branch", branchName));
           atLeastOneBranchExists = true;
         }
@@ -216,7 +216,7 @@ public class HgLogProvider implements VcsLogProvider {
       }
     }
 
-    return HgHistoryUtil.history(myProject, root, maxCount, filterParameters);
+    return HgHistoryUtil.readAllHashes(myProject, root, Consumer.EMPTY_CONSUMER, filterParameters);
   }
 
   @Nullable
@@ -244,6 +244,11 @@ public class HgLogProvider implements VcsLogProvider {
   @Override
   public Collection<String> getContainingBranches(@NotNull VirtualFile root, @NotNull Hash commitHash) throws VcsException {
     return HgHistoryUtil.getDescendingHeadsOfBranches(myProject, root, commitHash);
+  }
+
+  @Override
+  public boolean supportsFastUnorderedCommits() {
+    return false;
   }
 
   private static String prepareParameter(String paramName, String value) {
