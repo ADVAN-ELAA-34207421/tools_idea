@@ -29,6 +29,7 @@ public abstract class TestFrameworks {
   }
 
   public abstract boolean isTestClass(PsiClass psiClass);
+  public abstract boolean isPotentialTestClass(PsiClass psiClass);
 
   @Nullable
   public abstract PsiMethod findOrCreateSetUpMethod(PsiClass psiClass);
@@ -40,6 +41,8 @@ public abstract class TestFrameworks {
   public abstract PsiMethod findTearDownMethod(PsiClass psiClass);
 
   protected abstract boolean hasConfigMethods(PsiClass psiClass);
+  
+  public abstract boolean isTestMethod(PsiMethod method);
 
   public boolean isTestOrConfig(PsiClass psiClass) {
     return isTestClass(psiClass) || hasConfigMethods(psiClass);

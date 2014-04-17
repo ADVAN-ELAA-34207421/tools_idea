@@ -50,6 +50,7 @@ import com.intellij.ui.*;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.util.IconUtil;
 import com.intellij.util.TextFieldCompletionProvider;
+import com.intellij.util.ui.UIUtil;
 import gnu.trove.TIntArrayList;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
@@ -214,7 +215,7 @@ public class JUnitConfigurable extends SettingsEditor<JUnitConfiguration> implem
       }
     });
 
-    //myCommonJavaParameters.getProgramParametersComponent().setVisible(false);
+    UIUtil.setEnabled(myCommonJavaParameters.getProgramParametersComponent(), false, true);
 
     setAnchor(mySearchForTestsLabel);
     myModule.setAnchor(myAlternativeJREPanel.getCbEnabled());
@@ -435,7 +436,7 @@ public class JUnitConfigurable extends SettingsEditor<JUnitConfiguration> implem
       getTestLocation(i).setEnabled(enabledFields.contains(i));
     /*if (newType == JUnitConfigurationModel.PATTERN) {
       myModule.setEnabled(false);
-    } else */if (newType != JUnitConfigurationModel.ALL_IN_PACKAGE) {
+    } else */if (newType != JUnitConfigurationModel.ALL_IN_PACKAGE && newType != JUnitConfigurationModel.PATTERN) {
       myModule.setEnabled(true);
     }
     else {
@@ -485,7 +486,8 @@ public class JUnitConfigurable extends SettingsEditor<JUnitConfiguration> implem
   }
 
   private void onScopeChanged() {
-    final boolean allInPackageAllInProject = ((Integer)myTypeChooser.getSelectedItem()) == JUnitConfigurationModel.ALL_IN_PACKAGE && myWholeProjectScope.isSelected();
+    final Integer selectedItem = (Integer)myTypeChooser.getSelectedItem();
+    final boolean allInPackageAllInProject = (selectedItem == JUnitConfigurationModel.ALL_IN_PACKAGE || selectedItem == JUnitConfigurationModel.PATTERN) && myWholeProjectScope.isSelected();
     myModule.setEnabled(!allInPackageAllInProject);
     if (allInPackageAllInProject) {
       myModule.getComponent().setSelectedItem(null);

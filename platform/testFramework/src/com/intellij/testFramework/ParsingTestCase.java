@@ -36,7 +36,6 @@ import com.intellij.openapi.progress.impl.ProgressManagerImpl;
 import com.intellij.openapi.startup.StartupManager;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.io.FileUtil;
-import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.CharsetToolkit;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.DebugUtil;
@@ -68,11 +67,17 @@ public abstract class ParsingTestCase extends PlatformLiteFixture {
   private PsiFileFactoryImpl myFileFactory;
   protected Language myLanguage;
   @NotNull private final ParserDefinition[] myDefinitions;
+  private final boolean myLowercaseFirstLetter;
 
   public ParsingTestCase(@NonNls @NotNull String dataPath, @NotNull String fileExt, @NotNull ParserDefinition... definitions) {
+    this(dataPath, fileExt, false, definitions);
+  }
+
+  public ParsingTestCase(@NonNls @NotNull String dataPath, @NotNull String fileExt, final boolean lowercaseFirstLetter, @NotNull ParserDefinition... definitions) {
     myDefinitions = definitions;
     myFullDataPath = getTestDataPath() + "/" + dataPath;
     myFileExt = fileExt;
+    myLowercaseFirstLetter = lowercaseFirstLetter;
   }
 
   @Override
@@ -187,7 +192,7 @@ public abstract class ParsingTestCase extends PlatformLiteFixture {
   }
 
   protected void doTest(boolean checkResult) {
-    String name = getTestName(false);
+    String name = getTestName(myLowercaseFirstLetter);
     try {
       String text = loadFile(name + "." + myFileExt);
       myFile = createPsiFile(name, text);
@@ -209,7 +214,7 @@ public abstract class ParsingTestCase extends PlatformLiteFixture {
   }
 
   protected void doTest(String suffix) throws IOException {
-    String name = getTestName(false);
+    String name = getTestName(myLowercaseFirstLetter);
     String text = loadFile(name + "." + myFileExt);
     myFile = createPsiFile(name, text);
     ensureParsed(myFile);
@@ -218,7 +223,7 @@ public abstract class ParsingTestCase extends PlatformLiteFixture {
   }
 
   protected void doCodeTest(String code) throws IOException {
-    String name = getTestName(false);
+    String name = getTestName(myLowercaseFirstLetter);
     myFile = createPsiFile("a", code);
     ensureParsed(myFile);
     assertEquals(code, myFile.getText());
@@ -282,9 +287,7 @@ public abstract class ParsingTestCase extends PlatformLiteFixture {
   }
 
   private static String doLoadFile(String myFullDataPath, String name) throws IOException {
-    String text = FileUtil.loadFile(new File(myFullDataPath, name), CharsetToolkit.UTF8).trim();
-    text = StringUtil.convertLineSeparators(text);
-    return text;
+    return FileUtil.loadFile(new File(myFullDataPath, name), CharsetToolkit.UTF8, true).trim();
   }
 
   public static void ensureParsed(PsiFile file) {

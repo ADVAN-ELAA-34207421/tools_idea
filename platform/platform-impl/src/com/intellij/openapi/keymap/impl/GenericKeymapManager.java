@@ -7,7 +7,7 @@ public class GenericKeymapManager extends DefaultKeymap {
   @Override
   public String getDefaultKeymapName() {
     if (SystemInfo.isMac) {
-      return "Mac OS X 10.5+";
+      return KeymapManager.MAC_OS_X_10_5_PLUS_KEYMAP;
     }
     else if (SystemInfo.isXWindow) {
       return KeymapManager.X_WINDOW_KEYMAP;
@@ -26,7 +26,7 @@ public class GenericKeymapManager extends DefaultKeymap {
     }
 
     if (KeymapManager.DEFAULT_IDEA_KEYMAP.equals(name)) {
-      return "IntelliJ IDEA Classic";
+      return "IntelliJ IDEA Classic" + (SystemInfo.isMac ? " (Windows)" : "");
     }
 
     if ("Mac OS X".equals(name)) {

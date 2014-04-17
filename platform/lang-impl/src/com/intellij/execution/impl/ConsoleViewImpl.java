@@ -22,6 +22,7 @@ import com.intellij.codeInsight.template.impl.editorActions.TypedActionHandlerBa
 import com.intellij.execution.ConsoleFolding;
 import com.intellij.execution.ExecutionBundle;
 import com.intellij.execution.actions.ConsoleActionsPostProcessor;
+import com.intellij.execution.actions.EOFAction;
 import com.intellij.execution.filters.*;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.ui.ConsoleView;
@@ -128,6 +129,11 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
 
   private boolean myInSpareTimeUpdate;
   private boolean myInDocumentUpdate;
+
+  // If true, then a document is being cleared right now.
+  // Should be accessed in EDT only.
+  @SuppressWarnings("FieldAccessedSynchronizedAndUnsynchronized")
+  private boolean myDocumentClearing;
 
   public Editor getEditor() {
     return myEditor;
@@ -325,7 +331,6 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
       myInputMessageFilter = null;
     }
 
-    Disposer.register(project, this);
     myFinishProgress = new Runnable() {
       @Override
       public void run() {
@@ -629,10 +634,12 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
             document.setInBulkUpdate(true);
             try {
               myInDocumentUpdate = true;
+              myDocumentClearing = true;
               document.deleteString(0, documentTextLength);
             }
             finally {
               document.setInBulkUpdate(false);
+              myDocumentClearing = false;
               myInDocumentUpdate = false;
             }
           }
@@ -871,7 +878,12 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
       synchronized (LOCK) {
         ConsoleUtil.updateTokensOnTextRemoval(myTokens, event.getOffset(), event.getOffset() + event.getOldLength());
         int toRemoveLen = event.getOldLength();
-        myContentSize -= Math.min(myContentSize, toRemoveLen);
+        if (!myDocumentClearing) {
+          // If document is being cleared now, then this event has been occurred as a result of calling clear() method.
+          // At start clear() method sets 'myContentSize' to 0, so there is no need to perform update again.
+          // Moreover, performing update of 'myContentSize' breaks executing "console.print();" immediately after "console.clear();".
+          myContentSize -= Math.min(myContentSize, toRemoveLen);
+        }
       }
     }
     else if (!myInDocumentUpdate) {
@@ -907,6 +919,8 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
       registerActionHandler(myEditor, IdeActions.ACTION_EDITOR_PASTE, new PasteHandler());
       registerActionHandler(myEditor, IdeActions.ACTION_EDITOR_BACKSPACE, new BackSpaceHandler());
       registerActionHandler(myEditor, IdeActions.ACTION_EDITOR_DELETE, new DeleteHandler());
+
+      registerActionHandler(myEditor, EOFAction.ACTION_ID, ActionManager.getInstance().getAction(EOFAction.ACTION_ID));
     }
   }
 
@@ -1457,50 +1471,28 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
       @Override
       public void setSelected(AnActionEvent e, final boolean state) {
         super.setSelected(e, state);
-
-        final String placeholder = myCommandLineFolding.getPlaceholder(0);
-        if (myEditor == null || state && placeholder == null) {
+        if (myEditor == null) {
           return;
         }
 
+        final String placeholder = myCommandLineFolding.getPlaceholder(0);
         final FoldingModel foldingModel = myEditor.getFoldingModel();
-        FoldRegion[] foldRegions = foldingModel.getAllFoldRegions();
-        Runnable foldTask = null;
-
-        final int endFoldRegionOffset = myEditor.getDocument().getLineEndOffset(0);
-        Runnable addCollapsedFoldRegionTask = new Runnable() {
+        final int firstLineEnd = myEditor.getDocument().getLineEndOffset(0);
+        foldingModel.runBatchFoldingOperation(new Runnable() {
           @Override
           public void run() {
-            FoldRegion foldRegion = foldingModel.addFoldRegion(0, endFoldRegionOffset, placeholder == null ? "..." : placeholder);
-            if (foldRegion != null) {
-              foldRegion.setExpanded(false);
+            FoldRegion[] regions = foldingModel.getAllFoldRegions();
+            if (regions.length > 0 && regions[0].getStartOffset() == 0 && regions[0].getEndOffset() == firstLineEnd) {
+              foldingModel.removeFoldRegion(regions[0]);
+            }
+            if (placeholder != null) {
+              FoldRegion foldRegion = foldingModel.addFoldRegion(0, firstLineEnd, placeholder);
+              if (foldRegion != null) {
+                foldRegion.setExpanded(false);
+              }
             }
           }
-        };
-        if (foldRegions.length <= 0) {
-          if (!state) {
-            return;
-          }
-          foldTask = addCollapsedFoldRegionTask;
-        }
-        else {
-          final FoldRegion foldRegion = foldRegions[0];
-          if (foldRegion.getStartOffset() == 0 && foldRegion.getEndOffset() == endFoldRegionOffset) {
-            foldTask = new Runnable() {
-              @Override
-              public void run() {
-                foldRegion.setExpanded(!state);
-              }
-            };
-          }
-          else if (state) {
-            foldTask = addCollapsedFoldRegionTask;
-          }
-        }
-
-        if (foldTask != null) {
-          foldingModel.runBatchFoldingOperation(foldTask);
-        }
+        });
       }
     };
     final AnAction autoScrollToTheEndAction = new ScrollToTheEndToolbarAction(myEditor);
@@ -1747,8 +1739,9 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
   }
 
   /**
-   * Command line used to launch application/test from idea is quite a big most of the time (it's likely that classpath definition
-   * takes a lot of space). Hence, it takes many visual lines during representation if soft wraps are enabled.
+   * Command line used to launch application/test from idea may be quite long.
+   * Hence, it takes many visual lines during representation if soft wraps are enabled
+   * or, otherwise, takes many columns and makes horizontal scrollbar thumb too small.
    * <p/>
    * Our point is to fold such long command line and represent it as a single visual line by default.
    */
@@ -1762,16 +1755,13 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
      */
     @Nullable
     public String getPlaceholder(int line) {
-      if (myEditor == null || line != 0 || !myEditor.getSettings().isUseSoftWraps()) {
+      if (myEditor == null || line != 0) {
         return null;
       }
 
       String text = EditorHyperlinkSupport.getLineText(myEditor.getDocument(), 0, false);
+      // Don't fold the first line if the line is not that big.
       if (text.length() < 1000) {
-        return null;
-      }
-      // Don't fold the first line if no soft wraps are used or if the line is not that big.
-      if (!myEditor.getSettings().isUseSoftWraps()) {
         return null;
       }
       boolean nonWhiteSpaceFound = false;

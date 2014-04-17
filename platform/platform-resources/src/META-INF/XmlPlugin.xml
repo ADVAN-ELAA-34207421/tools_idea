@@ -67,6 +67,7 @@
 
     <extensionPoint name="xml.xmlTagRuleProvider" interface="com.intellij.xml.XmlTagRuleProvider"/>
     <extensionPoint name="html.embeddedTokenTypesProvider" interface="com.intellij.lexer.HtmlEmbeddedTokenTypesProvider"/>
+    <extensionPoint name="embeddedTokenTypesProvider" interface="com.intellij.lexer.EmbeddedTokenTypesProvider"/>
     <extensionPoint name="xml.html5SchemaProvider" interface="com.intellij.xml.Html5SchemaProvider"/>
     <extensionPoint name="xml.implicitIdRefProvider" interface="com.intellij.psi.impl.source.resolve.reference.impl.providers.ImplicitIdRefProvider"/>
 
@@ -126,6 +127,8 @@
 
     <completion.confidence language="XML" implementationClass="com.intellij.codeInsight.completion.XmlNameCompletionConfidence" id="xml"/>
     <completion.confidence language="HTML" implementationClass="com.intellij.codeInsight.completion.XmlNameCompletionConfidence" id="html"/>
+    <completion.confidence language="HTML" implementationClass="com.intellij.codeInsight.completion.HtmlTextCompletionConfidence" id="htmlText"/>
+    <completion.confidence language="XHTML" implementationClass="com.intellij.codeInsight.completion.HtmlTextCompletionConfidence" id="xhtmlText"/>
 
     <lookup.charFilter implementation="com.intellij.codeInsight.completion.XmlCharFilter" id="xml"/>
 
@@ -215,6 +218,9 @@
     <lang.parserDefinition language="XML" implementationClass="com.intellij.lang.xml.XMLParserDefinition"/>
     <lang.parserDefinition language="HTML" implementationClass="com.intellij.lang.html.HTMLParserDefinition"/>
     <lang.parserDefinition language="XHTML" implementationClass="com.intellij.lang.xhtml.XHTMLParserDefinition"/>
+
+    <lang.treePatcher language="HTML" implementationClass="com.intellij.lang.xml.XmlTemplateTreePatcher"/>
+    <lang.treePatcher language="XML" implementationClass="com.intellij.lang.xml.XmlTemplateTreePatcher"/>
 
     <lang.formatter language="XML" implementationClass="com.intellij.lang.xml.XmlFormattingModelBuilder"/>
     <lang.whiteSpaceFormattingStrategy language="XML"
@@ -334,6 +340,7 @@
     <liveTemplateContext implementation="com.intellij.codeInsight.template.HtmlContextType"/>
     <liveTemplateContext implementation="com.intellij.codeInsight.template.XslTextContextType"/>
     <liveTemplateContext implementation="com.intellij.codeInsight.template.XmlContextType"/>
+    <liveTemplateContext implementation="com.intellij.codeInsight.template.XmlTextContextType"/>
 
     <errorQuickFixProvider implementation="com.intellij.codeInsight.daemon.impl.analysis.XmlErrorQuickFixProvider"/>
 

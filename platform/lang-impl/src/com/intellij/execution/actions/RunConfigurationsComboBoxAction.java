@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,7 +127,6 @@ public class RunConfigurationsComboBoxAction extends ComboBoxAction implements D
                                            final RunnerAndConfigurationSettings settings,
                                            final Project project) {
     try {
-      presentation.setIcon(EmptyIcon.ICON_16);//Hack for same DeferredIcon with new "recalculated" delegate icon inside (events won't pass)
       presentation.setIcon(RunManagerEx.getInstanceEx(project).getConfigurationIcon(settings));
     }
     catch (IndexNotReadyException ignored) {
@@ -197,25 +196,6 @@ public class RunConfigurationsComboBoxAction extends ComboBoxAction implements D
             actionGroup.add(group);
           }
         }
-
-        //final RunnerAndConfigurationSettings[] configurations = runManager.getConfigurationSettingsList(type);
-        //ArrayList<RunnerAndConfigurationSettings> configurationSettingsList = new ArrayList<RunnerAndConfigurationSettings>();
-        //int i = 0;
-        //for (RunnerAndConfigurationSettings configuration : configurations) {
-        //  if (configuration.isTemporary()) {
-        //    configurationSettingsList.add(configuration);
-        //  }
-        //  else {
-        //    configurationSettingsList.add(i++, configuration);
-        //  }
-        //}
-        //for (final RunnerAndConfigurationSettings configuration : configurationSettingsList) {
-        //  //if (runManager.canRunConfiguration(configuration)) {
-        //  final SelectConfigAction action = new SelectConfigAction(configuration, project);
-        //
-        //  actionGroup.add(action);
-        //  //}
-        //}
 
         allActionsGroup.add(actionGroup);
         allActionsGroup.addSeparator();
@@ -319,7 +299,10 @@ public class RunConfigurationsComboBoxAction extends ComboBoxAction implements D
       }
       final Presentation presentation = getTemplatePresentation();
       presentation.setText(name, false);
-      presentation.setDescription("Select " + configuration.getType().getConfigurationTypeDescription() + " '" + name + "'");
+      final ConfigurationType type = configuration.getType();
+      if (type != null) {
+        presentation.setDescription("Select " + type.getConfigurationTypeDescription() + " '" + name + "'");
+      }
       updateIcon(presentation);
     }
 

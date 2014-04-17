@@ -22,9 +22,8 @@ import java.util.Collection;
 /**
  * Tells to filter by some branch name.
  */
-public interface VcsLogBranchFilter extends VcsLogGraphFilter {
+public interface VcsLogBranchFilter extends VcsLogFilter {
 
   @NotNull
   Collection<String> getBranchNames();
-
 }

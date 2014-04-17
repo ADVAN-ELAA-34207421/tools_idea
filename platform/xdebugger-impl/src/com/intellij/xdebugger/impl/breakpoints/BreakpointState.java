@@ -36,6 +36,12 @@ public class BreakpointState<B extends XBreakpoint<P>, P extends XBreakpointProp
   private LogExpression myLogExpression;
   private Condition myCondition;
   private XBreakpointDependencyState myDependencyState;
+  @Tag("group")
+  private String myGroup;
+
+  @Tag("description")
+  private String myDescription;
+
   private long myTimeStamp;
 
   public BreakpointState() {
@@ -99,6 +105,22 @@ public class BreakpointState<B extends XBreakpoint<P>, P extends XBreakpointProp
 
   public void setLogMessage(final boolean logMessage) {
     myLogMessage = logMessage;
+  }
+
+  public String getGroup() {
+    return myGroup;
+  }
+
+  public void setGroup(String group) {
+    myGroup = group;
+  }
+
+  public String getDescription() {
+    return myDescription;
+  }
+
+  public void setDescription(String description) {
+    myDescription = description;
   }
 
   @Transient

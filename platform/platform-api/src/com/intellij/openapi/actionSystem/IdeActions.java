@@ -49,6 +49,7 @@ public interface IdeActions {
   @NonNls String ACTION_EDITOR_JOIN_LINES = "EditorJoinLines";
   @NonNls String ACTION_EDITOR_COMPLETE_STATEMENT = "EditorCompleteStatement";
   @NonNls String ACTION_EDITOR_USE_SOFT_WRAPS = "EditorToggleUseSoftWraps";
+  @NonNls String ACTION_EDITOR_ADD_OR_REMOVE_CARET= "EditorAddOrRemoveCaret";
 
   @NonNls String ACTION_EDITOR_NEXT_TEMPLATE_VARIABLE = "NextTemplateVariable";
   @NonNls String ACTION_EDITOR_PREVIOUS_TEMPLATE_VARIABLE = "PreviousTemplateVariable";
@@ -73,7 +74,6 @@ public interface IdeActions {
   @NonNls String ACTION_HIPPIE_COMPLETION = "HippieCompletion";
   @NonNls String ACTION_HIPPIE_BACKWARD_COMPLETION = "HippieBackwardCompletion";
   @NonNls String ACTION_CHOOSE_LOOKUP_ITEM = "EditorChooseLookupItem";
-  @NonNls String ACTION_CHOOSE_LOOKUP_ITEM_ALWAYS = "EditorChooseLookupItemAlways";
   @NonNls String ACTION_CHOOSE_LOOKUP_ITEM_REPLACE = "EditorChooseLookupItemReplace";
   @NonNls String ACTION_CHOOSE_LOOKUP_ITEM_COMPLETE_STATEMENT = "EditorChooseLookupItemCompleteStatement";
   @NonNls String ACTION_CHOOSE_LOOKUP_ITEM_DOT = "EditorChooseLookupItemDot";

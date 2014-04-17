@@ -181,6 +181,62 @@ public class NewMethodRefHighlightingTest extends LightDaemonAnalyzerTestCase {
     doTest();
   }
 
+  public void testSuperClassPotentiallyApplicableMembers() throws Exception {
+    doTest();
+  }
+
+  public void testExactMethodReferencePertinentToApplicabilityCheck() throws Exception {
+    doTest();
+  }
+
+  public void testAmbiguityVarargs() throws Exception {
+    doTest();
+  }
+
+  public void testRawInnerClassQualifier() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA122100() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA122509() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA122681() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA112191() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA122018comment() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA123223() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA123248() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA123366() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA123366comment() throws Exception {
+    doTest();
+  }
+
+  public void testFromReferenceWithTypeArgs() throws Exception {
+    doTest();
+  }
+
   private void doTest() {
     doTest(false);
   }

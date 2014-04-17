@@ -28,7 +28,6 @@ import com.intellij.openapi.projectRoots.SdkModificator;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.remote.*;
-import com.intellij.remote.RemoteSdkException;
 import com.intellij.util.NullableConsumer;
 import com.intellij.util.PathMappingSettings;
 import com.jetbrains.python.PythonHelpersLocator;
@@ -38,6 +37,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
@@ -53,14 +53,13 @@ public abstract class PythonRemoteInterpreterManager {
   public abstract ProcessHandler startRemoteProcess(@Nullable Project project,
                                                     @NotNull PyRemoteSdkCredentials data,
                                                     @NotNull GeneralCommandLine commandLine,
-                                                    @Nullable
-                                                    PathMappingSettings mappingSettings)
+                                                    @NotNull PathMappingSettings mappingSettings)
     throws RemoteSdkException;
 
   public abstract ProcessHandler startRemoteProcessWithPid(@Nullable Project project,
                                                            @NotNull PyRemoteSdkCredentials data,
                                                            @NotNull GeneralCommandLine commandLine,
-                                                           @Nullable
+                                                           @NotNull
                                                            PathMappingSettings mappingSettings)
     throws RemoteSdkException;
 
@@ -70,6 +69,7 @@ public abstract class PythonRemoteInterpreterManager {
 
   public abstract ProcessOutput runRemoteProcess(@Nullable Project project,
                                                  RemoteSdkCredentials data,
+                                                 @NotNull PathMappingSettings mappings, 
                                                  String[] command,
                                                  @Nullable String workingDir,
                                                  boolean askForSudo)
@@ -77,7 +77,8 @@ public abstract class PythonRemoteInterpreterManager {
 
   @NotNull
   public abstract RemoteSshProcess createRemoteProcess(@Nullable Project project,
-                                                         @NotNull RemoteSdkCredentials data,
+                                                       @NotNull PyRemoteSdkCredentials data,
+                                                       @NotNull PathMappingSettings mappings,
                                                          @NotNull GeneralCommandLine commandLine, boolean allocatePty)
     throws RemoteSdkException;
 
@@ -126,15 +127,16 @@ public abstract class PythonRemoteInterpreterManager {
     return FileUtil.toSystemIndependentName(path).replace('/', separator);
   }
 
-  public static void addHelpersMapping(@NotNull RemoteSdkCredentials data, @Nullable PathMappingSettings newMappingSettings) {
+  public static void addHelpersMapping(@NotNull RemoteSdkProperties data, @Nullable PathMappingSettings newMappingSettings) {
     if (newMappingSettings == null) {
       newMappingSettings = new PathMappingSettings();
     }
     newMappingSettings.addMapping(PythonHelpersLocator.getHelpersRoot().getPath(), data.getHelpersPath());
   }
 
+  @NotNull
   public abstract PathMappingSettings setupMappings(@Nullable Project project,
-                                                    @NotNull PyRemoteSdkCredentials data,
+                                                    @NotNull PyRemoteSdkAdditionalDataBase data,
                                                     @Nullable PathMappingSettings mappingSettings);
 
   public abstract SdkAdditionalData loadRemoteSdkData(Sdk sdk, Element additional);
@@ -155,7 +157,8 @@ public abstract class PythonRemoteInterpreterManager {
     }
   }
 
-  public abstract RemoteCredentials getVagrantRemoteCredentials(VagrantBasedCredentialsHolder data);
+  @Nullable
+  public abstract RemoteCredentials getVagrantRemoteCredentials(VagrantBasedCredentialsHolder data) throws IOException;
 
   public abstract void checkVagrantStatus(VagrantBasedCredentialsHolder data);
 

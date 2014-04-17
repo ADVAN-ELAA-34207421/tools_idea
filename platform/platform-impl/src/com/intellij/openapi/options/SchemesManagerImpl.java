@@ -334,27 +334,17 @@ public class SchemesManagerImpl<T extends Scheme, E extends ExternalizableScheme
   }
 
   private VirtualFile ensureFileText(final String fileName, final byte[] text) throws IOException {
-    final IOException[] ex = {null};
-    final VirtualFile _file = ApplicationManager.getApplication().runWriteAction(new Computable<VirtualFile>() {
+    return ApplicationManager.getApplication().runWriteAction(new ThrowableComputable<VirtualFile, IOException>() {
       @Override
-      public VirtualFile compute() {
+      public VirtualFile compute() throws IOException {
         VirtualFile file = myVFSBaseDir.findChild(fileName);
-        try {
-          if (file == null) file = myVFSBaseDir.createChildData(SchemesManagerImpl.this, fileName);
-          if (!Arrays.equals(file.contentsToByteArray(), text)) {
-            file.setBinaryContent(text);
-          }
+        if (file == null) file = myVFSBaseDir.createChildData(SchemesManagerImpl.this, fileName);
+        if (!Arrays.equals(file.contentsToByteArray(), text)) {
+          file.setBinaryContent(text);
         }
-        catch (IOException e) {
-          ex[0] = e;
-        }
-
         return file;
       }
     });
-
-    if (ex[0] != null) throw ex[0];
-    return _file;
   }
 
   private String checkFileNameIsFree(final String subPath, final String schemeName) {
@@ -600,11 +590,11 @@ public class SchemesManagerImpl<T extends Scheme, E extends ExternalizableScheme
 
   private static class SharedSchemeData {
     @NotNull private final Document original;
-    private final String name;
+    @NotNull private final String name;
     private final String user;
     private final String description;
 
-    private SharedSchemeData(@NotNull Document original, String name, String user, String description) {
+    private SharedSchemeData(@NotNull Document original, @NotNull String name, String user, String description) {
       this.original = original;
       this.name = name;
       this.user = user;

@@ -110,4 +110,17 @@ class Main {
     final Main main = new Main(12);
     return (CONST + (new Main(5).i) * 8) - (Main.CONST + new Main(5).i * (8));
   }
+
+  int one = 5/5;
 }
+class Expanded {{
+  int m = 1/**/ - (byte)0 - 9; // warn
+  int j = 8 * 0 * 8;
+  int k = 1 + /*a*/0 +/**/ 9;
+  byte l = (byte) (1L - 1L);
+  byte u = 1;
+  int z = 2 / 1 / 1;
+  System.out.println(u * 1);
+  long g = 8L / 8L;
+  long h = 9L * 0L;
+}}

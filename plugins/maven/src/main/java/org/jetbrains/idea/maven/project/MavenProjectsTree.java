@@ -930,7 +930,7 @@ public class MavenProjectsTree {
         updateCrc(crc, getFilterExclusions(mavenProject).hashCode());
         updateCrc(crc, mavenProject.getProperties().hashCode());
 
-        for (String each : mavenProject.getFilters()) {
+        for (String each : mavenProject.getFilterPropertiesFiles()) {
           File file = new File(each);
           updateCrc(crc, file.lastModified());
         }
@@ -1069,7 +1069,7 @@ public class MavenProjectsTree {
     try {
       MavenProject rootProject = project;
       while (true) {
-        MavenProject aggregator = myModuleToAggregatorMapping.get(project);
+        MavenProject aggregator = myModuleToAggregatorMapping.get(rootProject);
         if (aggregator == null) {
           return rootProject;
         }
