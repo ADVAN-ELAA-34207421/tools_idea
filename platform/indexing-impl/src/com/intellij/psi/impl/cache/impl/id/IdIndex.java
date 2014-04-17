@@ -21,6 +21,8 @@ import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.LanguageFileType;
 import com.intellij.openapi.fileTypes.impl.CustomSyntaxTableFileType;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.search.UsageSearchContext;
+import com.intellij.util.SystemProperties;
 import com.intellij.util.indexing.*;
 import com.intellij.util.io.DataExternalizer;
 import com.intellij.util.io.InlineKeyDescriptor;
@@ -48,15 +50,17 @@ public class IdIndex extends FileBasedIndexExtension<IdIndexEntry, Integer> {
     }
   };
 
+  public static final boolean ourSnapshotMappingsEnabled = SystemProperties.getBooleanProperty("idea.index.snapshot.mappings.enabled", false);
+
   private final DataExternalizer<Integer> myValueExternalizer = new DataExternalizer<Integer>() {
     @Override
     public void save(@NotNull final DataOutput out, final Integer value) throws IOException {
-      out.writeByte(value.intValue());
+      out.write(value.intValue() & UsageSearchContext.ANY);
     }
 
     @Override
     public Integer read(@NotNull final DataInput in) throws IOException {
-      return Integer.valueOf(in.readByte());
+      return Integer.valueOf(in.readByte() & UsageSearchContext.ANY);
     }
   };
   
@@ -75,7 +79,7 @@ public class IdIndex extends FileBasedIndexExtension<IdIndexEntry, Integer> {
   private final DataIndexer<IdIndexEntry, Integer, FileContent> myIndexer = new DataIndexer<IdIndexEntry, Integer, FileContent>() {
     @Override
     @NotNull
-    public Map<IdIndexEntry, Integer> map(final FileContent inputData) {
+    public Map<IdIndexEntry, Integer> map(@NotNull final FileContent inputData) {
       final FileTypeIdIndexer indexer = IdTableBuilding.getFileTypeIndexer(inputData.getFileType());
       if (indexer != null) {
         return indexer.map(inputData);
@@ -87,7 +91,7 @@ public class IdIndex extends FileBasedIndexExtension<IdIndexEntry, Integer> {
 
   @Override
   public int getVersion() {
-    return 10; // TODO: version should enumerate all word scanner versions and build version upon that set
+    return 11 + (ourSnapshotMappingsEnabled ? 0xFF:0); // TODO: version should enumerate all word scanner versions and build version upon that set
   }
 
   @Override
@@ -132,4 +136,8 @@ public class IdIndex extends FileBasedIndexExtension<IdIndexEntry, Integer> {
            CacheBuilderRegistry.getInstance().getCacheBuilder(fileType) != null;
   }
 
+  @Override
+  public boolean hasSnapshotMapping() {
+    return true;
+  }
 }

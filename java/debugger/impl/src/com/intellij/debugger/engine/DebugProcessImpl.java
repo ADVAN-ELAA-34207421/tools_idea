@@ -771,7 +771,9 @@ public abstract class DebugProcessImpl extends UserDataHolderBase implements Deb
           myDebugProcessDispatcher.getMulticaster().processDetached(this, closedByUser);
         }
         finally {
-          setBreakpointsMuted(false);
+          if (DebuggerSettings.getInstance().UNMUTE_ON_STOP) {
+            setBreakpointsMuted(false);
+          }
           if (vm != null) {
             try {
               vm.dispose(); // to be on the safe side ensure that VM mirror, if present, is disposed and invalidated
@@ -1774,6 +1776,8 @@ public abstract class DebugProcessImpl extends UserDataHolderBase implements Deb
       }
     });
 
+    // reload to make sure that source positions are initialized
+    DebuggerManagerEx.getInstanceEx(myProject).getBreakpointManager().reloadBreakpoints();
 
     getManagerThread().schedule(new DebuggerCommandImpl() {
       @Override

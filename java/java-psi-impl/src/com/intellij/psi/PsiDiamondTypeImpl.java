@@ -183,7 +183,7 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
     final JavaPsiFacade facade = JavaPsiFacade.getInstance(project);
     final PsiResolveHelper resolveHelper = facade.getResolveHelper();
     final JavaResolveResult result =
-      resolveHelper.resolveConstructor(facade.getElementFactory().createType(containingClass), argumentList, argumentList);
+      resolveHelper.resolveConstructor(facade.getElementFactory().createType(containingClass, PsiSubstitutor.EMPTY), argumentList, argumentList);
     return (PsiMethod)result.getElement();
   }
 
@@ -278,8 +278,7 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
     buf.append("{}");
 
     try {
-      final PsiNameIdentifierOwner owner = constructor != null ? constructor : containingClass;
-      return elementFactory.createMethodFromText(buf.toString(), owner instanceof PsiCompiledElement ? ((PsiCompiledElement)owner).getMirror() : owner);
+      return elementFactory.createMethodFromText(buf.toString(), constructor != null ? constructor : containingClass);
     }
     catch (IncorrectOperationException e) {
       return null;

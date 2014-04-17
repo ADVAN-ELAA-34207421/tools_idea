@@ -32,6 +32,7 @@ import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.application.ex.ApplicationEx;
 import com.intellij.openapi.application.ex.ApplicationManagerEx;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
@@ -80,6 +81,7 @@ import static com.intellij.openapi.util.text.StringUtil.isEmptyOrSpaces;
  * @author Konstantin Bulenkov
  */
 public abstract class PluginManagerMain implements Disposable {
+  public static final String JETBRAINS_VENDOR = "JetBrains";
   public static Logger LOG = Logger.getInstance("#com.intellij.ide.plugins.PluginManagerMain");
 
   @NonNls private static final String TEXT_PREFIX = "<html><head>" +
@@ -122,6 +124,10 @@ public abstract class PluginManagerMain implements Disposable {
   public PluginManagerMain(
     PluginManagerUISettings uiSettings) {
     myUISettings = uiSettings;
+  }
+
+  public static boolean isJetBrainsPlugin(@NotNull IdeaPluginDescriptor plugin) {
+    return JETBRAINS_VENDOR.equals(plugin.getVendor());
   }
 
   protected void init() {
@@ -310,10 +316,10 @@ public abstract class PluginManagerMain implements Disposable {
         }
         for (String host : UpdateSettings.getInstance().myPluginHosts) {
           if (!acceptHost(host)) continue;
-          final ArrayList<PluginDownloader> downloaded = new ArrayList<PluginDownloader>();
+          final Map<PluginId, PluginDownloader> downloaded = new HashMap<PluginId, PluginDownloader>();
           try {
             UpdateChecker.checkPluginsHost(host, downloaded, false, null);
-            for (PluginDownloader downloader : downloaded) {
+            for (PluginDownloader downloader : downloaded.values()) {
               final PluginNode pluginNode = PluginDownloader.createPluginNode(host, downloader);
               if (pluginNode != null) {
                 if (list == null) list = new ArrayList<IdeaPluginDescriptor>();

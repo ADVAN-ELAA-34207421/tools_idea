@@ -51,6 +51,7 @@ import com.intellij.openapi.vcs.update.UpdateEnvironment;
 import com.intellij.openapi.vcs.versionBrowser.ChangeBrowserSettings;
 import com.intellij.openapi.vcs.versionBrowser.CommittedChangeList;
 import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.util.Consumer;
@@ -953,27 +954,7 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
 
   @Nullable
   public SVNInfo getInfo(@NotNull File ioFile) {
-    SVNInfo result = null;
-    SvnWcClientI client = getFactory(ioFile).createInfoClient();
-
-    try {
-      // applying such behavior only when info requested w/o explicitly specifying revision
-      // TODO: logs should be analyzed and decision taken if we need it or just need to explicitly specify HEAD revision in certain calls
-      result = client.doInfo(ioFile, SVNRevision.UNDEFINED);
-      SVNInfo localInfo = result;
-      if (result == null || result.getRepositoryRootURL() == null) {
-        LOG.info("Failed to get local info for " + ioFile + ". Trying to get HEAD info.");
-        result = client.doInfo(ioFile, SVNRevision.HEAD);
-        if (result != null) {
-          LOG.info("Local info was " + localInfo + ", HEAD info was " + result);
-        }
-      }
-    }
-    catch (SVNException e) {
-      handleInfoException(e);
-    }
-
-    return result;
+    return getInfo(ioFile, SVNRevision.UNDEFINED);
   }
 
   public void collectInfo(@NotNull Collection<File> files, @Nullable ISVNInfoHandler handler) {
@@ -1351,7 +1332,13 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
 
   @Override
   public boolean isVcsBackgroundOperationsAllowed(VirtualFile root) {
-    return ThreeState.YES.equals(myAuthNotifier.isAuthenticatedFor(root));
+    // TODO: Currently myAuthNotifier.isAuthenticatedFor directly uses SVNKit to check credentials - so assume for now that background
+    // TODO: operations are always allowed for command line. As sometimes this leads to errors - for instance, incoming changes are not
+    // TODO: displayed in "Incoming" tab - incoming changes are collected using command line but not displayed because
+    // TODO: SvnVcs.isVcsBackgroundOperationsAllowed is false.
+    ClientFactory factory = getFactory(VfsUtilCore.virtualToIoFile(root));
+
+    return factory == cmdClientFactory || ThreeState.YES.equals(myAuthNotifier.isAuthenticatedFor(root));
   }
 
   public SvnBranchPointsCalculator getSvnBranchPointsCalculator() {

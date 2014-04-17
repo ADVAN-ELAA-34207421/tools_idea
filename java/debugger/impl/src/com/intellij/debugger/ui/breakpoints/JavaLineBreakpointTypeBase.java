@@ -15,12 +15,9 @@
  */
 package com.intellij.debugger.ui.breakpoints;
 
-import com.intellij.debugger.DebuggerManagerEx;
 import com.intellij.debugger.engine.DebuggerUtils;
-import com.intellij.debugger.ui.JavaDebuggerSupport;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
-import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.StdFileTypes;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Ref;
@@ -52,7 +49,7 @@ public abstract class JavaLineBreakpointTypeBase<P extends JavaBreakpointPropert
 
   @Override
   public boolean isAddBreakpointButtonVisible() {
-    return true;
+    return false;
   }
 
   @Override
@@ -74,29 +71,24 @@ public abstract class JavaLineBreakpointTypeBase<P extends JavaBreakpointPropert
 
   @Override
   public String getDisplayText(XLineBreakpoint<P> breakpoint) {
-    BreakpointManager breakpointManager = DebuggerManagerEx.getInstanceEx(JavaDebuggerSupport.getCurrentProject()).getBreakpointManager();
-      BreakpointWithHighlighter javaBreakpoint = (BreakpointWithHighlighter)breakpointManager.findBreakpoint(breakpoint);
-      if (javaBreakpoint != null) {
-        return javaBreakpoint.getDescription();
-      }
-      else {
-        return super.getDisplayText(breakpoint);
-      }
+    BreakpointWithHighlighter javaBreakpoint = (BreakpointWithHighlighter)BreakpointManager.findBreakpoint(breakpoint);
+    if (javaBreakpoint != null) {
+      return javaBreakpoint.getDescription();
+    }
+    else {
+      return super.getDisplayText(breakpoint);
+    }
   }
 
   @Override
   public final boolean canPutAt(@NotNull VirtualFile file, final int line, @NotNull Project project) {
     PsiFile psiFile = PsiManager.getInstance(project).findFile(file);
     // JSPX supports jvm debugging, but not in XHTML files
-    // JS has it's own breakpoints
-    if (psiFile == null || psiFile.getVirtualFile().getFileType() == StdFileTypes.XHTML || psiFile.getVirtualFile().getFileType() == StdFileTypes.JS) {
+    if (psiFile == null || psiFile.getVirtualFile().getFileType() == StdFileTypes.XHTML) {
       return false;
     }
 
-    FileType fileType = psiFile.getFileType();
-    if (!StdFileTypes.CLASS.equals(fileType) &&
-        !DebuggerUtils.supportsJVMDebugging(fileType) &&
-        !DebuggerUtils.supportsJVMDebugging(psiFile)) {
+    if (!StdFileTypes.CLASS.equals(psiFile.getFileType()) && !DebuggerUtils.isBreakpointAware(psiFile)) {
       return false;
     }
 

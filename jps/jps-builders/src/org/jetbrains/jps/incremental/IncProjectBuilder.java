@@ -52,6 +52,7 @@ import org.jetbrains.jps.incremental.java.ExternalJavacDescriptor;
 import org.jetbrains.jps.incremental.messages.*;
 import org.jetbrains.jps.incremental.storage.BuildTargetConfiguration;
 import org.jetbrains.jps.incremental.storage.OneToManyPathsMapping;
+import org.jetbrains.jps.incremental.storage.OutputToSourceRegistry;
 import org.jetbrains.jps.indices.ModuleExcludeIndex;
 import org.jetbrains.jps.model.java.JpsJavaExtensionService;
 import org.jetbrains.jps.model.java.compiler.JpsJavaCompilerConfiguration;
@@ -513,15 +514,20 @@ public class IncProjectBuilder {
       context.checkCanceled();
       boolean okToDelete = true;
       final File outputRoot = entry.getKey();
-      if (JpsPathUtil.isUnder(allSourceRoots, outputRoot)) {
-        okToDelete = false;
-      }
-      else {
-        final Set<File> _outRoot = Collections.singleton(outputRoot);
-        for (File srcRoot : allSourceRoots) {
-          if (JpsPathUtil.isUnder(_outRoot, srcRoot)) {
-            okToDelete = false;
-            break;
+      if (!moduleIndex.isExcluded(outputRoot)) {
+        // if output root itself is directly or indirectly excluded, 
+        // there cannot be any manageable sources under it, even if the output root is located under some source root
+        // so in this case it is safe to delete such root
+        if (JpsPathUtil.isUnder(allSourceRoots, outputRoot)) {
+          okToDelete = false;
+        }
+        else {
+          final Set<File> _outRoot = Collections.singleton(outputRoot);
+          for (File srcRoot : allSourceRoots) {
+            if (JpsPathUtil.isUnder(_outRoot, srcRoot)) {
+              okToDelete = false;
+              break;
+            }
           }
         }
       }
@@ -982,7 +988,8 @@ public class IncProjectBuilder {
           final Collection<String> outputs = sourceToOutputStorage.getOutputs(deletedSource);
           if (outputs != null && !outputs.isEmpty()) {
             List<String> deletedOutputPaths = new ArrayList<String>();
-            for (String output : outputs) {
+            final OutputToSourceRegistry outputToSourceRegistry = context.getProjectDescriptor().dataManager.getOutputToSourceRegistry();
+            for (String output : outputToSourceRegistry.getSafeToDeleteOutputs(outputs, deletedSource)) {
               final boolean deleted = BuildOperations.deleteRecursively(output, deletedOutputPaths, shouldPruneEmptyDirs ? dirsToDelete : null);
               if (deleted) {
                 doneSomething = true;

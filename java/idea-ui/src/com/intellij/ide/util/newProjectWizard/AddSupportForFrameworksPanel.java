@@ -37,9 +37,9 @@ import com.intellij.openapi.roots.ModifiableRootModel;
 import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.LibrariesContainer;
 import com.intellij.openapi.ui.Splitter;
-import com.intellij.openapi.ui.VerticalFlowLayout;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.ui.CheckedTreeNode;
+import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
@@ -78,15 +78,18 @@ public class AddSupportForFrameworksPanel implements Disposable {
   private FrameworkSupportNodeBase myLastSelectedNode;
 
   private Collection<FrameworkSupportNodeBase> myAssociatedFrameworks;
-  private final JPanel myAssociatedFrameworksPanel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false));
+  @Nullable
+  private final JPanel myAssociatedFrameworksPanel;
 
   public AddSupportForFrameworksPanel(final List<FrameworkSupportInModuleProvider> providers,
-                                      final FrameworkSupportModelBase model, boolean vertical) {
+                                      final FrameworkSupportModelBase model, boolean vertical, @Nullable JPanel associatedFrameworksPanel) {
     myModel = model;
+    myAssociatedFrameworksPanel = associatedFrameworksPanel;
     myLibrariesContainer = model.getLibrariesContainer();
 
     myLabel.setVisible(!vertical);
-    Splitter splitter = vertical ? new Splitter(true, 0.6f) : new Splitter(false, 0.3f, 0.1f, 0.7f);
+    Splitter splitter = vertical ? new Splitter(true, 0.6f, 0.2f, 0.8f) : new Splitter(false, 0.3f, 0.3f, 0.7f);
+    splitter.setHonorComponentsMinimumSize(false);
     myFrameworksTree = new FrameworksTree(model) {
       @Override
       protected void onNodeStateChanged(CheckedTreeNode node) {
@@ -108,7 +111,6 @@ public class AddSupportForFrameworksPanel implements Disposable {
         ((DefaultTreeModel)myFrameworksTree.getModel()).nodeChanged(getSelectedNode());
       }
     }, this);
-    setProviders(providers);
 
     myFrameworksTree.addTreeSelectionListener(new TreeSelectionListener() {
       public void valueChanged(TreeSelectionEvent e) {
@@ -118,15 +120,18 @@ public class AddSupportForFrameworksPanel implements Disposable {
 
     JPanel treePanel = new JPanel(new BorderLayout());
     treePanel.add(ScrollPaneFactory.createScrollPane(myFrameworksTree), BorderLayout.CENTER);
-    treePanel.add(myAssociatedFrameworksPanel, BorderLayout.NORTH);
+    treePanel.setMinimumSize(new Dimension(200, 300));
 
     splitter.setFirstComponent(treePanel);
     myOptionsPanel = new JPanel(new CardLayout());
-    myOptionsPanel.add(EMPTY_CARD, new JPanel());
+    JPanel emptyCard = new JPanel();
+    emptyCard.setPreferredSize(new Dimension(400, 100));
+    myOptionsPanel.add(EMPTY_CARD, emptyCard);
 
     splitter.setSecondComponent(myOptionsPanel);
     myFrameworksPanel.add(splitter, BorderLayout.CENTER);
 
+    setProviders(providers);
   }
 
   public void setProviders(List<FrameworkSupportInModuleProvider> providers) {
@@ -150,19 +155,23 @@ public class AddSupportForFrameworksPanel implements Disposable {
 
   public void setAssociatedFrameworks() {
 
-    myAssociatedFrameworksPanel.setVisible(!myAssociatedFrameworks.isEmpty());
-    myAssociatedFrameworksPanel.removeAll();
+    if (myAssociatedFrameworksPanel == null) return;
     for (FrameworkSupportNodeBase nodeBase : myAssociatedFrameworks) {
       if (nodeBase instanceof FrameworkSupportNode) {
         ((FrameworkSupportNode)nodeBase).getConfigurable().onFrameworkSelectionChanged(true);
         FrameworkSupportOptionsComponent component = initializeOptionsPanel((FrameworkSupportNode)nodeBase, false);
-        myAssociatedFrameworksPanel.add(component.getMainPanel());
+        addAssociatedFrameworkComponent(component.getMainPanel(), myAssociatedFrameworksPanel);
       }
       else {
         JPanel panel = initializeGroupPanel((FrameworkGroup<?>)nodeBase.getUserObject(), false);
-        myAssociatedFrameworksPanel.add(panel);
+        addAssociatedFrameworkComponent(panel, myAssociatedFrameworksPanel);
       }
     }
+  }
+
+  private static void addAssociatedFrameworkComponent(JPanel component, JPanel panel) {
+    panel.add(component, new GridBagConstraints(0, GridBagConstraints.RELATIVE, 2, 1, 1.0, 0, GridBagConstraints.NORTHWEST,
+                                                GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
   }
 
   protected void onFrameworkStateChanged() {}
@@ -223,7 +232,7 @@ public class AddSupportForFrameworksPanel implements Disposable {
       panel = component.getMainPanel();
       myInitializedGroupPanels.put(group, panel);
       if (addToOptions) {
-        myOptionsPanel.add(group.getId(), panel);
+        myOptionsPanel.add(group.getId(), wrapInScrollPane(panel));
       }
     }
     return panel;
@@ -249,11 +258,19 @@ public class AddSupportForFrameworksPanel implements Disposable {
       component = new FrameworkSupportOptionsComponent(myModel, myLibrariesContainer, this,
                                                        node.getUserObject(), node.getConfigurable());
       if (addToOptions) {
-        myOptionsPanel.add(node.getId(), component.getMainPanel());
+        myOptionsPanel.add(node.getId(), wrapInScrollPane(component.getMainPanel()));
       }
       myInitializedOptionsComponents.put(node, component);
     }
     return component;
+  }
+
+  private static JScrollPane wrapInScrollPane(JPanel panel) {
+    JPanel wrapper = new JPanel(new BorderLayout());
+    wrapper.add(panel);
+    wrapper.setBorder(IdeBorderFactory.createEmptyBorder(5));
+    return ScrollPaneFactory.createScrollPane(wrapper, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                                              ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
   }
 
   private void showCard(String cardName) {

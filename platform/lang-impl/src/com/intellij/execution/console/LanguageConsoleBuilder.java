@@ -4,9 +4,6 @@ import com.intellij.execution.process.ProcessHandler;
 import com.intellij.lang.Language;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.editor.Document;
-import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.VisualPosition;
-import com.intellij.openapi.editor.colors.EditorColors;
 import com.intellij.openapi.editor.event.DocumentAdapter;
 import com.intellij.openapi.editor.event.DocumentEvent;
 import com.intellij.openapi.editor.ex.DocumentBulkUpdateListener;
@@ -14,14 +11,12 @@ import com.intellij.openapi.editor.ex.DocumentEx;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.editor.ex.RangeHighlighterEx;
 import com.intellij.openapi.editor.impl.EditorComponentImpl;
-import com.intellij.openapi.editor.impl.EditorImpl;
-import com.intellij.openapi.editor.impl.RangeMarkerImpl;
+import com.intellij.openapi.editor.impl.SoftWrapModelImpl;
 import com.intellij.openapi.editor.impl.event.MarkupModelListener;
-import com.intellij.openapi.editor.markup.*;
+import com.intellij.openapi.editor.impl.softwrap.mapping.SoftWrapApplianceManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.Conditions;
-import com.intellij.openapi.util.Getter;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -148,13 +143,13 @@ public final class LanguageConsoleBuilder {
 
   public LanguageConsoleView build(@NotNull Project project, @NotNull Language language) {
     GutteredLanguageConsole console = new GutteredLanguageConsole(language.getDisplayName() + " Console", project, language, gutterContentProvider, psiFileFactory);
+    if (oneLineInput) {
+      console.getConsoleEditor().setOneLineMode(true);
+    }
     LanguageConsoleViewImpl consoleView = new LanguageConsoleViewImpl(console, true);
     if (executeActionHandler != null) {
       assert historyType != null;
       doInitAction(consoleView, executeActionHandler, historyType);
-    }
-    if (oneLineInput) {
-      console.getConsoleEditor().setOneLineMode(true);
     }
     console.initComponents();
     return consoleView;
@@ -179,7 +174,6 @@ public final class LanguageConsoleBuilder {
   }
 
   private final static class GutteredLanguageConsole extends LanguageConsoleImpl {
-    @Nullable
     private final GutterContentProvider gutterContentProvider;
     @Nullable
     private final PairFunction<VirtualFile, Project, PsiFile> psiFileFactory;
@@ -193,13 +187,13 @@ public final class LanguageConsoleBuilder {
 
       setShowSeparatorLine(false);
 
-      this.gutterContentProvider = gutterContentProvider;
+      this.gutterContentProvider = gutterContentProvider == null ? new BasicGutterContentProvider() : gutterContentProvider;
       this.psiFileFactory = psiFileFactory;
     }
 
     @Override
     boolean isHistoryViewerForceAdditionalColumnsUsage() {
-      return gutterContentProvider == null;
+      return false;
     }
 
     @Override
@@ -223,15 +217,23 @@ public final class LanguageConsoleBuilder {
       super.setupEditorDefault(editor);
 
       if (editor == getConsoleEditor()) {
-        editor.setOneLineMode(true);
-        return;
-      }
-      else if (gutterContentProvider == null) {
         return;
       }
 
       final ConsoleGutterComponent lineStartGutter = new ConsoleGutterComponent(editor, gutterContentProvider, true);
       final ConsoleGutterComponent lineEndGutter = new ConsoleGutterComponent(editor, gutterContentProvider, false);
+
+      editor.getSoftWrapModel().forceAdditionalColumnsUsage();
+      ((SoftWrapModelImpl)editor.getSoftWrapModel()).getApplianceManager().setWidthProvider(new SoftWrapApplianceManager.VisibleAreaWidthProvider() {
+        @Override
+        public int getVisibleAreaWidth() {
+          int guttersWidth = lineEndGutter.getPreferredSize().width + lineStartGutter.getPreferredSize().width;
+          EditorEx editor = getHistoryViewer();
+          return editor.getScrollingModel().getVisibleArea().width - guttersWidth;
+        }
+      });
+      editor.setHorizontalScrollbarVisible(true);
+
       JLayeredPane layeredPane = new JBLayeredPane() {
         @Override
         public Dimension getPreferredSize() {
@@ -287,12 +289,7 @@ public final class LanguageConsoleBuilder {
 
     @Override
     protected void doAddPromptToHistory() {
-      if (gutterContentProvider == null) {
-        super.doAddPromptToHistory();
-      }
-      else {
-        gutterContentProvider.beforeEvaluate(getHistoryViewer());
-      }
+      gutterContentProvider.beforeEvaluate(getHistoryViewer());
     }
 
     private final class GutterUpdateScheduler extends DocumentAdapter implements DocumentBulkUpdateListener {
@@ -324,8 +321,7 @@ public final class LanguageConsoleBuilder {
 
         EditorEx editor = getHistoryViewer();
         int endOffset = getDocument().getTextLength();
-        lineSeparatorPainter = new LineSeparatorPainter(editor, endOffset);
-        editor.getMarkupModel().addRangeHighlighter(lineSeparatorPainter, 0, endOffset, false, false, HighlighterLayer.ADDITIONAL_SYNTAX);
+        lineSeparatorPainter = new LineSeparatorPainter(gutterContentProvider, editor, endOffset);
       }
 
       private DocumentEx getDocument() {
@@ -354,10 +350,7 @@ public final class LanguageConsoleBuilder {
 
       private void documentCleared() {
         gutterSizeUpdater = null;
-
         lineEndGutter.documentCleared();
-
-        assert gutterContentProvider != null;
         gutterContentProvider.documentCleared(getHistoryViewer());
       }
 
@@ -404,185 +397,6 @@ public final class LanguageConsoleBuilder {
           }
           gutterSizeUpdater = null;
         }
-      }
-    }
-
-    private final class LineSeparatorPainter extends RangeMarkerImpl implements RangeHighlighterEx, Getter<RangeHighlighterEx> {
-      private final CustomHighlighterRenderer renderer = new CustomHighlighterRenderer() {
-        @Override
-        public void paint(@NotNull Editor editor, @NotNull RangeHighlighter highlighter, @NotNull Graphics g) {
-          Rectangle clip = g.getClipBounds();
-          int lineHeight = editor.getLineHeight();
-          int startLine = clip.y / lineHeight;
-          int endLine = Math.min(((clip.y + clip.height) / lineHeight) + 1, ((EditorImpl)editor).getVisibleLineCount());
-          if (startLine >= endLine) {
-            return;
-          }
-
-          // workaround - editor ask us to paint line 4-6, but we should draw line for line 3 (startLine - 1) also, otherwise it will be not rendered
-          int actualStartLine = startLine == 0 ? 0 : startLine - 1;
-          int y = (actualStartLine + 1) * lineHeight;
-          g.setColor(editor.getColorsScheme().getColor(EditorColors.INDENT_GUIDE_COLOR));
-          assert gutterContentProvider != null;
-          for (int visualLine = actualStartLine; visualLine < endLine; visualLine++) {
-            if (gutterContentProvider.isShowSeparatorLine(editor.visualToLogicalPosition(new VisualPosition(visualLine, 0)).line, editor)) {
-              g.drawLine(0, y, clip.width, y);
-            }
-            y += lineHeight;
-          }
-        }
-      };
-
-      public LineSeparatorPainter(@NotNull EditorEx editor, int endOffset) {
-        super(editor.getDocument(), 0, endOffset, false);
-      }
-
-      @Override
-      protected void changedUpdateImpl(DocumentEvent e) {
-        setIntervalEnd(myDocument.getTextLength());
-      }
-
-      @Override
-      public boolean setValid(boolean value) {
-        return super.setValid(value);
-      }
-
-      @Override
-      public boolean isAfterEndOfLine() {
-        return false;
-      }
-
-      @Override
-      public void setAfterEndOfLine(boolean value) {
-      }
-
-      @Override
-      public int getAffectedAreaStartOffset() {
-        return 0;
-      }
-
-      @Override
-      public int getAffectedAreaEndOffset() {
-        return myDocument.getTextLength();
-      }
-
-      @Override
-      public void setTextAttributes(@NotNull TextAttributes textAttributes) {
-      }
-
-      @NotNull
-      @Override
-      public HighlighterTargetArea getTargetArea() {
-        return HighlighterTargetArea.EXACT_RANGE;
-      }
-
-      @Nullable
-      @Override
-      public TextAttributes getTextAttributes() {
-        return null;
-      }
-
-      @Nullable
-      @Override
-      public LineMarkerRenderer getLineMarkerRenderer() {
-        return null;
-      }
-
-      @Override
-      public void setLineMarkerRenderer(@Nullable LineMarkerRenderer renderer) {
-      }
-
-      @Nullable
-      @Override
-      public CustomHighlighterRenderer getCustomRenderer() {
-        return renderer;
-      }
-
-      @Override
-      public void setCustomRenderer(CustomHighlighterRenderer renderer) {
-      }
-
-      @Nullable
-      @Override
-      public GutterIconRenderer getGutterIconRenderer() {
-        return null;
-      }
-
-      @Override
-      public void setGutterIconRenderer(@Nullable GutterIconRenderer renderer) {
-      }
-
-      @Nullable
-      @Override
-      public Color getErrorStripeMarkColor() {
-        return null;
-      }
-
-      @Override
-      public void setErrorStripeMarkColor(@Nullable Color color) {
-      }
-
-      @Nullable
-      @Override
-      public Object getErrorStripeTooltip() {
-        return null;
-      }
-
-      @Override
-      public void setErrorStripeTooltip(@Nullable Object tooltipObject) {
-      }
-
-      @Override
-      public boolean isThinErrorStripeMark() {
-        return false;
-      }
-
-      @Override
-      public void setThinErrorStripeMark(boolean value) {
-      }
-
-      @Nullable
-      @Override
-      public Color getLineSeparatorColor() {
-        return null;
-      }
-
-      @Override
-      public void setLineSeparatorColor(@Nullable Color color) {
-      }
-
-      @Override
-      public void setLineSeparatorRenderer(LineSeparatorRenderer renderer) {
-      }
-
-      @Override
-      public LineSeparatorRenderer getLineSeparatorRenderer() {
-        return null;
-      }
-
-      @Nullable
-      @Override
-      public SeparatorPlacement getLineSeparatorPlacement() {
-        return null;
-      }
-
-      @Override
-      public void setLineSeparatorPlacement(@Nullable SeparatorPlacement placement) {
-      }
-
-      @Override
-      public void setEditorFilter(@NotNull MarkupEditorFilter filter) {
-      }
-
-      @NotNull
-      @Override
-      public MarkupEditorFilter getEditorFilter() {
-        return MarkupEditorFilter.EMPTY;
-      }
-
-      @Override
-      public RangeHighlighterEx get() {
-        return this;
       }
     }
   }

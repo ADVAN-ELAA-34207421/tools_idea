@@ -54,7 +54,12 @@ public class VcsLogClassicFilterUi implements VcsLogFilterUi {
                                @NotNull DataPack initialDataPack) {
     myUi = ui;
 
-    myTextFilter = new SearchTextFieldWithStoredHistory("Vcs.Log.Text.Filter.History");
+    myTextFilter = new SearchTextFieldWithStoredHistory("Vcs.Log.Text.Filter.History") {
+      @Override
+      protected void onFieldCleared() {
+        applyFilters();
+      }
+    };
     myTextFilter.getTextEditor().addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent e) {
@@ -91,7 +96,7 @@ public class VcsLogClassicFilterUi implements VcsLogFilterUi {
   @NotNull
   @Override
   public VcsLogFilterCollection getFilters() {
-    VcsLogTextFilter textFilter = !myTextFilter.getText().isEmpty() ? new VcsLogTextFilterImpl(myTextFilter.getText()) : null;
+    VcsLogTextFilter textFilter = !myTextFilter.getText().isEmpty() ? new VcsLogTextFilterImpl(myTextFilter.getText().trim()) : null;
     return new VcsLogFilterCollectionImpl(myBranchFilterComponent.getFilter(), myUserFilterComponent.getFilter(),
                                           myDateFilterComponent.getFilter(), textFilter, myStructureFilterComponent.getFilter());
   }

@@ -26,7 +26,6 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ApplicationNamesInfo;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.components.ServiceManager;
-import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
@@ -64,7 +63,6 @@ public class TodoCheckinHandler extends CheckinHandler {
   private final CheckinProjectPanel myCheckinProjectPanel;
   private final VcsConfiguration myConfiguration;
   private TodoFilter myTodoFilter;
-  private final static Logger LOG = Logger.getInstance("#com.intellij.openapi.vcs.checkin.TodoCheckinHandler");
 
   public TodoCheckinHandler(CheckinProjectPanel checkinProjectPanel) {
     myProject = checkinProjectPanel.getProject();
@@ -105,7 +103,7 @@ public class TodoCheckinHandler extends CheckinHandler {
         }, null);
         panel.add(linkLabel, BorderLayout.CENTER);
 
-        refreshEnable(checkBox);
+        CheckinHandlerUtil.disableWhenDumb(myProject, checkBox, "TODO check is impossible until indices are up-to-date");
         return panel;
       }
 
@@ -131,16 +129,6 @@ public class TodoCheckinHandler extends CheckinHandler {
         checkBox.setSelected(myConfiguration.CHECK_NEW_TODO);
       }
     };
-  }
-
-  private void refreshEnable(JCheckBox checkBox) {
-    if (DumbService.getInstance(myProject).isDumb()) {
-      checkBox.setEnabled(false);
-      checkBox.setToolTipText("TODO check is impossible until indices are up-to-date");
-    } else {
-      checkBox.setEnabled(true);
-      checkBox.setToolTipText("");
-    }
   }
 
   @Override

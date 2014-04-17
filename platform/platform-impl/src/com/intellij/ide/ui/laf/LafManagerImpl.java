@@ -299,6 +299,11 @@ public final class LafManagerImpl extends LafManager implements ApplicationCompo
    * RubyMine uses Native L&F for linux as well
    */
   private UIManager.LookAndFeelInfo getDefaultLaf() {
+    if (StartupUtil.getWizardLAF() != null) {
+      UIManager.LookAndFeelInfo laf = findLaf(StartupUtil.getWizardLAF());
+      LOG.assertTrue(laf != null);
+      return laf;
+    }
     final String systemLafClassName = UIManager.getSystemLookAndFeelClassName();
     if (SystemInfo.isMac) {
       UIManager.LookAndFeelInfo laf = findLaf(systemLafClassName);
@@ -521,6 +526,13 @@ public final class LafManagerImpl extends LafManager implements ApplicationCompo
     updateToolWindows();
 
     for (Frame frame : Frame.getFrames()) {
+      // OSX/Aqua fix: Some image caching components like ToolWindowHeader use
+      // com.apple.laf.AquaNativeResources$CColorPaintUIResource
+      // a Java wrapper for ObjC MagicBackgroundColor class (Java RGB values ignored).
+      // MagicBackgroundColor always reports current Frame background.
+      // So we need to set frames background to exact and correct value.
+      frame.setBackground(new Color(UIUtil.getPanelBackground().getRGB()));
+
       updateUI(frame);
     }
     fireLookAndFeelChanged();

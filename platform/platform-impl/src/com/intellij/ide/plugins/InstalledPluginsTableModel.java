@@ -18,7 +18,6 @@ package com.intellij.ide.plugins;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.application.ApplicationNamesInfo;
-import com.intellij.openapi.application.ex.ApplicationInfoEx;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
@@ -29,6 +28,7 @@ import com.intellij.openapi.updateSettings.impl.UpdateChecker;
 import com.intellij.openapi.updateSettings.impl.UpdateSettings;
 import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.JDOMExternalizableStringList;
+import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.FileStatus;
 import com.intellij.openapi.vfs.VfsUtil;
@@ -77,17 +77,19 @@ public class InstalledPluginsTableModel extends PluginTableModel {
 
 
   public InstalledPluginsTableModel() {
-    super.columns = new ColumnInfo[]{new MyPluginManagerColumnInfo(), new EnabledPluginInfo()};
+    final MyPluginManagerColumnInfo infoColumn = new MyPluginManagerColumnInfo();
+    final EnabledPluginInfo enabledColumn = new EnabledPluginInfo();
+    final Spacer spacer = new Spacer();
+    super.columns = SystemInfo.isMac ? new ColumnInfo[]{infoColumn, enabledColumn, spacer}
+                    :new ColumnInfo[]{infoColumn, enabledColumn};
     view = new ArrayList<IdeaPluginDescriptor>(Arrays.asList(PluginManager.getPlugins()));
     view.addAll(myInstalled);
     reset(view);
 
-    ApplicationInfoEx applicationInfo = ApplicationInfoEx.getInstanceEx();
     for (Iterator<IdeaPluginDescriptor> iterator = view.iterator(); iterator.hasNext(); ) {
       @NonNls final String s = iterator.next().getPluginId().getIdString();
-      if ("com.intellij".equals(s) || applicationInfo.isEssentialPlugin(s)) iterator.remove();
+      if ("com.intellij".equals(s)) iterator.remove();
     }
-
     setSortKey(new RowSorter.SortKey(getNameColumn(), SortOrder.ASCENDING));
   }
 
@@ -156,10 +158,10 @@ public class InstalledPluginsTableModel extends PluginTableModel {
     final JDOMExternalizableStringList pluginHosts = UpdateSettings.getInstance().myPluginHosts;
     for (String host : pluginHosts) {
       try {
-        final ArrayList<PluginDownloader> downloaded = new ArrayList<PluginDownloader>();
+        final Map<PluginId, PluginDownloader> downloaded = new HashMap<PluginId, PluginDownloader>();
         UpdateChecker.checkPluginsHost(host, downloaded, false, null);
-        for (PluginDownloader downloader : downloaded) {
-          myPlugin2host.put(downloader.getPluginId(), host);
+        for (PluginId pluginId : downloaded.keySet()) {
+          myPlugin2host.put(pluginId.getIdString(), host);
         }
       }
       catch (Exception ignored) {
@@ -373,6 +375,30 @@ public class InstalledPluginsTableModel extends PluginTableModel {
       if (!bundled && myEnabledFilter.equals(BUNDLED)) return false;
     }
     return true;
+  }
+
+  private class Spacer extends ColumnInfo<IdeaPluginDescriptor, Object> {
+    public Spacer() {
+      super("");
+    }
+
+    public Object valueOf(IdeaPluginDescriptor ideaPluginDescriptor) {
+      return null;
+    }
+
+    public boolean isCellEditable(final IdeaPluginDescriptor ideaPluginDescriptor) {
+      return false;
+    }
+
+    @Nullable
+    @Override
+    public TableCellRenderer getRenderer(IdeaPluginDescriptor descriptor) {
+      return new DefaultTableCellRenderer();
+    }
+
+    public Class getColumnClass() {
+      return Spacer.class;
+    }
   }
 
   private class EnabledPluginInfo extends ColumnInfo<IdeaPluginDescriptor, Boolean> {

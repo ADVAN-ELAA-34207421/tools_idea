@@ -104,17 +104,14 @@
         </CLASSES>
         <JAVADOC />
         <SOURCES />
-        <jarDirectory url="jar://$MODULE_DIR$/lib/native-platform-linux-amd64-0.3-rc-2.jar!/" recursive="false" />
-        <jarDirectory url="jar://$MODULE_DIR$/lib/native-platform-linux-i386-0.3-rc-2.jar!/" recursive="false" />
-        <jarDirectory url="jar://$MODULE_DIR$/lib/native-platform-osx-universal-0.3-rc-2.jar!/" recursive="false" />
-        <jarDirectory url="jar://$MODULE_DIR$/lib/native-platform-windows-amd64-0.3-rc-2.jar!/" recursive="false" />
-        <jarDirectory url="jar://$MODULE_DIR$/lib/native-platform-windows-i386-0.3-rc-2.jar!/" recursive="false" />
       </library>
     </orderEntry>
     <orderEntry type="library" scope="TEST" name="Mocks" level="project" />
     <orderEntry type="library" scope="TEST" name="JUnit4" level="project" />
     <orderEntry type="module" module-name="testFramework" scope="TEST" />
     <orderEntry type="module" module-name="testFramework-java" scope="TEST" />
+    <orderEntry type="module" module-name="junit" />
+    <orderEntry type="module" module-name="smRunner" />
   </component>
 </module>
 

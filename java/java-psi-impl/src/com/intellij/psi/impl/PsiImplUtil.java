@@ -494,13 +494,6 @@ public class PsiImplUtil {
       return PsiUtil.captureToplevelWildcards(type, expression);
     }
 
-    final PsiElement parent = toplevel.getParent();
-    if (parent instanceof PsiExpressionList &&
-        PsiUtil.isLanguageLevel8OrHigher(parent) &&
-        parent.getParent() instanceof PsiCallExpression) {
-      return PsiUtil.captureToplevelWildcards(type, expression);
-    }
-
     final PsiType normalized = doNormalizeWildcardByPosition(type, expression, toplevel);
     LOG.assertTrue(normalized.isValid(), type);
     if (normalized instanceof PsiClassType && !PsiUtil.isAccessedForWriting(toplevel)) {
@@ -551,7 +544,8 @@ public class PsiImplUtil {
     PsiClass aClass = member.getContainingClass();
     if (aClass instanceof PsiAnonymousClass) {
       //member from anonymous class can be called from outside the class
-      PsiElement methodCallExpr = PsiTreeUtil.getParentOfType(aClass, PsiMethodCallExpression.class);
+      PsiElement methodCallExpr = PsiUtil.isLanguageLevel8OrHigher(aClass) ? PsiTreeUtil.getTopmostParentOfType(aClass, PsiStatement.class) 
+                                                                           : PsiTreeUtil.getParentOfType(aClass, PsiMethodCallExpression.class);
       return new LocalSearchScope(methodCallExpr != null ? methodCallExpr : aClass);
     }
 

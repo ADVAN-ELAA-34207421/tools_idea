@@ -65,22 +65,31 @@ public class InferenceVariable {
 
   public Set<InferenceVariable> getDependencies(InferenceSession session) {
     final Set<InferenceVariable> dependencies = new LinkedHashSet<InferenceVariable>();
-    for (InferenceBound inferenceBound : InferenceBound.values()) {
-      for (PsiType bound : getBounds(inferenceBound)) {
-        session.collectDependencies(bound, dependencies);
+    for (List<PsiType> boundTypes : myBounds.values()) {
+      if (boundTypes != null) {
+        for (PsiType bound : boundTypes) {
+          session.collectDependencies(bound, dependencies);
+        }
       }
     }
 
     next:
     for (InferenceVariable variable : session.getInferenceVariables()) {
       if (!dependencies.contains(variable) && variable != this) {
-        for (InferenceBound inferenceBound : InferenceBound.values()) {
-          for (PsiType bound : getBounds(inferenceBound)) {
-            Set<InferenceVariable> deps = new HashSet<InferenceVariable>();
-            session.collectDependencies(bound, deps);
-            if (deps.contains(this)) {
-              dependencies.add(variable);
-              continue next;
+        nextBound:
+        for (List<PsiType> bounds : myBounds.values()) { //todo
+          if (bounds != null) {
+            for (PsiType bound : bounds) {
+              final Set<InferenceVariable> deps = new HashSet<InferenceVariable>();
+              session.collectDependencies(bound, deps);
+              if (deps.isEmpty()) {
+                continue nextBound;
+              }
+
+              if (deps.contains(this)) {
+                dependencies.add(variable);
+                continue next;
+              }
             }
           }
         }

@@ -37,7 +37,13 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.Result;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.editor.Caret;
+import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.actionSystem.EditorAction;
+import com.intellij.openapi.editor.actionSystem.EditorWriteActionHandler;
+import com.intellij.openapi.editor.actions.SplitLineAction;
 import com.intellij.openapi.editor.ex.EditorEx;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
@@ -55,11 +61,11 @@ import com.intellij.openapi.vfs.encoding.EncodingManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.impl.source.tree.FileElement;
-import com.intellij.remote.RemoteSdkCredentials;
 import com.intellij.remote.RemoteSshProcess;
 import com.intellij.testFramework.LightVirtualFile;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.IJSwingUtilities;
+import com.intellij.util.PathMappingSettings;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.net.NetUtils;
 import com.intellij.util.ui.UIUtil;
@@ -69,6 +75,7 @@ import com.jetbrains.python.console.parsing.PythonConsoleData;
 import com.jetbrains.python.console.pydev.ConsoleCommunication;
 import com.jetbrains.python.debugger.PySourcePosition;
 import com.jetbrains.python.remote.PyRemoteSdkAdditionalDataBase;
+import com.jetbrains.python.remote.PyRemoteSdkCredentials;
 import com.jetbrains.python.remote.PythonRemoteInterpreterManager;
 import com.jetbrains.python.run.ProcessRunner;
 import com.jetbrains.python.run.PythonCommandLineState;
@@ -162,6 +169,8 @@ public class PydevConsoleRunner extends AbstractConsoleRunnerWithHistory<PythonC
     actions.add(backspaceHandlingAction);
     actions.add(interruptAction);
 
+    actions.add(createSplitLineAction());
+
     AnAction showVarsAction = new ShowVarsAction();
     toolbarActions.add(showVarsAction);
     toolbarActions.add(myHistoryController.getBrowseHistory());
@@ -182,6 +191,13 @@ public class PydevConsoleRunner extends AbstractConsoleRunnerWithHistory<PythonC
   }
 
   public void run() {
+    UIUtil.invokeAndWaitIfNeeded(new Runnable() {
+      @Override
+      public void run() {
+        FileDocumentManager.getInstance().saveAllDocuments();
+      }
+    });
+
     myPorts = findAvailablePorts(getProject(), myConsoleType);
 
     assert myPorts != null;
@@ -326,12 +342,13 @@ public class PydevConsoleRunner extends AbstractConsoleRunnerWithHistory<PythonC
     commandLine.getParametersList().set(3, "0");
 
     myCommandLine = commandLine.getCommandLineString();
-    
+
     try {
-      RemoteSdkCredentials remoteCredentials = data.getRemoteSdkCredentials();
-      
+      PyRemoteSdkCredentials remoteCredentials = data.getRemoteSdkCredentials();
+      PathMappingSettings mappings = manager.setupMappings(getProject(), data, null);
+
       RemoteSshProcess remoteProcess =
-        manager.createRemoteProcess(getProject(), remoteCredentials, commandLine, true);
+        manager.createRemoteProcess(getProject(), remoteCredentials, mappings, commandLine, true);
 
 
       Pair<Integer, Integer> remotePorts = getRemotePortsFromProcess(remoteProcess);
@@ -339,7 +356,7 @@ public class PydevConsoleRunner extends AbstractConsoleRunnerWithHistory<PythonC
       remoteProcess.addLocalTunnel(myPorts[0], remoteCredentials.getHost(), remotePorts.first);
       remoteProcess.addRemoteTunnel(remotePorts.second, "localhost", myPorts[1]);
 
-      
+
       myPydevConsoleCommunication = new PydevConsoleCommunication(getProject(), myPorts[0], remoteProcess, myPorts[1]);
       return remoteProcess;
     }
@@ -575,6 +592,40 @@ public class PydevConsoleRunner extends AbstractConsoleRunnerWithHistory<PythonC
     };
     stopAction.copyFrom(generalStopAction);
     return stopAction;
+  }
+
+  protected AnAction createSplitLineAction() {
+
+    class ConsoleSplitLineAction extends EditorAction {
+
+      private static final String CONSOLE_SPLIT_LINE_ACTION_ID = "Console.SplitLine";
+
+      public ConsoleSplitLineAction() {
+        super(new EditorWriteActionHandler() {
+
+          private final SplitLineAction mySplitLineAction = new SplitLineAction();
+
+          @Override
+          public boolean isEnabled(Editor editor, DataContext dataContext) {
+            return mySplitLineAction.getHandler().isEnabled(editor, dataContext);
+          }
+
+          @Override
+          public void executeWriteAction(Editor editor, @Nullable Caret caret, DataContext dataContext) {
+            ((EditorWriteActionHandler)mySplitLineAction.getHandler()).executeWriteAction(editor, caret, dataContext);
+            editor.getCaretModel().getCurrentCaret().moveCaretRelatively(0, 1, false, true);
+          }
+        });
+      }
+
+      public void setup() {
+        EmptyAction.setupAction(this, CONSOLE_SPLIT_LINE_ACTION_ID, null);
+      }
+    }
+
+    ConsoleSplitLineAction action = new ConsoleSplitLineAction();
+    action.setup();
+    return action;
   }
 
   private void closeCommunication() {

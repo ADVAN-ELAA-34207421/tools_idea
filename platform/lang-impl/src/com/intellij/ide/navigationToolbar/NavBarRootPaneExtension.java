@@ -174,7 +174,7 @@ public class NavBarRootPaneExtension extends IdeRootPaneNorthExtension {
       AnAction firstAction = null;
       for (final AnAction action : ((DefaultActionGroup)group).getChildActionsOrStubs()) {
         if (action instanceof DefaultActionGroup) {
-          firstAction = getFirstAction((DefaultActionGroup)action);
+          firstAction = getFirstAction(action);
         }
         else if (action instanceof Separator || action instanceof ActionGroup) {
           continue;
@@ -196,6 +196,11 @@ public class NavBarRootPaneExtension extends IdeRootPaneNorthExtension {
   }
 
   private JComponent buildNavBarPanel() {
+    myNavigationBar = new NavBarPanel(myProject, true);
+    myWrapperPanel.putClientProperty("NavBarPanel", myNavigationBar);
+    myNavigationBar.getModel().setFixedComponent(true);
+    myScrollPane = ScrollPaneFactory.createScrollPane(myNavigationBar);
+
     JPanel panel = new JPanel(new BorderLayout()) {
 
       @Override
@@ -232,22 +237,25 @@ public class NavBarRootPaneExtension extends IdeRootPaneNorthExtension {
         navBar.setBounds(x, (r.height - preferredSize.height) / 2,
                          r.width - insets.left - insets.right, preferredSize.height);
       }
+
+      @Override
+      public void updateUI() {
+        super.updateUI();
+        setOpaque(true);
+        if (myScrollPane == null || myNavigationBar == null) return;
+
+        myScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
+        myScrollPane.setHorizontalScrollBar(null);
+        myScrollPane.setBorder(new NavBarBorder(true, 0));
+        myScrollPane.setOpaque(false);
+        myScrollPane.getViewport().setOpaque(false);
+        myScrollPane.setViewportBorder(null);
+        myNavigationBar.setBorder(null);
+      }
     };
 
-    myNavigationBar = new NavBarPanel(myProject, true);
-    myWrapperPanel.putClientProperty("NavBarPanel", myNavigationBar);
-    myNavigationBar.getModel().setFixedComponent(true);
-
-    myScrollPane = ScrollPaneFactory.createScrollPane(myNavigationBar);
-    myScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
-    myScrollPane.setHorizontalScrollBar(null);
-    myScrollPane.setBorder(new NavBarBorder(true, 0));
-    myScrollPane.setOpaque(false);
-    myScrollPane.getViewport().setOpaque(false);
-    panel.setOpaque(true);
-    myNavigationBar.setBorder(null);
     panel.add(myScrollPane, BorderLayout.CENTER);
-
+    panel.updateUI();
     return panel;
   }
 
@@ -280,6 +288,7 @@ public class NavBarRootPaneExtension extends IdeRootPaneNorthExtension {
     myWrapperPanel = null;
     myRunPanel = null;
     myNavigationBar = null;
+    myScrollPane = null;
     myProject = null;
   }
 }

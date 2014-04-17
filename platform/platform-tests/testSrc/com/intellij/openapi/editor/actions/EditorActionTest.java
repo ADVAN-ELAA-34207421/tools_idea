@@ -17,6 +17,7 @@ package com.intellij.openapi.editor.actions;
 
 import com.intellij.openapi.editor.EditorSettings;
 import com.intellij.openapi.editor.impl.AbstractEditorTest;
+import com.intellij.testFramework.EditorTestUtil;
 import com.intellij.testFramework.TestFileType;
 
 public class EditorActionTest extends AbstractEditorTest {
@@ -52,5 +53,20 @@ public class EditorActionTest extends AbstractEditorTest {
     finally {
       editorSettings.setCaretInsideTabs(old);
     }
+  }
+
+  public void testDuplicateFirstLineWhenSoftWrapsAreOn() throws Exception {
+    init("long long t<caret>ext", TestFileType.TEXT);
+    EditorTestUtil.configureSoftWraps(myEditor, 10);
+
+    executeAction("EditorDuplicate");
+    checkResultByText("long long text\n" +
+                      "long long t<caret>ext");
+  }
+
+  public void testTabWithSelection() throws Exception {
+    init("some<selection> <caret></selection>text", TestFileType.TEXT);
+    executeAction("EditorTab");
+    checkResultByText("some    <caret>text");
   }
 }

@@ -268,7 +268,7 @@ public abstract class PlatformTestCase extends UsefulTestCase implements DataPro
     catch (Exception e) {
       base = " (" + e + " while getting base dir)";
     }
-    return project.toString() + (place != null ? place : "") + base;
+    return project + (place != null ? place : "") + base;
   }
 
   protected void runStartupActivities() {
@@ -402,7 +402,8 @@ public abstract class PlatformTestCase extends UsefulTestCase implements DataPro
     }
 
     try {
-      checkForSettingsDamage();
+      CompositeException damage = checkForSettingsDamage();
+      result.add(damage);
     }
     catch (Throwable e) {
       result.add(e);
@@ -693,7 +694,7 @@ public abstract class PlatformTestCase extends UsefulTestCase implements DataPro
   }
 
   @Override
-  protected void invokeTestRunnable(final Runnable runnable) throws Exception {
+  protected void invokeTestRunnable(@NotNull final Runnable runnable) throws Exception {
     final Exception[] e = new Exception[1];
     Runnable runnable1 = new Runnable() {
       @Override
