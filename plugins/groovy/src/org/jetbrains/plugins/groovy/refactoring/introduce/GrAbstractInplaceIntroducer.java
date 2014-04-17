@@ -35,10 +35,7 @@ import org.jetbrains.plugins.groovy.GroovyFileType;
 import org.jetbrains.plugins.groovy.lang.lexer.GroovyTokenTypes;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyPsiElementFactory;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrVariable;
-import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrExpression;
-import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrMethodCall;
-import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrNewExpression;
-import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrReferenceExpression;
+import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.*;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.path.GrMethodCallExpression;
 import org.jetbrains.plugins.groovy.refactoring.GroovyRefactoringUtil;
 
@@ -85,7 +82,8 @@ public abstract class GrAbstractInplaceIntroducer<Settings extends GrIntroduceSe
     GrExpression expression =
       refVariableElementParent instanceof GrNewExpression && refVariableElement.getNode().getElementType() == GroovyTokenTypes.kNEW
       ? (GrNewExpression)refVariableElementParent
-      : PsiTreeUtil.getParentOfType(refVariableElement, GrReferenceExpression.class);
+      : refVariableElementParent instanceof GrParenthesizedExpression ? ((GrParenthesizedExpression)refVariableElementParent).getOperand() 
+                                                                      : PsiTreeUtil.getParentOfType(refVariableElement, GrReferenceExpression.class);
     if (expression instanceof GrReferenceExpression && !(expression.getParent() instanceof GrMethodCall)) {
       final String referenceName = ((GrReferenceExpression)expression).getReferenceName();
       if (((GrReferenceExpression)expression).resolve() == variable ||
@@ -163,56 +161,14 @@ public abstract class GrAbstractInplaceIntroducer<Settings extends GrIntroduceSe
   }
 
   @Override
+  protected void moveOffsetAfter(boolean success) {
+    super.moveOffsetAfter(success);
+
+  }
+
+  @Override
   protected void performIntroduce() {
-    GrIntroduceContext context = new GrIntroduceContext() {
-      @NotNull
-      @Override
-      public Project getProject() {
-        return myProject;
-      }
-
-      @Override
-      public Editor getEditor() {
-        return myEditor;
-      }
-
-      @Nullable
-      @Override
-      public GrExpression getExpression() {
-        return (GrExpression)getExpr();
-      }
-
-      @Nullable
-      @Override
-      public GrVariable getVar() {
-        return getLocalVariable();
-      }
-
-      @Nullable
-      @Override
-      public StringPartInfo getStringPart() {
-        return null;
-      }
-
-      @NotNull
-      @Override
-      public PsiElement[] getOccurrences() {
-        return restoreOccurrences();
-      }
-
-      @Override
-      public PsiElement getScope() {
-        return myScope;
-      }
-
-      @NotNull
-      @Override
-      public PsiElement getPlace() {
-        GrExpression expression = getExpression();
-        return expression != null ? expression : getLocalVariable();
-      }
-    };
-    runRefactoring(context, getSettings(), true);
+    runRefactoring(new IntroduceContextAdapter(), getSettings(), true);
   }
 
   @NotNull
@@ -277,5 +233,54 @@ public abstract class GrAbstractInplaceIntroducer<Settings extends GrIntroduceSe
   @Nullable
   protected PsiType getSelectedType() {
     return myTypePointer != null ? myTypePointer.getType() : null;
+  }
+
+  private class IntroduceContextAdapter implements GrIntroduceContext {
+    @NotNull
+    @Override
+    public Project getProject() {
+      return myProject;
+    }
+
+    @Override
+    public Editor getEditor() {
+      return myEditor;
+    }
+
+    @Nullable
+    @Override
+    public GrExpression getExpression() {
+      return (GrExpression)getExpr();
+    }
+
+    @Nullable
+    @Override
+    public GrVariable getVar() {
+      return getLocalVariable();
+    }
+
+    @Nullable
+    @Override
+    public StringPartInfo getStringPart() {
+      return null;
+    }
+
+    @NotNull
+    @Override
+    public PsiElement[] getOccurrences() {
+      return restoreOccurrences();
+    }
+
+    @Override
+    public PsiElement getScope() {
+      return myScope;
+    }
+
+    @NotNull
+    @Override
+    public PsiElement getPlace() {
+      GrExpression expression = getExpression();
+      return expression != null ? expression : getLocalVariable();
+    }
   }
 }

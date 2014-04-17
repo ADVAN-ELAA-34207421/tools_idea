@@ -61,7 +61,7 @@ public class InstalledPluginsManagerMain extends PluginManagerMain {
     myActionsPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
     final JButton jbButton = new JButton("Install JetBrains plugin...");
     jbButton.setMnemonic('j');
-    jbButton.addActionListener(new BrowseRepoListener("JetBrains"));
+    jbButton.addActionListener(new BrowseRepoListener(JETBRAINS_VENDOR));
     myActionsPanel.add(jbButton);
 
     final JButton button = new JButton("Browse repositories...");
@@ -251,7 +251,7 @@ public class InstalledPluginsManagerMain extends PluginManagerMain {
       //actionGroup.add(new MyFilterBundleAction());
     } else {
       actionGroup.add(new RefreshAction());
-      actionGroup.addAction(new SortByStatusAction("Sort by Status"));
+      actionGroup.addAction(createSortersGroup());
       actionGroup.add(Separator.getInstance());
       actionGroup.add(new ActionInstallPlugin(getAvailable(), getInstalled()));
       actionGroup.add(new UninstallPluginAction(this, pluginTable));

@@ -15,6 +15,7 @@
  */
 package org.jetbrains.idea.svn.checkin;
 
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.MessageType;
@@ -153,7 +154,6 @@ public class IdeaSvnkitBasedAuthenticationCallback implements AuthenticationCall
       @Override
       public Pair<String, Boolean> get() {
         final Ref<String> answer = new Ref<String>();
-        final Ref<Boolean> save = new Ref<Boolean>();
 
         Runnable command = new Runnable() {
           public void run() {
@@ -161,17 +161,19 @@ public class IdeaSvnkitBasedAuthenticationCallback implements AuthenticationCall
 
             dialog.setup(mode, realm, key, true);
             dialog.setTitle(SvnBundle.message("dialog.title.authentication.required"));
+            dialog.setSaveEnabled(false);
             dialog.show();
             if (dialog.isOK()) {
               answer.set(dialog.getPassword());
-              save.set(dialog.isSaveAllowed());
             }
           }
         };
 
-        WaitForProgressToShow.runOrInvokeAndWaitAboveProgress(command);
+        // Use ModalityState.any() as currently ssh credentials in terminal mode are requested in the thread that reads output and not in
+        // the thread that started progress
+        WaitForProgressToShow.runOrInvokeAndWaitAboveProgress(command, ModalityState.any());
 
-        return new Pair<String, Boolean>(answer.get(), !save.isNull() && save.get());
+        return new Pair<String, Boolean>(answer.get(), true);
       }
     });
   }

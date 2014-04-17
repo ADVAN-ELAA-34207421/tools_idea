@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,9 @@ import com.intellij.openapi.project.DumbAwareRunnable;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.project.ex.ProjectManagerEx;
+import com.intellij.openapi.roots.ModifiableRootModel;
+import com.intellij.openapi.roots.ModuleRootManager;
+import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.startup.StartupManager;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.util.Disposer;
@@ -111,7 +114,7 @@ public class PlatformProjectOpenProcessor extends ProjectOpenProcessor {
       if (baseDir == null) { // no reasonable directory -> create new temp one or use parent
         if (Registry.is("ide.open.file.in.temp.project.dir")) {
           try {
-            dummyProjectName = virtualFile.getPath();
+            dummyProjectName = virtualFile.getName();
             File directory = FileUtil.createTempDirectory(dummyProjectName, null, true);
             baseDir = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory);
             dummyProject = true;
@@ -163,12 +166,13 @@ public class PlatformProjectOpenProcessor extends ProjectOpenProcessor {
         for (ProjectOpenProcessor processor : ProjectOpenProcessor.EXTENSION_POINT_NAME.getExtensions()) {
           processor.refreshProjectFiles(projectDir);
         }
-        
+
         project = projectManager.convertAndLoadProject(baseDir.getPath());
         if (project == null) {
           WelcomeFrame.showIfNoProjectOpened();
           return null;
         }
+
         final Module[] modules = ModuleManager.getInstance(project).getModules();
         if (modules.length > 0) {
           runConfigurators = false;
@@ -190,6 +194,16 @@ public class PlatformProjectOpenProcessor extends ProjectOpenProcessor {
     if (project == null) return null;
     ProjectBaseDirectory.getInstance(project).setBaseDir(baseDir);
     final Module module = runConfigurators ? runDirectoryProjectConfigurators(baseDir, project) : ModuleManager.getInstance(project).getModules()[0];
+    if (runConfigurators && dummyProject) { // add content root for chosen (single) file
+      ApplicationManager.getApplication().runWriteAction(new Runnable() {
+        @Override
+        public void run() {
+          ModifiableRootModel model = ModuleRootManager.getInstance(module).getModifiableModel();
+          model.addContentEntry(virtualFile);
+          model.commit();
+        }
+      });
+    }
 
     openFileFromCommandLine(project, virtualFile, line);
     if (!projectManager.openProject(project)) {

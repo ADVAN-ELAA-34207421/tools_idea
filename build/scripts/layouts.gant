@@ -53,6 +53,7 @@ String patchAppDescriptor(String targetDirectory) {
 def layoutFull(String home, String targetDirectory, String patchedDescriptorDir = null) {
   projectBuilder.stage("layout to $targetDirectory")
 
+  List<String> jpsCommonModules = ["jps-model-impl", "jps-model-serialization"]
   List<String> openapiModules = [platformApiModules,
     "compiler-openapi",
     "debugger-openapi",
@@ -64,7 +65,6 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
     "jsp-openapi",
     "jsp-base-openapi",
     "openapi",
-    "remote-servers-api",
     "remote-servers-java-api",
     "testFramework-java",
   ].flatten()
@@ -76,7 +76,6 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
     "execution-impl",
     "external-system-impl",
     "idea-ui",
-    "instrumentation-util",
     "java-analysis-impl",
     "java-indexing-impl",
     "java-impl",
@@ -85,11 +84,12 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
     "jsp-spi",
     "manifest",
     "platform-main",
-    "remote-servers-impl",
     "remote-servers-java-impl",
     "testFramework",
     "tests_bootstrap",
-          ].flatten()
+    "ui-designer-core"
+  ].flatten()
+  implementationModules.removeAll(jpsCommonModules) //todo[nik] remove jps modules from platformImplementationModules instead and update layouts of minor IDEs accordingly
 
   ant.patternset(id: "resources.included") {
     include(name: "**/*.properties")
@@ -115,6 +115,9 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
     dir("lib") {
       dir("rt") {
         fileset(dir: "${home}/lib/rt", includesfile: "${home}/lib/rt/required_for_dist.txt")
+        jar("jps-plugin-system.jar") {
+          module("jps-plugin-system")
+        }
       }
 
       dir("libpty") {
@@ -184,6 +187,9 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
         module("instrumentation-util")
       }
 
+      jar("jps-model.jar") {
+        jpsCommonModules.each { module it }
+      }
       jar("jps-server.jar") {
         module("jps-builders")
       }
@@ -355,13 +361,9 @@ public def layoutCommunityPlugins(String home) {
       jar("git4idea-rt.jar") {
         module("git4idea-rt")
       }
-/* This dependency seems to be missing (not compiling correctly in CE either)
-      if (!isDefined("pluginFilter")) {//temporary fix to exclude remote-servers-git module from layout for small IDEs because corresponding module isn't compiled
-        jar("remote-servers-git.jar") {
-          module("remote-servers-git")
-        }
+      jar("remote-servers-git.jar") {
+        module("remote-servers-git")
       }
-*/
       fileset(dir: "$home/plugins/git4idea/lib") {
         include(name: "trilead-ssh2.jar")
       }
@@ -532,6 +534,39 @@ public def layoutCommunityPlugins(String home) {
   }
 }
 
+def layoutCloud() {
+  dir("plugins") {
+    layoutPlugin("google-cloud-tools") {
+      jar("google-cloud-tools.jar") {
+        module("google-cloud-tools")
+      }
+      dir("templates") {
+        fileset(dir: "$home/../studio/cloud/resources/templates")
+      }
+    }
+  }
+}
+
+private Set<String> findModuleDependencies(List<String> modules) {
+  Set<String> paths = new HashSet<String>();
+  modules.each {
+    m = findModule(it)
+    m.getDependenciesList().getDependencies().each {
+      projectBuilder.stage("looking at dependency " + it);
+
+      if (it instanceof JpsLibraryDependency) {  // only want library dependencies (and not other modules)
+        lib = it.getLibrary()
+        if (lib != null) {
+          libroots = lib.getRoots(JpsOrderRootType.COMPILED) // only want compile (and not test)
+          libroots.each {
+            paths.addAll(JpsPathUtil.urlToFile(it.getUrl()).getAbsolutePath());
+          }
+        }
+      }
+    }
+  }
+  return paths;
+}
 
 def layoutPlugin(String moduleName) {
   layoutPlugin(moduleName, moduleName, {})
@@ -639,88 +674,99 @@ def reorder(String home, String targetDirectory) {
 
 def layoutAndroid() {
   dir("plugins") {
-    layoutPlugin("android") {
-      fileset(dir: "${home}/../adt/idea/android/lib") {
-        include(name: "**/*.jar")
-      }
-
-      // Add Additional libraries that the Android plugin depends on that come from TOOLS_PREBUILTS.
-      // Note: This is a HACK: rather than encoding the full path, we should really query
-      // the project model for the classpath just like we do for the androidModules' dependencies
-      // below
-      fileset(file: "${home}/../../prebuilts/tools/common/freemarker/freemarker-2.3.19.jar")
-
-      androidModules = [
-              "assetstudio",
-              "common",
-              "ddmlib",
-              "draw9patch",
-              "dvlib",
-              "gradle-import",
-              "layoutlib-api",
-              "lint-api",
-              "lint-checks",
-              "manifest-merger",
-              "ninepatch",
-              "perflib",
-              "sdk-common",
-              "sdklib"
-      ]
-
-      androidModules.each { moduleName ->
-        jar("${moduleName}.jar") {
-          module(moduleName)
+    def androidModule = "android"
+    dir(androidModule) {
+      dir("lib") {
+        jar("android.jar") {
+          module("ui-designer-core") {
+            patternset(refid: "resources.excluded")
+          }
+          noResources(androidModule)
         }
-      }
 
-      jar("androidAnnotations.jar") {
-        fileset(dir: "${home}/../adt/idea/android/annotations")
-      }
+        jar("resources_en.jar") {
+          module(androidModule) {
+            patternset(refid: "resources.included")
+          }
+          module("ui-designer-core") {
+            patternset(refid: "resources.included")
+          }
+        }
 
-      // copy over dependencies of all android modules
-      androidModuleDeps = findModuleDependencies(androidModules)
-      androidModuleDeps.each {
-        fileset(file: it)
-      }
+        fileset(dir: "${home}/../adt/idea/android/lib") {
+          include(name: "**/*.jar")
+        }
 
-      jar("android-common.jar") {
-        module("android-common")
-      }
+        // Add Additional libraries that the Android plugin depends on that come from TOOLS_PREBUILTS.
+        // Note: This is a HACK: rather than encoding the full path, we should really query
+        // the project model for the classpath just like we do for the androidModules' dependencies
+        // below
+        fileset(file: "${home}/../../prebuilts/tools/common/freemarker/freemarker-2.3.19.jar")
 
-      jar("android-rt.jar") {
-        module("android-rt")
-      }
+        androidModules = [
+                "assetstudio",
+                "common",
+                "ddmlib",
+                "draw9patch",
+                "dvlib",
+                "gradle-import",
+                "layoutlib-api",
+                "lint-api",
+                "lint-checks",
+                "manifest-merger",
+                "ninepatch",
+                "perflib",
+                "sdk-common",
+                "sdklib"
+        ]
 
-      dir("jps") {
-        jar("android-jps-plugin.jar") { module("android-jps-plugin") }
-        jar("android-gradle-jps.jar") { module("android-gradle-jps") }
-      }
+        androidModules.each { moduleName ->
+          jar("${moduleName}.jar") {
+            module(moduleName)
+          }
+        }
 
-      dir("device-art-resources") {
-        fileset(dir: "${home}/../adt/idea/android/device-art-resources")
-      }
+        jar("androidAnnotations.jar") {
+          fileset(dir: "${home}/../adt/idea/android/annotations")
+        }
 
-      dir("templates") {
-        fileset(dir: "${home}/../base/templates") {
-         include(name: "activities/**")
-         include(name: "gradle/**")
-         include(name: "other/**")
-         include(name: "gradle-projects/**")
-       }
+        // copy over dependencies of all android modules
+        androidModuleDeps = findModuleDependencies(androidModules)
+        androidModuleDeps.each {
+          fileset(file: it)
+        }
+
+        jar("android-common.jar") {
+          module("android-common")
+        }
+
+        jar("android-rt.jar") {
+          module("android-rt")
+        }
+
+        dir("jps") {
+          jar("android-jps-plugin.jar") { module("android-jps-plugin") }
+          jar("android-gradle-jps.jar") { module("android-gradle-jps") }
+        }
+
+        dir("device-art-resources") {
+          fileset(dir: "${home}/../adt/idea/android/device-art-resources")
+        }
+
+        dir("templates") {
+          fileset(dir: "${home}/../base/templates") {
+            include(name: "activities/**")
+            include(name: "gradle/**")
+            include(name: "other/**")
+            include(name: "gradle-projects/**")
+          }
+        }
       }
     }
 
     dir("android-designer") {
       dir("lib") {
-        jar("resources_en.jar") {
-          module("ui-designer-core") {
-            patternset(refid: "resources.included")
-          }
-        }
         jar("android-designer.jar") {
-          module("ui-designer-core") {
-            patternset(refid: "resources.excluded")
-          }
           module("android-designer")
         }
       }
@@ -728,108 +774,78 @@ def layoutAndroid() {
   }
 }
 
-def layoutCloud() {
-  dir("plugins") {
-    layoutPlugin("google-cloud-tools") {
-      jar("google-cloud-tools.jar") {
-        module("google-cloud-tools")
+def layoutJps(String home, String targetDir, String buildNumber, Closure additionalJars) {
+  layout(targetDir) {
+    zip("standalone-jps-${buildNumber}.zip") {
+      jar("util.jar") {
+        module("annotations")
+        module("util-rt")
+        module("util")
       }
-      dir("templates") {
-        fileset(dir: "$home/../studio/cloud/resources/templates")
+
+      jar("jps-launcher.jar") {
+        module("jps-launcher")
       }
-    }
-  }
-}
 
-private Set<String> findModuleDependencies(List<String> modules) {
-  Set<String> paths = new HashSet<String>();
-  modules.each {
-    m = findModule(it)
-    m.getDependenciesList().getDependencies().each {
-      projectBuilder.stage("looking at dependency " + it);
-
-      if (it instanceof JpsLibraryDependency) {  // only want library dependencies (and not other modules)
-        lib = it.getLibrary()
-        if (lib != null) {
-          libroots = lib.getRoots(JpsOrderRootType.COMPILED) // only want compile (and not test)
-          libroots.each {
-            paths.addAll(JpsPathUtil.urlToFile(it.getUrl()).getAbsolutePath());
-          }
-        }
+      jar("jps-model.jar") {
+        module("jps-model-api")
+        module("jps-model-impl")
+        module("jps-model-serialization")
       }
-    }
-  }
-  return paths;
-}
-
-def layoutCommunityJps(String home, String target) {
-  layout(target) {
-    jar("util.jar") {
-      module("annotations")
-      module("util-rt")
-      module("util")
-    }
-    
-    jar("jps-launcher.jar") {
-      module("jps-launcher") 
-    }
-    
-    jar("jps-model.jar") {
-      module("jps-model-api")
-      module("jps-model-impl")
-      module("jps-model-serialization")
-    }
-    jar("jps-builders.jar") {
-      module("forms_rt")
-      module("forms-compiler")
-      module("instrumentation-util")
-      module("jps-builders")
-      module("jps-standalone-builder")
-      module("java-runtime")
-    }
-    jar("groovy-jps-plugin.jar") {
-      module("groovy-jps-plugin")
-      module("groovy-rt-constants")
-    }
-    jar("groovy_rt.jar") {
-      module("groovy_rt")
-    }
-    jar("ui-designer-jps-plugin.jar") { module("ui-designer-jps-plugin") }
-
-
-    jar("maven-jps-plugin.jar") { module("maven-jps-plugin") }
-    fileset(dir: "$home/plugins/maven/maven3-server-impl/lib/maven3/lib") {include(name: "plexus-utils-*.jar")}
-
-    jar("eclipse-jps-plugin.jar") {
-      module("common-eclipse-util")
-      module("eclipse-jps-plugin")
-    }
-    jar("devkit-jps-plugin.jar") { module("devkit-jps-plugin") }
-    jar("intellilang-jps-plugin.jar") { module("intellilang-jps-plugin") }
-    fileset(dir: "$home/lib") {
-      include(name: "jdom.jar")
-      include(name: "jna.jar")
-      include(name: "trove4j.jar")
-      include(name: "asm4-all.jar")
-      include(name: "nanoxml-*.jar")
-      include(name: "protobuf-*.jar")
-      include(name: "cli-parser-*.jar")
-      include(name: "log4j.jar")
-      include(name: "jgoodies-forms.jar")
-      include(name: "ecj*.jar")
-      include(name: "jsr166e.jar")
-    }
-    fileset(dir: "$home/jps/lib") {
-      include(name: "optimizedFileManager.jar")
-    }
-    dir("test") {
-      jar("jps-build-test.jar") {
-        moduleTests("jps-builders")
-        moduleTests("jps-model-tests")
-        moduleTests("jps-serialization-tests")
+      jar("jps-builders.jar") {
+        module("forms_rt")
+        module("forms-compiler")
+        module("instrumentation-util")
+        module("jps-builders")
+        module("jps-standalone-builder")
+        module("java-runtime")
       }
+      jar("jps-plugin-system.jar") {
+        module("jps-plugin-system")
+      }
+      jar("groovy-jps-plugin.jar") {
+        module("groovy-jps-plugin")
+        module("groovy-rt-constants")
+      }
+      jar("groovy_rt.jar") {
+        module("groovy_rt")
+      }
+      jar("ui-designer-jps-plugin.jar") { module("ui-designer-jps-plugin") }
+
+
+      jar("maven-jps-plugin.jar") { module("maven-jps-plugin") }
+      fileset(dir: "$home/plugins/maven/maven3-server-impl/lib/maven3/lib") {include(name: "plexus-utils-*.jar")}
+
+      jar("eclipse-jps-plugin.jar") {
+        module("common-eclipse-util")
+        module("eclipse-jps-plugin")
+      }
+      jar("devkit-jps-plugin.jar") { module("devkit-jps-plugin") }
+      jar("intellilang-jps-plugin.jar") { module("intellilang-jps-plugin") }
+      fileset(dir: "$home/lib") {
+        include(name: "jdom.jar")
+        include(name: "jna.jar")
+        include(name: "trove4j.jar")
+        include(name: "asm4-all.jar")
+        include(name: "nanoxml-*.jar")
+        include(name: "protobuf-*.jar")
+        include(name: "cli-parser-*.jar")
+        include(name: "log4j.jar")
+        include(name: "jgoodies-forms.jar")
+        include(name: "ecj*.jar")
+        include(name: "jsr166e.jar")
+      }
+      fileset(dir: "$home/jps/lib") {
+        include(name: "optimizedFileManager.jar")
+      }
+      jar("ant-jps-plugin.jar") { module("ant-jps-plugin") }
+      additionalJars()
     }
-    jar("ant-jps-plugin.jar") { module("ant-jps-plugin") }
+    jar("jps-build-test-${buildNumber}.jar") {
+      moduleTests("jps-builders")
+      moduleTests("jps-model-tests")
+      moduleTests("jps-serialization-tests")
+    }
   }
 }
 
@@ -857,7 +873,7 @@ def layout_core(String home, String target) {
       include(name: "asm.jar")
       include(name: "asm-commons.jar")
       include(name: "cli-parser-1.1.jar")
-      include(name: "snappy-java-1.0.5.jar")
+      include(name: "snappy-in-java-0.3.jar")
       include(name: "jayatana-1.2.4.jar")
     }
   }

@@ -39,6 +39,42 @@ public class MostSpecificResolutionTest extends LightDaemonAnalyzerTestCase {
     doTest();
   }
 
+  public void testNestedLambdaSpecifics() throws Exception {
+    doTest();
+  }
+
+  public void testBothVarargs() throws Exception {
+    doTest();
+  }
+
+  public void testNestedVarargs() throws Exception {
+    doTest();
+  }
+
+  public void testMostSpecificForSameFunctionalTypes() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA121884() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA121999() throws Exception {
+    doTest();
+  }
+
+  public void testRelatedSAMErasures() throws Exception {
+    doTest();
+  }
+
+  public void testJDK8034223() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA123352() throws Exception {
+    doTest();
+  }
+
   private void doTest() {
     doTest(true);
   }

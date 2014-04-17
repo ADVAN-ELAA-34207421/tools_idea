@@ -130,6 +130,10 @@ public class NewLambdaHighlightingTest extends LightDaemonAnalyzerTestCase {
     doTest();
   }
 
+  public void testIDEA119003() throws Exception {
+    doTest();
+  }
+
   public void testIDEA117124() throws Exception {
     doTest();
   }
@@ -143,6 +147,54 @@ public class NewLambdaHighlightingTest extends LightDaemonAnalyzerTestCase {
   }
 
   public void testIDEA118965() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA121315() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA118965comment() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA122074() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA122084() throws Exception {
+    doTest();
+  }
+
+  public void testAdditionalConstraintDependsOnNonMentionedVars() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA122616() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA122700() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA122406() throws Exception {
+    doTest();
+  }
+
+  public void testNestedCallsInsideLambdaReturnExpression() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA123731() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA123869() throws Exception {
+    doTest();
+  }
+
+  public void testIDEA123848() throws Exception {
     doTest();
   }
 

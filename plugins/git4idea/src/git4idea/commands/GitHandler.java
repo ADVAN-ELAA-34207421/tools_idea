@@ -54,6 +54,10 @@ import java.util.concurrent.LinkedBlockingQueue;
  * A handler for git commands
  */
 public abstract class GitHandler {
+
+  protected static final Logger LOG = Logger.getInstance(GitHandler.class);
+  protected static final Logger OUTPUT_LOG = Logger.getInstance("#output." + GitHandler.class.getName());
+
   protected final Project myProject;
   protected final GitCommand myCommand;
 
@@ -61,7 +65,6 @@ public abstract class GitHandler {
   private final List<VcsException> myErrors = Collections.synchronizedList(new ArrayList<VcsException>());
   private final List<String> myLastOutput = Collections.synchronizedList(new ArrayList<String>());
   private final int LAST_OUTPUT_SIZE = 5;
-  protected static final Logger LOG = Logger.getInstance(GitHandler.class.getName());
   final GeneralCommandLine myCommandLine;
   @SuppressWarnings({"FieldAccessedSynchronizedAndUnsynchronized"})
   Process myProcess;
@@ -101,6 +104,7 @@ public abstract class GitHandler {
   private static final long LONG_TIME = 10 * 1000;
   @Nullable private ModalityState myState;
   @Nullable private String myUrl;
+  private boolean myHttpAuthFailed;
 
 
   /**
@@ -126,6 +130,7 @@ public abstract class GitHandler {
     if (command.name().length() > 0) {
       myCommandLine.addParameter(command.name());
     }
+    myStdoutSuppressed = true;
   }
 
   /**
@@ -468,27 +473,33 @@ public abstract class GitHandler {
     // TODO this code should be located in GitLineHandler, and the other remote code should be move there as well
     if (this instanceof GitLineHandler) {
       ((GitLineHandler)this).addLineListener(new GitLineHandlerAdapter() {
-
-        private boolean myAuthFailed;
-
         @Override
         public void onLineAvailable(String line, Key outputType) {
           if (line.toLowerCase().contains("authentication failed")) {
-            myAuthFailed = true;
+            myHttpAuthFailed = true;
           }
         }
 
         @Override
         public void processTerminated(int exitCode) {
-          if (myAuthFailed) {
-            authenticator.forgetPassword();
+          if (!authenticator.wasCancelled()) {
+            if (myHttpAuthFailed) {
+              authenticator.forgetPassword();
+            }
+            else {
+              authenticator.saveAuthData();
+            }
           }
           else {
-            authenticator.saveAuthData();
+            myHttpAuthFailed = false;
           }
         }
       });
     }
+  }
+
+  public boolean hasHttpAuthFailed() {
+    return myHttpAuthFailed;
   }
 
   protected abstract Process startProcess() throws ExecutionException;
@@ -590,8 +601,10 @@ public abstract class GitHandler {
   public void setSilent(final boolean silent) {
     checkNotStarted();
     mySilent = silent;
-    setStderrSuppressed(silent);
-    setStdoutSuppressed(silent);
+    if (silent) {
+      setStderrSuppressed(true);
+      setStdoutSuppressed(true);
+    }
   }
 
   /**

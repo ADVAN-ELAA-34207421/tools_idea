@@ -23,7 +23,6 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.LangDataKeys;
-import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.DumbAware;
@@ -35,7 +34,7 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.PathMappingSettings;
 import com.jetbrains.python.buildout.BuildoutFacet;
-import com.jetbrains.python.remote.PyRemoteSdkCredentials;
+import com.jetbrains.python.remote.PyRemoteSdkAdditionalDataBase;
 import com.jetbrains.python.remote.PythonRemoteInterpreterManager;
 import com.jetbrains.python.run.PythonCommandLineState;
 import com.jetbrains.python.sdk.PySdkUtil;
@@ -77,8 +76,6 @@ public class RunPythonConsoleAction extends AnAction implements DumbAware {
   @NotNull
   public static PydevConsoleRunner runPythonConsole(Project project, Module contextModule) {
     assert project != null : "Project is null";
-
-    FileDocumentManager.getInstance().saveAllDocuments();
 
     Pair<Sdk, Module> sdkAndModule = findPythonSdkAndModule(project, contextModule);
 
@@ -153,7 +150,7 @@ public class RunPythonConsoleAction extends AnAction implements DumbAware {
       PythonRemoteInterpreterManager instance = PythonRemoteInterpreterManager.getInstance();
       if (instance != null) {
         mappingSettings =
-          instance.setupMappings(project, (PyRemoteSdkCredentials)sdk.getSdkAdditionalData(), null);
+          instance.setupMappings(project, (PyRemoteSdkAdditionalDataBase)sdk.getSdkAdditionalData(), null);
       }
     }
     return mappingSettings;

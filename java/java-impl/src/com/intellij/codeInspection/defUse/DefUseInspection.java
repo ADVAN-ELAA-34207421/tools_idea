@@ -50,6 +50,41 @@ public class DefUseInspection extends DefUseInspectionBase {
     return new RemoveInitializerFix();
   }
 
+  @Override
+  protected LocalQuickFix createRemoveAssignmentFix() {
+    return new RemoveAssignmentFix();
+  }
+  
+  public static class RemoveAssignmentFix extends RemoveInitializerFix {
+    @NotNull
+    @Override
+    public String getName() {
+      return InspectionsBundle.message("inspection.unused.assignment.remove.assignment.quickfix");
+    }
+
+    @Override
+    public void applyFix(@NotNull Project project, @NotNull ProblemDescriptor descriptor) {
+      final PsiElement left = descriptor.getPsiElement();
+      if (!(left instanceof PsiReferenceExpression)) return;
+      final PsiElement parent = left.getParent();
+      if (!(parent instanceof PsiAssignmentExpression)) return;
+      final PsiExpression rExpression = ((PsiAssignmentExpression)parent).getRExpression();
+      final PsiElement gParent = parent.getParent();
+      if (gParent instanceof PsiExpression && rExpression != null) {
+        if (!FileModificationService.getInstance().prepareFileForWrite(gParent.getContainingFile())) return;
+        if (gParent instanceof PsiParenthesizedExpression) {
+          gParent.replace(rExpression);
+        } else {
+          parent.replace(rExpression);
+        }
+        return;
+      }
+
+      final PsiElement resolve = ((PsiReferenceExpression)left).resolve();
+      if (!(resolve instanceof PsiVariable)) return;
+      sideEffectAwareRemove(project, rExpression, parent, (PsiVariable)resolve);
+    }
+  }
   private static class RemoveInitializerFix implements LocalQuickFix {
     @Override
     @NotNull
@@ -62,10 +97,15 @@ public class DefUseInspection extends DefUseInspectionBase {
       final PsiElement psiInitializer = descriptor.getPsiElement();
       if (!(psiInitializer instanceof PsiExpression)) return;
       if (!(psiInitializer.getParent() instanceof PsiVariable)) return;
-      if (!FileModificationService.getInstance().prepareFileForWrite(psiInitializer.getContainingFile())) return;
 
       final PsiVariable variable = (PsiVariable)psiInitializer.getParent();
-      final PsiDeclarationStatement declaration = (PsiDeclarationStatement)variable.getParent();
+      sideEffectAwareRemove(project, psiInitializer, psiInitializer, variable);
+    }
+
+    protected void sideEffectAwareRemove(Project project, PsiElement psiInitializer, PsiElement elementToDelete, PsiVariable variable) {
+      if (!FileModificationService.getInstance().prepareFileForWrite(elementToDelete.getContainingFile())) return;
+
+      final PsiElement declaration = variable.getParent();
       final List<PsiElement> sideEffects = new ArrayList<PsiElement>();
       boolean hasSideEffects = RemoveUnusedVariableUtil.checkSideEffects(psiInitializer, variable, sideEffects);
       int res = RemoveUnusedVariableUtil.DELETE_ALL;
@@ -74,25 +114,35 @@ public class DefUseInspection extends DefUseInspectionBase {
         res = RemoveUnusedVariableFix.showSideEffectsWarning(sideEffects, variable,
                                                              FileEditorManager.getInstance(project).getSelectedTextEditor(),
                                                              hasSideEffects, sideEffects.get(0).getText(),
-                                                             variable.getTypeElement().getText() + " " + variable.getName() + ";<br>" + PsiExpressionTrimRenderer
-                                                               .render((PsiExpression)psiInitializer));
+                                                             variable.getTypeElement().getText() +
+                                                             " " +
+                                                             variable.getName() +
+                                                             ";<br>" +
+                                                             PsiExpressionTrimRenderer
+                                                               .render((PsiExpression)psiInitializer)
+        );
       }
       try {
         if (res == RemoveUnusedVariableUtil.DELETE_ALL) {
-          psiInitializer.delete();
+          elementToDelete.delete();
         }
         else if (res == RemoveUnusedVariableUtil.MAKE_STATEMENT) {
-          final PsiElementFactory factory = JavaPsiFacade.getInstance(variable.getProject()).getElementFactory();
+          final PsiElementFactory factory = JavaPsiFacade.getInstance(project).getElementFactory();
           final PsiStatement statementFromText = factory.createStatementFromText(psiInitializer.getText() + ";", null);
-          declaration.getParent().addAfter(statementFromText, declaration);
-          psiInitializer.delete();
+          final PsiElement parent = elementToDelete.getParent();
+          if (parent instanceof PsiExpressionStatement) {
+            parent.replace(statementFromText);
+          } else {
+            declaration.getParent().addAfter(statementFromText, declaration);
+            elementToDelete.delete();
+          }
         }
       }
       catch (IncorrectOperationException e) {
         LOG.error(e);
       }
     }
-
+    
     @Override
     @NotNull
     public String getFamilyName() {

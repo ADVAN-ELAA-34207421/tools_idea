@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 package com.intellij.openapi.fileEditor.impl;
 
 import com.intellij.ide.ui.UISettings;
+import com.intellij.ide.ui.UISettingsListener;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.components.ServiceManager;
@@ -65,7 +66,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 /**
  * Author: msk
  */
-public class EditorsSplitters extends IdePanePanel {
+public class EditorsSplitters extends IdePanePanel implements UISettingsListener {
   private static final Logger LOG = Logger.getInstance("#com.intellij.openapi.fileEditor.impl.EditorsSplitters");
   private static final String PINNED = "pinned";
 
@@ -102,6 +103,7 @@ public class EditorsSplitters extends IdePanePanel {
       }
     };
     KeymapManager.getInstance().addKeymapManagerListener(myKeymapListener);
+    UISettings.getInstance().addUISettingsListener(this);
   }
   
   public FileEditorManagerImpl getManager() {
@@ -127,6 +129,7 @@ public class EditorsSplitters extends IdePanePanel {
     myIconUpdaterAlarm.cancelAllRequests();
     stopListeningFocus();
     KeymapManager.getInstance().removeKeymapManagerListener(myKeymapListener);
+    UISettings.getInstance().removeUISettingsListener(this);
   }
 
   @Nullable
@@ -273,9 +276,6 @@ public class EditorsSplitters extends IdePanePanel {
     LOG.assertTrue(window != null);
 
     @SuppressWarnings("unchecked") final List<Element> children = ContainerUtil.newArrayList(leaf.getChildren("file"));
-    if (UISettings.getInstance().ACTIVATE_RIGHT_EDITOR_ON_CLOSE) {
-      Collections.reverse(children);
-    }
 
     // trim to EDITOR_TAB_LIMIT, ignoring CLOSE_NON_MODIFIED_FILES_FIRST policy
     for (Iterator<Element> iterator = children.iterator(); iterator.hasNext() && UISettings.getInstance().EDITOR_TAB_LIMIT < children.size(); ) {
@@ -587,6 +587,15 @@ public class EditorsSplitters extends IdePanePanel {
           window.unsplit(false);
         }
       }
+    }
+  }
+
+  @Override
+  public void uiSettingsChanged(UISettings source) {
+    for (VirtualFile file : getOpenFiles()) {
+      updateFileBackgroundColor(file);
+      updateFileIcon(file);
+      updateFileColor(file);
     }
   }
 

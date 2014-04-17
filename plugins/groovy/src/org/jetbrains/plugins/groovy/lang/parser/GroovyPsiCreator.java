@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -104,8 +104,6 @@ public class GroovyPsiCreator implements GroovyElementTypes {
     if (elem == ANNOTATION_ARRAY_INITIALIZER) return new GrAnnotationArrayInitializerImpl(node);
     if (elem == ANNOTATION_MEMBER_VALUE_PAIR) return new GrAnnotationNameValuePairImpl(node);
 
-    if (elem == DEFAULT_ANNOTATION_VALUE) return new GrDefaultAnnotationValueImpl(node);
-
     //throws
     if (elem == THROW_CLAUSE) return new GrThrowsClauseImpl(node);
 
@@ -138,11 +136,10 @@ public class GroovyPsiCreator implements GroovyElementTypes {
 
     //type definitions
     if (elem == CLASS_DEFINITION) return new GrClassDefinitionImpl(node);
-    if (elem == INTERFACE_DEFINITION)
-      return new GrInterfaceDefinitionImpl(node);
+    if (elem == INTERFACE_DEFINITION) return new GrInterfaceDefinitionImpl(node);
     if (elem == ENUM_DEFINITION) return new GrEnumTypeDefinitionImpl(node);
-    if (elem == ANNOTATION_DEFINITION)
-      return new GrAnnotationTypeDefinitionImpl(node);
+    if (elem == ANNOTATION_DEFINITION) return new GrAnnotationTypeDefinitionImpl(node);
+    if (elem == TRAIT_DEFINITION) return new GrTraitTypeDefinitionImpl(node);
     if (elem == ANNOTATION_METHOD) return new GrAnnotationMethodImpl(node);
 
     if (elem == REFERENCE_ELEMENT) return new GrCodeReferenceElementImpl(node);

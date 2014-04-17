@@ -41,7 +41,9 @@ public class VcsLogUiProperties implements PersistentStateComponent<VcsLogUiProp
 
   public static class State {
     public boolean SHOW_DETAILS = true;
+    public boolean LONG_EDGES_VISIBLE = false;
     public Deque<UserGroup> RECENTLY_FILTERED_USER_GROUPS = new ArrayDeque<UserGroup>();
+    public Deque<UserGroup> RECENTLY_FILTERED_BRANCH_GROUPS = new ArrayDeque<UserGroup>();
   }
 
   @Nullable
@@ -68,25 +70,51 @@ public class VcsLogUiProperties implements PersistentStateComponent<VcsLogUiProp
   }
 
   public void addRecentlyFilteredUserGroup(@NotNull List<String> usersInGroup) {
+    addRecentGroup(usersInGroup, myState.RECENTLY_FILTERED_USER_GROUPS);
+  }
+
+  public void addRecentlyFilteredBranchGroup(@NotNull List<String> usersInGroup) {
+    addRecentGroup(usersInGroup, myState.RECENTLY_FILTERED_BRANCH_GROUPS);
+  }
+
+  private static void addRecentGroup(@NotNull List<String> usersInGroup, @NotNull Deque<UserGroup> stateField) {
     UserGroup group = new UserGroup();
     group.users = usersInGroup;
-    if (myState.RECENTLY_FILTERED_USER_GROUPS.contains(group)) {
+    if (stateField.contains(group)) {
       return;
     }
-    myState.RECENTLY_FILTERED_USER_GROUPS.addFirst(group);
-    if (myState.RECENTLY_FILTERED_USER_GROUPS.size() > RECENTLY_FILTERED_USERS_AMOUNT) {
-      myState.RECENTLY_FILTERED_USER_GROUPS.removeLast();
+    stateField.addFirst(group);
+    if (stateField.size() > RECENTLY_FILTERED_USERS_AMOUNT) {
+      stateField.removeLast();
     }
   }
 
   @NotNull
   public List<List<String>> getRecentlyFilteredUserGroups() {
-    return ContainerUtil.map2List(myState.RECENTLY_FILTERED_USER_GROUPS, new Function<UserGroup, List<String>>() {
+    return getRecentGroup(myState.RECENTLY_FILTERED_USER_GROUPS);
+  }
+
+  @NotNull
+  public List<List<String>> getRecentlyFilteredBranchGroups() {
+    return getRecentGroup(myState.RECENTLY_FILTERED_BRANCH_GROUPS);
+  }
+
+  @NotNull
+  private static List<List<String>> getRecentGroup(Deque<UserGroup> stateField) {
+    return ContainerUtil.map2List(stateField, new Function<UserGroup, List<String>>() {
       @Override
       public List<String> fun(UserGroup group) {
         return group.users;
       }
     });
+  }
+
+  public boolean areLongEdgesVisible() {
+    return myState.LONG_EDGES_VISIBLE;
+  }
+
+  public void setLongEdgesVisibility(boolean visible) {
+    myState.LONG_EDGES_VISIBLE = visible;
   }
 
   public static class UserGroup {

@@ -207,7 +207,8 @@ public class Maven3ServerIndexerImpl extends MavenRemoteObject implements MavenS
       throw new MavenServerProcessCanceledException();
     }
     catch (Exception e) {
-      throw new MavenServerIndexerException(wrapException(e));
+      // Disabled in Android Studio, no need to know about this exception
+      // throw new MavenServerIndexerException(wrapException(e));
     }
   }
 

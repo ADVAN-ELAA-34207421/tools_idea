@@ -118,6 +118,12 @@
   <action id="UnselectPreviousOccurrence">
     <keyboard-shortcut first-keystroke="alt shift J"/>
   </action>
+  <action id="SelectAllOccurrences">
+    <keyboard-shortcut first-keystroke="control alt shift J"/>
+  </action>
+  <action id="EditorAddOrRemoveCaret">
+    <mouse-shortcut keystroke="alt shift button1"/>
+  </action>
   <action id="GotoDeclaration">
     <keyboard-shortcut first-keystroke="control B"/>
     <mouse-shortcut keystroke="ctrl button1"/>
@@ -407,6 +413,9 @@
   <action id="CompareDirs">
     <keyboard-shortcut first-keystroke="control D"/>
   </action>
+  <action id="SendEOF">
+    <keyboard-shortcut first-keystroke="control D"/>
+  </action>
   <action id="EditorToggleCase">
     <keyboard-shortcut first-keystroke="control shift U"/>
   </action>
@@ -665,9 +674,6 @@
   </action>
   <action id="EditorChooseLookupItem">
     <keyboard-shortcut first-keystroke="ENTER"/>
-  </action>
-  <action id="EditorChooseLookupItemAlways">
-    <keyboard-shortcut first-keystroke="control ENTER"/>
   </action>
   <action id="Inline">
     <keyboard-shortcut first-keystroke="control alt N"/>

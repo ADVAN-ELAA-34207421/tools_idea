@@ -1509,6 +1509,10 @@
                      key="use.obsolete.collection.type.display.name" groupBundle="messages.InspectionsBundle"
                      groupKey="group.names.code.maturity.issues" enabledByDefault="false" level="WARNING"
                      implementationClass="com.siyeh.ig.maturity.ObsoleteCollectionInspection"/>
+    <localInspection language="JAVA" shortName="UseOfObsoleteDateTimeApi" bundle="com.siyeh.InspectionGadgetsBundle"
+                     key="use.of.obsolete.date.time.api.display.name" groupBundle="messages.InspectionsBundle"
+                     groupKey="group.names.code.maturity.issues" enabledByDefault="false" level="WARNING"
+                     implementationClass="com.siyeh.ig.maturity.UseOfObsoleteDateTimeApiInspection"/>
 
     <!--group.names.memory.issues-->
     <localInspection language="JAVA" shortName="StaticCollection" bundle="com.siyeh.InspectionGadgetsBundle" key="static.collection.display.name"
@@ -1656,6 +1660,10 @@
                      bundle="com.siyeh.InspectionGadgetsBundle" key="method.names.differ.only.by.case.display.name"
                      groupBundle="messages.InspectionsBundle" groupKey="group.names.naming.conventions" enabledByDefault="false"
                      level="WARNING" implementationClass="com.siyeh.ig.naming.MethodNamesDifferOnlyByCaseInspection"/>
+    <localInspection language="JAVA" shortName="NativeMethodNamingConvention"
+                     bundle="com.siyeh.InspectionGadgetsBundle" key="native.method.naming.convention.display.name"
+                     groupBundle="messages.InspectionsBundle" groupKey="group.names.naming.conventions" enabledByDefault="false"
+                     level="WARNING" implementationClass="com.siyeh.ig.naming.NativeMethodNamingConventionInspection"/>
     <localInspection language="JAVA" shortName="NonBooleanMethodNameMayNotStartWithQuestion" bundle="com.siyeh.InspectionGadgetsBundle"
                      key="non.boolean.method.name.must.not.start.with.question.display.name" groupBundle="messages.InspectionsBundle"
                      groupKey="group.names.naming.conventions" enabledByDefault="false" level="WARNING"

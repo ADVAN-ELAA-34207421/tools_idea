@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -207,7 +207,7 @@ public class CompileDriver {
       compileScope = projectScope;
     }
     else {
-      CompileScope scopeWithArtifacts = ArtifactCompileScope.createScopeWithArtifacts(projectScope, ArtifactUtil.getArtifactWithOutputPaths(myProject), false);
+      CompileScope scopeWithArtifacts = ArtifactCompileScope.createScopeWithArtifacts(projectScope, ArtifactUtil.getArtifactWithOutputPaths(myProject));
       compileScope = addAdditionalRoots(scopeWithArtifacts, ALL_EXCEPT_SOURCE_PROCESSING);
     }
     doRebuild(callback, null, true, compileScope);
@@ -280,7 +280,9 @@ public class CompileDriver {
           }
           finally {
             result.set(COMPILE_SERVER_BUILD_STATUS.get(compileContext));
-            CompilerCacheManager.getInstance(myProject).flushCaches();
+            if (!myProject.isDisposed()) {
+              CompilerCacheManager.getInstance(myProject).flushCaches();
+            }
           }
         }
       };
@@ -488,7 +490,11 @@ public class CompileDriver {
     final Collection<String> paths = CompileScopeUtil.fetchFiles(compileContext);
     List<TargetTypeBuildScope> scopes = new ArrayList<TargetTypeBuildScope>();
     final boolean forceBuild = !compileContext.isMake();
-    if (!compileContext.isRebuild() && !CompileScopeUtil.allProjectModulesAffected(compileContext)) {
+    List<TargetTypeBuildScope> explicitScopes = CompileScopeUtil.getBaseScopeForExternalBuild(scope);
+    if (explicitScopes != null) {
+      scopes.addAll(explicitScopes);
+    }
+    else if (!compileContext.isRebuild() && !CompileScopeUtil.allProjectModulesAffected(compileContext)) {
       CompileScopeUtil.addScopesForModules(Arrays.asList(scope.getAffectedModules()), scopes, forceBuild);
     }
     else {
@@ -910,7 +916,7 @@ public class CompileDriver {
       if (!outputs.isEmpty()) {
         final ProgressIndicator indicator = compileContext.getProgressIndicator();
         indicator.setText("Synchronizing output directories...");
-        lfs.refreshIoFiles(outputs, _status == ExitStatus.CANCELLED, false, null);
+        CompilerUtil.refreshOutputDirectories(outputs, _status == ExitStatus.CANCELLED);
         indicator.setText("");
       }
       if (compileContext.isAnnotationProcessorsEnabled() && !myProject.isDisposed()) {
@@ -1210,7 +1216,7 @@ public class CompileDriver {
 
   private void clearAffectedOutputPathsIfPossible(final CompileContextEx context) {
     final List<File> scopeOutputs = new ReadAction<List<File>>() {
-      protected void run(final Result<List<File>> result) {
+      protected void run(@NotNull final Result<List<File>> result) {
         final MultiMap<File, Module> outputToModulesMap = new MultiMap<File, Module>();
         for (Module module : ModuleManager.getInstance(myProject).getModules()) {
           final CompilerModuleExtension compilerModuleExtension = CompilerModuleExtension.getInstance(module);
@@ -1894,40 +1900,33 @@ public class CompileDriver {
       final Set<String> pathsToRemove = new HashSet<String>(cache.getUrls());
 
       final Map<GeneratingCompiler.GenerationItem, String> itemToOutputPathMap = new HashMap<GeneratingCompiler.GenerationItem, String>();
-      final IOException[] ex = {null};
-      ApplicationManager.getApplication().runReadAction(new Runnable() {
-        public void run() {
+      ApplicationManager.getApplication().runReadAction(new ThrowableComputable<Void, IOException>() {
+        @Override
+        public Void compute() throws IOException {
           for (final GeneratingCompiler.GenerationItem item : allItems) {
+
             final Module itemModule = item.getModule();
             final String outputDirPath = CompilerPaths.getGenerationOutputPath(compiler, itemModule, item.isTestSource());
             final String outputPath = outputDirPath + "/" + item.getPath();
             itemToOutputPathMap.put(item, outputPath);
+            final ValidityState savedState = cache.getState(outputPath);
 
-            try {
-              final ValidityState savedState = cache.getState(outputPath);
-
-              if (forceGenerate || savedState == null || !savedState.equalsTo(item.getValidityState())) {
-                final String outputPathUrl = VirtualFileManager.constructUrl(LocalFileSystem.PROTOCOL, outputPath);
-                if (context.getCompileScope().belongs(outputPathUrl)) {
-                  toGenerate.add(item);
-                }
-                else {
-                  pathsToRemove.remove(outputPath);
-                }
+            if (forceGenerate || savedState == null || !savedState.equalsTo(item.getValidityState())) {
+              final String outputPathUrl = VirtualFileManager.constructUrl(LocalFileSystem.PROTOCOL, outputPath);
+              if (context.getCompileScope().belongs(outputPathUrl)) {
+                toGenerate.add(item);
               }
               else {
                 pathsToRemove.remove(outputPath);
               }
             }
-            catch (IOException e) {
-              ex[0] = e;
+            else {
+              pathsToRemove.remove(outputPath);
             }
           }
+          return null;
         }
       });
-      if (ex[0] != null) {
-        throw ex[0];
-      }                   
 
       if (onlyCheckStatus) {
         if (toGenerate.isEmpty() && pathsToRemove.isEmpty()) {
@@ -2508,7 +2507,7 @@ public class CompileDriver {
         final Boolean refreshSuccess =
           new WriteAction<Boolean>() {
             @Override
-            protected void run(Result<Boolean> result) throws Throwable {
+            protected void run(@NotNull Result<Boolean> result) throws Throwable {
               LocalFileSystem.getInstance().refreshIoFiles(nonExistingOutputPaths);
               Boolean res = Boolean.TRUE;
               for (File file : nonExistingOutputPaths) {
@@ -2734,26 +2733,19 @@ public class CompileDriver {
       list.add(new Pair<FileProcessingCompilerStateCache, FileProcessingCompiler.ProcessingItem>(cache, item));
     }
 
-    public void doUpdate() throws IOException{
-      final IOException[] ex = {null};
-      ApplicationManager.getApplication().runReadAction(new Runnable() {
-        public void run() {
-          try {
-            for (Map.Entry<VirtualFile, List<Pair<FileProcessingCompilerStateCache, FileProcessingCompiler.ProcessingItem>>> entry : myData.entrySet()) {
-              for (Pair<FileProcessingCompilerStateCache, FileProcessingCompiler.ProcessingItem> pair : entry.getValue()) {
-                final FileProcessingCompiler.ProcessingItem item = pair.getSecond();
-                pair.getFirst().update(entry.getKey(), item.getValidityState());
-              }
+    public void doUpdate() throws IOException {
+      ApplicationManager.getApplication().runReadAction(new ThrowableComputable<Void, IOException>() {
+        @Override
+        public Void compute() throws IOException {
+          for (Map.Entry<VirtualFile, List<Pair<FileProcessingCompilerStateCache, FileProcessingCompiler.ProcessingItem>>> entry : myData.entrySet()) {
+            for (Pair<FileProcessingCompilerStateCache, FileProcessingCompiler.ProcessingItem> pair : entry.getValue()) {
+              final FileProcessingCompiler.ProcessingItem item = pair.getSecond();
+              pair.getFirst().update(entry.getKey(), item.getValidityState());
             }
           }
-          catch (IOException e) {
-            ex[0] = e;
-          }
+          return null;
         }
       });
-      if (ex[0] != null) {
-        throw ex[0];
-      }
     }
   }
 

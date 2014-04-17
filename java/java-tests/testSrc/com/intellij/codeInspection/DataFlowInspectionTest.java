@@ -79,6 +79,7 @@ public class DataFlowInspectionTest extends LightCodeInsightFixtureTestCase {
 
   public void testIDEA84489() throws Throwable { doTest(); }
   public void testComparingToNotNullShouldNotAffectNullity() throws Throwable { doTest(); }
+  public void testComparingToNullableShouldNotAffectNullity() throws Throwable { doTest(); }
   public void testStringTernaryAlwaysTrue() throws Throwable { doTest(); }
   public void testStringConcatAlwaysNotNull() throws Throwable { doTest(); }
 
@@ -273,6 +274,7 @@ public class DataFlowInspectionTest extends LightCodeInsightFixtureTestCase {
   public void testContractWithNullable() { doTest(); }
   public void testContractPreservesUnknownNullability() { doTest(); }
   public void testContractSeveralClauses() { doTest(); }
+  public void testContractVarargs() { doTest(); }
 
   public void testBoxingImpliesNotNull() { doTest(); }
   public void testLargeIntegersAreNotEqualWhenBoxed() { doTest(); }
@@ -305,6 +307,15 @@ public class DataFlowInspectionTest extends LightCodeInsightFixtureTestCase {
   public void testNotEqualsTypo() { doTest(); }
   public void testAndEquals() { doTest(); }
 
+  public void testUnusedCallDoesNotMakeUnknown() { doTest(); }
+  public void testGettersAndPureNoFlushing() { doTest(); }
+  
+  public void testNotNullAfterDereference() { doTest(); }
+
+  public void testNullableBoolean() { doTest(); }
+
+  public void testSameComparisonTwice() { doTest(); }
+
   public void testParametersAreNonnullByDefault() {
     myFixture.addClass("package javax.annotation; public @interface ParametersAreNonnullByDefault {}");
     myFixture.addClass("package javax.annotation; public @interface ParametersAreNullableByDefault {}");
@@ -313,6 +324,12 @@ public class DataFlowInspectionTest extends LightCodeInsightFixtureTestCase {
     myFixture.addFileToProject("foo/package-info.java", "@javax.annotation.ParametersAreNonnullByDefault package foo;");
     
     doTest(); 
+  }
+
+  public void testTrueOrEqualsSomething() {
+    doTest();
+    myFixture.launchAction(myFixture.findSingleIntention("Remove redundant assignment"));
+    myFixture.checkResultByFile(getTestName(false) + "_after.java");
   }
   
   public void _testNullCheckBeforeInstanceof() { doTest(); } // http://youtrack.jetbrains.com/issue/IDEA-113220

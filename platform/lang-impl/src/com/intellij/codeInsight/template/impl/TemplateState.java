@@ -362,11 +362,11 @@ public class TemplateState implements Disposable {
           mySegments.addSegment(segmentOffset, segmentOffset);
         }
 
-        LOG.assertTrue(myTemplateRange.isValid(), myTemplateRange.toString());
+        LOG.assertTrue(myTemplateRange.isValid(), getRangesDebugInfo());
         calcResults(false);
-        LOG.assertTrue(myTemplateRange.isValid(), myTemplateRange.toString());
+        LOG.assertTrue(myTemplateRange.isValid(), getRangesDebugInfo());
         calcResults(false);  //Fixed SCR #[vk500] : all variables should be recalced twice on start.
-        LOG.assertTrue(myTemplateRange.isValid(), myTemplateRange.toString());
+        LOG.assertTrue(myTemplateRange.isValid(), getRangesDebugInfo());
         doReformat(null);
 
         int nextVariableNumber = getNextVariableNumber(-1);
@@ -390,6 +390,16 @@ public class TemplateState implements Disposable {
         } 
       }
     });
+  }
+
+  private String getRangesDebugInfo() {
+    return myTemplateRange.toString() +
+           "\ntemplateKey: " +
+           myTemplate.getKey() +
+           "\ntemplateText: " +
+           myTemplate.getTemplateText() +
+           "\ntemplateString: " +
+           myTemplate.getString();
   }
 
   private void doReformat(final TextRange range) {
@@ -618,7 +628,7 @@ public class TemplateState implements Disposable {
     PsiDocumentManager.getInstance(myProject).doPostponedOperationsAndUnblockDocument(myDocument);
   }
 
-  // Hours spent fixing code : 1
+  // Hours spent fixing code : 3
   void calcResults(final boolean isQuick) {
     if (myProcessor != null && myCurrentVariableNumber >= 0) {
       final String variableName = myTemplate.getVariableNameAt(myCurrentVariableNumber);
@@ -630,6 +640,8 @@ public class TemplateState implements Disposable {
         }
       }
     }
+
+    fixOverlappedSegments(myCurrentSegmentNumber);
 
     ApplicationManager.getApplication().runWriteAction(new Runnable() {
       @Override
@@ -682,6 +694,19 @@ public class TemplateState implements Disposable {
     });
   }
 
+  private void fixOverlappedSegments(int currentSegment) {
+    if (currentSegment >= 0) {
+      int currentSegmentStart = mySegments.getSegmentStart(currentSegment);
+      int currentSegmentEnd = mySegments.getSegmentEnd(currentSegment);
+      for (int i = currentSegment + 1; i < mySegments.getSegmentsCount(); i++) {
+        final int startOffset = mySegments.getSegmentStart(i);
+        if (currentSegmentStart <= startOffset && startOffset < currentSegmentEnd) {
+          mySegments.replaceSegmentAt(i, currentSegmentEnd, Math.max(mySegments.getSegmentEnd(i), currentSegmentEnd), true);
+        }
+      }
+    }
+  }
+
   @NotNull
   private String getVariableValueText(String variableName) {
     TextResult value = getVariableValue(variableName);
@@ -726,18 +751,13 @@ public class TemplateState implements Disposable {
     String oldText = myDocument.getCharsSequence().subSequence(start, end).toString();
 
     if (!oldText.equals(newValue)) {
-      int segmentNumberWithTheSameStart = mySegments.getSegmentWithTheSameStart(segmentNumber, start);
       mySegments.setNeighboursGreedy(segmentNumber, false);
       myDocument.replaceString(start, end, newValue);
       int newEnd = start + newValue.length();
       mySegments.replaceSegmentAt(segmentNumber, start, newEnd);
       mySegments.setNeighboursGreedy(segmentNumber, true);
 
-      if (segmentNumberWithTheSameStart != -1) {
-        mySegments.replaceSegmentAt(segmentNumberWithTheSameStart, newEnd,
-                                    newEnd + mySegments.getSegmentEnd(segmentNumberWithTheSameStart) -
-                                    mySegments.getSegmentStart(segmentNumberWithTheSameStart));
-      }
+      fixOverlappedSegments(segmentNumber);
     }
   }
 
@@ -998,10 +1018,7 @@ public class TemplateState implements Disposable {
           if (e instanceof MacroCallNode) {
             marker = ((MacroCallNode)e).getMacro().getDefaultValue();
           }
-          int start = mySegments.getSegmentStart(i);
-          int end = start + marker.length();
-          myDocument.insertString(start, marker);
-          mySegments.replaceSegmentAt(i, start, end);
+          replaceString(marker, mySegments.getSegmentStart(i), mySegments.getSegmentEnd(i), i);
           indices.add(i);
           break;
         }

@@ -18,11 +18,10 @@ package com.intellij.psi;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Computable;
-import com.intellij.openapi.util.Pair;
 import com.intellij.pom.java.LanguageLevel;
 import com.intellij.psi.infos.MethodCandidateInfo;
 import com.intellij.psi.util.*;
-import org.jetbrains.annotations.NonNls;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,8 +32,8 @@ import java.util.*;
  * Date: 7/17/12
  */
 public class LambdaUtil {
+  public static ThreadLocal<Map<PsiElement, PsiType>> ourFunctionTypes = new ThreadLocal<Map<PsiElement, PsiType>>();
   private static final Logger LOG = Logger.getInstance("#" + LambdaUtil.class.getName());
-  @NonNls public static final String JAVA_LANG_FUNCTIONAL_INTERFACE = "java.lang.FunctionalInterface";
 
   @Nullable
   public static PsiType getFunctionalInterfaceReturnType(PsiLambdaExpression expr) {
@@ -72,12 +71,14 @@ public class LambdaUtil {
 
   @Nullable
   public static PsiMethod getFunctionalInterfaceMethod(PsiClassType.ClassResolveResult result) {
-    final PsiClass psiClass = result.getElement();
-    if (psiClass != null) {
-      final MethodSignature methodSignature = getFunction(psiClass);
-      if (methodSignature != null) {
-        return getMethod(psiClass, methodSignature);
-      }
+    return getFunctionalInterfaceMethod(result.getElement());
+  }
+
+  @Nullable
+  public static PsiMethod getFunctionalInterfaceMethod(PsiClass aClass) {
+    final MethodSignature methodSignature = getFunction(aClass);
+    if (methodSignature != null) {
+      return getMethod(aClass, methodSignature);
     }
     return null;
   }
@@ -106,8 +107,11 @@ public class LambdaUtil {
         if (isFunctionalType(type1)) return true;
       }
     }
-    final PsiClassType.ClassResolveResult resolveResult = PsiUtil.resolveGenericsClassInType(GenericsUtil.eliminateWildcards(type));
-    final PsiClass aClass = resolveResult.getElement();
+    return isFunctionalClass(PsiUtil.resolveGenericsClassInType(type).getElement());
+  }
+
+  @Contract("null -> false")
+  public static boolean isFunctionalClass(PsiClass aClass) {
     if (aClass != null) {
       if (aClass instanceof PsiTypeParameter) return false;
       final List<MethodSignature> signatures = findFunctionCandidates(aClass);
@@ -115,7 +119,7 @@ public class LambdaUtil {
     }
     return false;
   }
-  
+
   public static boolean isValidLambdaContext(@Nullable PsiElement context) {
     return context instanceof PsiTypeCastExpression ||
            context instanceof PsiAssignmentExpression ||
@@ -192,9 +196,6 @@ public class LambdaUtil {
 
   @Nullable
   public static List<MethodSignature> findFunctionCandidates(PsiClass psiClass) {
-    if (psiClass instanceof PsiAnonymousClass) {
-      psiClass = PsiUtil.resolveClassInType(((PsiAnonymousClass)psiClass).getBaseClassType());
-    }
     if (psiClass != null && psiClass.isInterface() && !psiClass.isAnnotationType()) {
       final List<MethodSignature> methods = new ArrayList<MethodSignature>();
       final Collection<HierarchicalMethodSignature> visibleSignatures = psiClass.getVisibleSignatures();
@@ -311,6 +312,21 @@ public class LambdaUtil {
 
         if (gParent instanceof PsiCall) {
           final PsiCall contextCall = (PsiCall)gParent;
+          final MethodCandidateInfo.CurrentCandidateProperties properties = MethodCandidateInfo.getCurrentMethod(contextCall.getArgumentList());
+          if (properties != null && properties.isApplicabilityCheck()) { //todo simplification
+            final PsiParameter[] parameters = properties.getMethod().getParameterList().getParameters();
+            final int finalLambdaIdx = adjustLambdaIdx(lambdaIdx, properties.getMethod(), parameters);
+            if (finalLambdaIdx < parameters.length) {
+              return properties.getSubstitutor().substitute(getNormalizedType(parameters[finalLambdaIdx]));
+            }
+          }
+          final Map<PsiElement, PsiType> map = ourFunctionTypes.get();
+          if (map != null) {
+            final PsiType type = map.get(expression);
+            if (type != null) {
+              return type;
+            }
+          }
           final JavaResolveResult resolveResult = contextCall.resolveMethodGenerics();
             final PsiElement resolve = resolveResult.getElement();
             if (resolve instanceof PsiMethod) {
@@ -414,7 +430,7 @@ public class LambdaUtil {
 
   @Nullable
   public static String checkFunctionalInterface(@NotNull PsiAnnotation annotation, @NotNull LanguageLevel languageLevel) {
-    if (languageLevel.isAtLeast(LanguageLevel.JDK_1_8) && Comparing.strEqual(annotation.getQualifiedName(), JAVA_LANG_FUNCTIONAL_INTERFACE)) {
+    if (languageLevel.isAtLeast(LanguageLevel.JDK_1_8) && Comparing.strEqual(annotation.getQualifiedName(), CommonClassNames.JAVA_LANG_FUNCTIONAL_INTERFACE)) {
       final PsiAnnotationOwner owner = annotation.getOwner();
       if (owner instanceof PsiModifierList) {
         final PsiElement parent = ((PsiModifierList)owner).getParent();
@@ -454,8 +470,8 @@ public class LambdaUtil {
       if (parent instanceof PsiExpressionList) {
         final PsiElement gParent = parent.getParent();
         if (gParent instanceof PsiCall) {
-          final Pair<PsiMethod, PsiSubstitutor> pair = MethodCandidateInfo.getCurrentMethod(parent);
-          myMethod = pair != null ? pair.first : null;
+          final MethodCandidateInfo.CurrentCandidateProperties pair = MethodCandidateInfo.getCurrentMethod(parent);
+          myMethod = pair != null ? pair.getMethod() : null;
           if (myMethod == null) {
             myMethod = ((PsiCall)gParent).resolveMethod();
           }

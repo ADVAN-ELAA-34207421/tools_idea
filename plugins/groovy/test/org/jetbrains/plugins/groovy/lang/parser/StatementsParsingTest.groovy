@@ -150,6 +150,8 @@ public class StatementsParsingTest extends GroovyParsingTestCase {
   public void testTuples$tupleWithoutDef() throws Throwable { doTest(); }
   public void testTypedef$classes$abstr() throws Throwable { doTest(); }
   public void testTypedef$classes$class1() throws Throwable { doTest(); }
+  public void testTypedef$classes$class10() throws Throwable { doTest(); }
+  public void testTypedef$classes$class11() throws Throwable { doTest(); }
   public void testTypedef$classes$class2() throws Throwable { doTest(); }
   public void testTypedef$classes$class3() throws Throwable { doTest(); }
   public void testTypedef$classes$class4() throws Throwable { doTest(); }
@@ -200,6 +202,7 @@ public class StatementsParsingTest extends GroovyParsingTestCase {
   public void testTypedef$interfaces$members$member5() throws Throwable { doTest(); }
   public void testTypedef$interfaces$members$member6() throws Throwable { doTest(); }
   public void testTypedef$interfaces$members$memeber7() throws Throwable { doTest(); }
+  public void testTypedef$traits$trait1() {doTest()}
   public void testTypedef$methods$method2() throws Throwable { doTest(); }
   public void testTypedef$methods$method3() throws Throwable { doTest(); }
   public void testTypedef$methods$method4() throws Throwable { doTest(); }
