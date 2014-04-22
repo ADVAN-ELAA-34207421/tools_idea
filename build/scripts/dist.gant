@@ -232,7 +232,8 @@ private layoutUnix(Map _args, String home, Paths paths) {
     }
   }
 
-  ant.copy(file: "$home/../adt/idea/adt-branding/src/artwork/icon_AS.png", tofile: "$target/bin/idea.png")
+  ant.copy(file: "$home/../adt/idea/adt-branding/src/artwork/icon_AS_128.png", tofile: "$target/bin/idea.png")
+  ant.copy(file: "$home/../adt/idea/adt-branding/src/artwork/androidstudio.ico", tofile: "$target/bin/androidstudio.ico")
 
   // Manual updater script
   ant.copy(file: "$home/../adt/idea/native/update_studio.sh", tofile: "$target/bin/update_studio.sh")
