@@ -24,16 +24,13 @@ import com.intellij.idea.StartupUtil;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.util.IconLoader;
 import com.intellij.openapi.util.SystemInfo;
-import com.intellij.ui.ClickListener;
 import com.intellij.util.IconUtil;
 import com.intellij.util.PlatformUtils;
 import com.intellij.util.ui.UIUtil;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -44,7 +41,6 @@ public class CustomizeUIThemeStepPanel extends AbstractCustomizeWizardStep {
   private static final String INTELLIJ = "IntelliJ";
   private static final String ALLOY = "Alloy. IDEA Theme";
   private static final String GTK = "GTK+";
-  private Component myDefaultFocusedComponent;
   private boolean myInitial = true;
   private boolean myColumnMode;
   private JLabel myPreviewLabel;
@@ -57,7 +53,6 @@ public class CustomizeUIThemeStepPanel extends AbstractCustomizeWizardStep {
     if (SystemInfo.isMac) {
       myLafNames.put(DEFAULT, IconLoader.getIcon("/lafs/OSXAqua.png"));
       myLafNames.put(DARCULA, IconLoader.getIcon("/lafs/OSXDarcula.png"));
-      myLafNames.put(INTELLIJ, IconLoader.getIcon("/lafs/WindowsIntelliJ.png"));
     }
     else if (SystemInfo.isWindows) {
       if (PlatformUtils.isIdeaCommunity()) {
@@ -82,18 +77,18 @@ public class CustomizeUIThemeStepPanel extends AbstractCustomizeWizardStep {
       final String lafName = entry.getKey();
       Icon icon = entry.getValue();
       final JRadioButton radioButton = new JRadioButton(lafName, myDefaultLafName == null);
+      radioButton.setOpaque(false);
       if (myDefaultLafName == null) {
         radioButton.setSelected(true);
-        myDefaultFocusedComponent = radioButton;
         myDefaultLafName = lafName;
       }
-      final JPanel panel = new JPanel(new BorderLayout(10, 10)) {
+      final JPanel panel = createBigButtonPanel(new BorderLayout(10, 10), radioButton, new Runnable() {
         @Override
-        public Color getBackground() {
-          return radioButton.isSelected() ? UIUtil.getListSelectionBackground() : super.getBackground();
+        public void run() {
+          applyLaf(lafName, CustomizeUIThemeStepPanel.this);
         }
-      };
-      panel.setOpaque(true);
+      });
+      panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
       panel.add(radioButton, BorderLayout.NORTH);
       final JLabel label = new JLabel(myColumnMode ? IconUtil.scale(icon, .2) : icon) {
         @Override
@@ -103,23 +98,8 @@ public class CustomizeUIThemeStepPanel extends AbstractCustomizeWizardStep {
           return size;
         }
       };
-
+      label.setVerticalAlignment(SwingConstants.TOP);
       panel.add(label, BorderLayout.CENTER);
-      new ClickListener(){
-        @Override
-        public boolean onClick(@NotNull MouseEvent event, int clickCount) {
-          radioButton.setSelected(true);
-          applyLaf(lafName, CustomizeUIThemeStepPanel.this);
-          return true;
-        }
-      }.installOn(label);
-      radioButton.addItemListener(new ItemListener() {
-        @Override
-        public void itemStateChanged(ItemEvent e) {
-          if (e.getStateChange() != ItemEvent.SELECTED) return;
-          applyLaf(lafName, CustomizeUIThemeStepPanel.this);
-        }
-      });
 
       group.add(radioButton);
       buttonsPanel.add(panel);
@@ -134,11 +114,6 @@ public class CustomizeUIThemeStepPanel extends AbstractCustomizeWizardStep {
     }
     applyLaf(myDefaultLafName, this);
     myInitial = false;
-  }
-
-  @Override
-  Component getDefaultFocusedComponent() {
-    return myDefaultFocusedComponent;
   }
 
   @Override
@@ -178,6 +153,7 @@ public class CustomizeUIThemeStepPanel extends AbstractCustomizeWizardStep {
       }
       Window window = SwingUtilities.getWindowAncestor(component);
       if (window != null) {
+        window.setBackground(new Color(UIUtil.getPanelBackground().getRGB()));
         SwingUtilities.updateComponentTreeUI(window);
       }
       if (ApplicationManager.getApplication() != null) {
@@ -204,7 +180,7 @@ public class CustomizeUIThemeStepPanel extends AbstractCustomizeWizardStep {
 
   @Nullable
   private static UIManager.LookAndFeelInfo getLookAndFeelInfo(String name) {
-    if (DEFAULT.equals(name)) return new UIManager.LookAndFeelInfo(DEFAULT, "apple.laf.AquaLookAndFeel");
+    if (DEFAULT.equals(name)) return new UIManager.LookAndFeelInfo(DEFAULT, "com.apple.laf.AquaLookAndFeel");
     if (DARCULA.equals(name)) return new UIManager.LookAndFeelInfo(DARCULA, DarculaLaf.class.getName());
     if (INTELLIJ.equals(name)) return new UIManager.LookAndFeelInfo(INTELLIJ, IntelliJLaf.class.getName());
     if (ALLOY.equals(name)) return new UIManager.LookAndFeelInfo(ALLOY, "com.incors.plaf.alloy.AlloyIdea");
