@@ -15,19 +15,69 @@
  */
 package com.intellij.ide.customize;
 
+import com.intellij.ui.ClickListener;
+import com.intellij.ui.ColorUtil;
+import com.intellij.util.ui.UIUtil;
+import org.jetbrains.annotations.NotNull;
+
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.MouseEvent;
 
 public abstract class AbstractCustomizeWizardStep extends JPanel {
   protected static final int GAP = 20;
 
-  abstract String getTitle();
+  protected abstract String getTitle();
 
-  abstract String getHTMLHeader();
+  protected abstract String getHTMLHeader();
 
-  abstract String getHTMLFooter();
+  protected abstract String getHTMLFooter();
+
+  @NotNull
+  protected static Color getSelectionBackground() {
+    return ColorUtil.mix(UIUtil.getListSelectionBackground(), UIUtil.getLabelBackground(), .75);
+  }
+
+  protected static JPanel createBigButtonPanel(LayoutManager layout, final JToggleButton anchorButton, final Runnable action) {
+    final JPanel panel = new JPanel(layout) {
+      @Override
+      public Color getBackground() {
+        return anchorButton.isSelected() ? getSelectionBackground() : super.getBackground();
+      }
+    };
+    panel.setOpaque(anchorButton.isSelected());
+    new ClickListener() {
+      @Override
+      public boolean onClick(@NotNull MouseEvent event, int clickCount) {
+        anchorButton.setSelected(true);
+        return true;
+      }
+    }.installOn(panel);
+    anchorButton.addItemListener(new ItemListener() {
+      boolean curState = anchorButton.isSelected();
+      @Override
+      public void itemStateChanged(ItemEvent e) {
+        if (e.getStateChange() == ItemEvent.SELECTED && curState != anchorButton.isSelected()) {
+          action.run();
+        }
+        curState = anchorButton.isSelected();
+        panel.setOpaque(curState);
+        panel.repaint();
+      }
+    });
+    return panel;
+  }
 
   Component getDefaultFocusedComponent() {
     return null;
+  }
+
+  public void beforeShown(boolean forward) {
+  }
+
+  public boolean beforeOkAction() {
+    return true;
   }
 }
