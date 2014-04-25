@@ -277,7 +277,7 @@ public class MapReduceIndex<Key, Value, Input> implements UpdatableIndex<Key,Val
 
   @NotNull
   @Override
-  public final Computable<Boolean> update(final int inputId, @Nullable final Input content) {
+  public final Computable<Boolean> update(final int inputId, @Nullable Input content) {
 
     final Map<Key, Value> data = content != null ? myIndexer.map(content) : Collections.<Key, Value>emptyMap();
 
@@ -286,24 +286,41 @@ public class MapReduceIndex<Key, Value, Input> implements UpdatableIndex<Key,Val
     final NotNullComputable<Collection<Key>> oldKeysGetter;
     final int savedInputId;
 
-    if (myHasSnapshotMapping && !((MemoryIndexStorage)getStorage()).isBufferingEnabled()) {
-      oldKeysGetter = new NotNullComputable<Collection<Key>>() {
+    boolean weProcessPhysicalContent = content == null ||
+                                       (content instanceof FileContent &&
+                                        ((FileContent)content).getUserData(FileBasedIndexImpl.ourPhysicalContentKey) != null);
+
+    if (myHasSnapshotMapping && weProcessPhysicalContent) {
+      try { // optimistically (out of index update write section) read current snapshot keys for file
+        final Integer hashId = myInputsSnapshotMapping.get(inputId);
+        final Collection<Key> keys = hashId != null ? mySnapshotMapping.get(hashId): null;
+
+        oldKeysGetter = new NotNullComputable<Collection<Key>>() {
         @NotNull
         @Override
         public Collection<Key> compute() {
-          try {
-            Integer hashId = myInputsSnapshotMapping.get(inputId);
-            Collection<Key> keys = hashId != null ? mySnapshotMapping.get(hashId): null;
-            return keys == null ? Collections.<Key>emptyList() : keys;
-          } catch (IOException e) {
-            throw new RuntimeException(e);
+            try {
+              Integer currentHashId = myInputsSnapshotMapping.get(inputId);
+              Collection<Key> currentKeys;
+              if ((currentHashId == null && hashId == null)  || (currentHashId != null && currentHashId.equals(hashId))) {
+                currentKeys = keys;
+              } else { // optimistic reading file's current keys failed
+                currentKeys = currentHashId != null ? mySnapshotMapping.get(currentHashId): null;
+              }
+
+              return currentKeys == null ? Collections.<Key>emptyList() : currentKeys;
+            } catch (IOException e) {
+              throw new RuntimeException(e);
+            }
           }
-        }
-      };
-      try {
+        };
+
         if (content instanceof FileContent) {
           FileContent fileContent = (FileContent)content;
           savedInputId = ContentHashesSupport.calcContentHashIdWithFileType(fileContent.getContent(), fileContent.getFileType());
+          if (!mySnapshotMapping.containsMapping(savedInputId)) { // save current snapshot keys out of index update write section
+            mySnapshotMapping.put(savedInputId, data.keySet());
+          }
         } else {
           savedInputId = NULL_MAPPING;
         }
@@ -395,9 +412,6 @@ public class MapReduceIndex<Key, Value, Input> implements UpdatableIndex<Key,Val
 
       try {
         if (myHasSnapshotMapping && !((MemoryIndexStorage)getStorage()).isBufferingEnabled()) {
-          if (savedInputId != NULL_MAPPING && !mySnapshotMapping.containsMapping(savedInputId)) {
-            mySnapshotMapping.put(savedInputId, newData.keySet());
-          }
           myInputsSnapshotMapping.put(inputId, savedInputId);
         } else if (myInputsIndex != null) {
           final Set<Key> newKeys = newData.keySet();
