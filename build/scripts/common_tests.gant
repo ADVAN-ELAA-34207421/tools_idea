@@ -61,7 +61,12 @@ target('run_tests': 'Run java tests') {
       };
     }
 
-    commonJvmArgs().each { jvmarg(value: it) }
+    commonJvmArgs().each {
+        if (!it.startsWith("-Xdebug") && !it.startsWith("-Xrunjdwp")) { // don't run tests with debug enabled
+            jvmarg(value: it)
+        }
+    }
+
 
     if (isDefined("jvm_args")) {
       jvm_args.each { jvmarg(value: it) }
