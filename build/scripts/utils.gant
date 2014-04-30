@@ -235,9 +235,10 @@ binding.setVariable("commonJvmArgs", {
    "-Xbootclasspath/p:${projectBuilder.moduleOutput(findModule("boot"))}",
    "-XX:+HeapDumpOnOutOfMemoryError",
    "-Didea.system.path=${p("teamcity.build.tempDir")}/system",
-   "-Didea.config.path=${p("teamcity.build.tempDir")}/config",
-   "-Xdebug",
-   "-Xrunjdwp:transport=dt_socket,server=y,suspend=$suspendUntilDebuggerConnect,address=$debugPort"]
+   "-Didea.config.path=${p("teamcity.build.tempDir")}/config"]
+   // We don't want this on the Jenkins build server
+   // "-Xdebug",
+   // "-Xrunjdwp:transport=dt_socket,server=y,suspend=$suspendUntilDebuggerConnect,address=$debugPort"]
 })
 
 binding.setVariable("classPathLibs", [
