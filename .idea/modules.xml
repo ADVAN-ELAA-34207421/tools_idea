@@ -15,7 +15,6 @@
       <module fileurl="file://$PROJECT_DIR$/platform/analysis-impl/analysis-impl.iml" filepath="$PROJECT_DIR$/platform/analysis-impl/analysis-impl.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/../adt/idea/android/android.iml" filepath="$PROJECT_DIR$/../adt/idea/android/android.iml" group="plugins/Android" />
       <module fileurl="file://$PROJECT_DIR$/../adt/idea/android/common/android-common.iml" filepath="$PROJECT_DIR$/../adt/idea/android/common/android-common.iml" group="plugins/Android" />
-      <module fileurl="file://$PROJECT_DIR$/../adt/idea/android-designer/android-designer.iml" filepath="$PROJECT_DIR$/../adt/idea/android-designer/android-designer.iml" group="plugins/Android" />
       <module fileurl="file://$PROJECT_DIR$/../adt/idea/android-gradle-jps/android-gradle-jps.iml" filepath="$PROJECT_DIR$/../adt/idea/android-gradle-jps/android-gradle-jps.iml" group="plugins/Android" />
       <module fileurl="file://$PROJECT_DIR$/../adt/idea/android/jps-plugin/android-jps-plugin.iml" filepath="$PROJECT_DIR$/../adt/idea/android/jps-plugin/android-jps-plugin.iml" group="plugins/Android" />
       <module fileurl="file://$PROJECT_DIR$/../adt/idea/android/rt/android-rt.iml" filepath="$PROJECT_DIR$/../adt/idea/android/rt/android-rt.iml" group="plugins/Android" />
