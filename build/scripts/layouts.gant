@@ -762,14 +762,6 @@ def layoutAndroid() {
         }
       }
     }
-
-    dir("android-designer") {
-      dir("lib") {
-        jar("android-designer.jar") {
-          module("android-designer")
-        }
-      }
-    }
   }
 }
 
