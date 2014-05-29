@@ -30,6 +30,8 @@ import com.intellij.util.Processor;
 import com.intellij.util.containers.Convertor;
 import junit.framework.Assert;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.idea.svn.auth.SvnAuthenticationManager;
+import org.jetbrains.idea.svn.auth.SvnAuthenticationNotifier;
 import org.jetbrains.idea.svn.checkout.SvnCheckoutProvider;
 import org.junit.Before;
 import org.tmatesoft.svn.core.*;
@@ -605,7 +607,7 @@ public class SvnNativeClientAuthTest extends Svn17TestCase {
 
   private void testBrowseRepositoryImpl(final String url) throws SVNException {
     final List<SVNDirEntry> list = new ArrayList<SVNDirEntry>();
-    final SVNRepository repository = myVcs.createRepository(url);
+    final SVNRepository repository = myVcs.getSvnKitManager().createRepository(url);
     repository.getDir(".", -1, null, new ISVNDirEntryHandler() {
       @Override
       public void handleDirEntry(SVNDirEntry dirEntry) throws SVNException {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -360,7 +360,7 @@ public class Mappings {
             final Collection<MethodRepr> methods = r.findMethods(predicate);
             for (MethodRepr mm : methods) {
               if (isVisibleIn(fromClass, m, r)) {
-                container.add(new Pair<MethodRepr, ClassRepr>(mm, r));
+                container.add(Pair.create(mm, r));
                 cont = false;
               }
             }
@@ -413,7 +413,7 @@ public class Mappings {
           final Collection<MethodRepr> methods = superClass.findMethods(predicate);
           for (MethodRepr mm : methods) {
             if (isVisibleIn(superClass, mm, fromClass)) {
-              container.add(new Pair<MethodRepr, ClassRepr>(mm, superClass));
+              container.add(Pair.create(mm, superClass));
               cont = false;
             }
           }
@@ -422,7 +422,7 @@ public class Mappings {
           }
         }
         else {
-          container.add(new Pair<MethodRepr, ClassRepr>(MOCK_METHOD, MOCK_CLASS));
+          container.add(Pair.create(MOCK_METHOD, MOCK_CLASS));
         }
       }
     }
@@ -433,7 +433,7 @@ public class Mappings {
         if (superClass != null) {
           final FieldRepr ff = superClass.findField(f.name);
           if (ff != null && isVisibleIn(superClass, ff, fromClass)) {
-            container.add(new Pair<FieldRepr, ClassRepr>(ff, superClass));
+            container.add(Pair.create(ff, superClass));
           }
           else{
             addOverriddenFields(f, superClass, container);
@@ -2074,23 +2074,36 @@ public class Mappings {
             @Override
             public boolean execute(final int superClass) {
               final TIntHashSet added = addedSuperClasses.get(superClass);
-              final TIntHashSet removed = removedSuperClasses.get(superClass);
+              TIntHashSet removed = removedSuperClasses.get(superClass);
 
               final TIntHashSet old = myClassToSubclasses.get(superClass);
 
               if (old == null) {
-                myClassToSubclasses.replace(superClass, added);
+                if (added != null && !added.isEmpty()) {
+                  myClassToSubclasses.replace(superClass, added);
+                }
               }
               else {
-                if (removed != null) {
-                  old.removeAll(removed.toArray());
+                boolean changed = false;
+                final int[] addedAsArray = added != null && !added.isEmpty()? added.toArray() : null;
+                if (removed != null && !removed.isEmpty()) {
+                  if (addedAsArray != null) {
+                    // optimization: avoid unnecessary changes in the set
+                    removed = (TIntHashSet)removed.clone();
+                    removed.removeAll(addedAsArray);
+                  }
+                  if (!removed.isEmpty()) {
+                    changed = old.removeAll(removed.toArray());
+                  }
                 }
 
-                if (added != null) {
-                  old.addAll(added.toArray());
+                if (addedAsArray != null) {
+                  changed |= old.addAll(addedAsArray);
                 }
 
-                myClassToSubclasses.replace(superClass, old);
+                if (changed) {
+                  myClassToSubclasses.replace(superClass, old);
+                }
               }
 
               return true;

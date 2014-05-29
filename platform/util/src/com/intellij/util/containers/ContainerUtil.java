@@ -313,7 +313,7 @@ public class ContainerUtil extends ContainerUtilRt {
     return CHM_FACTORY.createMap();
   }
 
-  public static <K, V> ConcurrentMap<K,V> newConcurrentMap(TObjectHashingStrategy<K> hashStrategy) {
+  public static <K, V> ConcurrentMap<K,V> newConcurrentMap(@NotNull TObjectHashingStrategy<K> hashStrategy) {
     return CHM_FACTORY.createMap(hashStrategy);
   }
 
@@ -321,7 +321,7 @@ public class ContainerUtil extends ContainerUtilRt {
     return CHM_FACTORY.createMap(initialCapacity);
   }
 
-  public static <K, V> ConcurrentMap<K,V> newConcurrentMap(int initialCapacity, float loadFactor, int concurrencyLevel, TObjectHashingStrategy<K> hashStrategy) {
+  public static <K, V> ConcurrentMap<K,V> newConcurrentMap(int initialCapacity, float loadFactor, int concurrencyLevel, @NotNull TObjectHashingStrategy<K> hashStrategy) {
     return CHM_FACTORY.createMap(initialCapacity, loadFactor, concurrencyLevel, hashStrategy);
   }
 
@@ -450,8 +450,8 @@ public class ContainerUtil extends ContainerUtilRt {
   }
 
   @NotNull
-  public static <K, V> Map<K,Pair<V,V>> diff(@NotNull Map<K, V> map1, @NotNull Map<K, V> map2) {
-    final Map<K, Pair<V,V>> res = newHashMap();
+  public static <K, V> Map<K,Couple<V>> diff(@NotNull Map<K, V> map1, @NotNull Map<K, V> map2) {
+    final Map<K, Couple<V>> res = newHashMap();
     final Set<K> keys = newHashSet();
     keys.addAll(map1.keySet());
     keys.addAll(map2.keySet());
@@ -459,7 +459,7 @@ public class ContainerUtil extends ContainerUtilRt {
       V v1 = map1.get(k);
       V v2 = map2.get(k);
       if (!(v1 == v2 || v1 != null && v1.equals(v2))) {
-        res.put(k, Pair.create(v1, v2));
+        res.put(k, Couple.newOne(v1, v2));
       }
     }
     return res;
@@ -698,6 +698,15 @@ public class ContainerUtil extends ContainerUtilRt {
   public static <T> boolean process(@NotNull T[] iterable, @NotNull Processor<? super T> processor) {
     for (final T t : iterable) {
       if (!processor.process(t)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  public static <T> boolean process(@NotNull Iterator<T> iterator, @NotNull Processor<? super T> processor) {
+    while (iterator.hasNext()) {
+      if (!processor.process(iterator.next())) {
         return false;
       }
     }
@@ -2057,45 +2066,53 @@ public class ContainerUtil extends ContainerUtilRt {
   }
 
   private interface ConcurrentMapFactory {
-    <T, V> ConcurrentMap<T, V> createMap();
-    <T, V> ConcurrentMap<T, V> createMap(int initialCapacity);
-    <T, V> ConcurrentMap<T, V> createMap(TObjectHashingStrategy<T> hashStrategy);
-    <T, V> ConcurrentMap<T, V> createMap(int initialCapacity, float loadFactor, int concurrencyLevel);
-    <T, V> ConcurrentMap<T, V> createMap(int initialCapacity, float loadFactor, int concurrencyLevel, TObjectHashingStrategy<T> hashStrategy);
+    @NotNull <T, V> ConcurrentMap<T, V> createMap();
+    @NotNull <T, V> ConcurrentMap<T, V> createMap(int initialCapacity);
+    @NotNull <T, V> ConcurrentMap<T, V> createMap(@NotNull TObjectHashingStrategy<T> hashStrategy);
+    @NotNull <T, V> ConcurrentMap<T, V> createMap(int initialCapacity, float loadFactor, int concurrencyLevel);
+    @NotNull <T, V> ConcurrentMap<T, V> createMap(int initialCapacity, float loadFactor, int concurrencyLevel, @NotNull TObjectHashingStrategy<T> hashStrategy);
   }
 
   private static final ConcurrentMapFactory V8_MAP_FACTORY = new ConcurrentMapFactory() {
+    @NotNull
     public <T, V> ConcurrentMap<T, V> createMap() {
       return new ConcurrentHashMap<T,V>();
     }
 
+    @NotNull
     public <T, V> ConcurrentMap<T, V> createMap(int initialCapacity) {
       return new ConcurrentHashMap<T,V>(initialCapacity);
     }
 
-    public <T, V> ConcurrentMap<T, V> createMap(TObjectHashingStrategy<T> hashStrategy) {
+    @NotNull
+    public <T, V> ConcurrentMap<T, V> createMap(@NotNull TObjectHashingStrategy<T> hashStrategy) {
       return new ConcurrentHashMap<T,V>(hashStrategy);
     }
 
+    @NotNull
     public <T, V> ConcurrentMap<T, V> createMap(int initialCapacity, float loadFactor, int concurrencyLevel) {
       return new ConcurrentHashMap<T,V>(initialCapacity, loadFactor, concurrencyLevel);
     }
 
+    @NotNull
     public <T, V> ConcurrentMap<T, V> createMap(int initialCapacity, float loadFactor, int concurrencyLevel, @NotNull TObjectHashingStrategy<T> hashingStrategy) {
       return new ConcurrentHashMap<T,V>(initialCapacity, loadFactor, concurrencyLevel, hashingStrategy);
     }
   };
 
   private static final ConcurrentMapFactory PLATFORM_MAP_FACTORY = new ConcurrentMapFactory() {
+    @NotNull
     public <T, V> ConcurrentMap<T, V> createMap() {
       return createMap(16, 0.75f, DEFAULT_CONCURRENCY_LEVEL);
     }
 
+    @NotNull
     public <T, V> ConcurrentMap<T, V> createMap(int initialCapacity) {
       return new java.util.concurrent.ConcurrentHashMap<T,V>(initialCapacity);
     }
 
-    public <T, V> ConcurrentMap<T, V> createMap(TObjectHashingStrategy<T> hashingStrategy) {
+    @NotNull
+    public <T, V> ConcurrentMap<T, V> createMap(@NotNull TObjectHashingStrategy<T> hashingStrategy) {
       if (hashingStrategy != canonicalStrategy()) {
         throw new UnsupportedOperationException("Custom hashStrategy is not supported in java.util.concurrent.ConcurrentHashMap");
       }
@@ -2103,10 +2120,12 @@ public class ContainerUtil extends ContainerUtilRt {
       return createMap();
     }
 
+    @NotNull
     public <T, V> ConcurrentMap<T, V> createMap(int initialCapacity, float loadFactor, int concurrencyLevel) {
       return new java.util.concurrent.ConcurrentHashMap<T,V>(initialCapacity, loadFactor, concurrencyLevel);
     }
 
+    @NotNull
     public <T, V> ConcurrentMap<T, V> createMap(int initialCapacity, float loadFactor, int concurrencyLevel, @NotNull TObjectHashingStrategy<T> hashingStrategy) {
       if (hashingStrategy != canonicalStrategy()) {
         throw new UnsupportedOperationException("Custom hashStrategy is not supported in java.util.concurrent.ConcurrentHashMap");
@@ -2121,6 +2140,16 @@ public class ContainerUtil extends ContainerUtilRt {
   private static boolean isAtLeastJava7() {
     // IBM JDK provides correct version in java.version property, but not in java.runtime.version property
     return StringUtil.compareVersionNumbers(SystemInfo.JAVA_VERSION, "1.7") >= 0;
+  }
+
+  public static <T extends Comparable<T>> int compareLexicographically(List<T> o1, List<T> o2) {
+    for (int i = 0; i < Math.min(o1.size(), o2.size()); i++) {
+      int result = o1.get(i).compareTo(o2.get(i));
+      if (result != 0) {
+        return result;
+      }
+    }
+    return o1.size() < o2.size() ? -1 : o1.size() == o2.size() ? 0 : 1;
   }
 }
 

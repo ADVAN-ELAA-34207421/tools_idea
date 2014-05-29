@@ -23,7 +23,7 @@ public abstract class VmConnection<T extends Vm> implements Disposable, BrowserC
 
   protected volatile T vm;
 
-  private final ActionCallback started = new ActionCallback();
+  private final ActionCallback opened = new ActionCallback();
 
   private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -41,9 +41,14 @@ public abstract class VmConnection<T extends Vm> implements Disposable, BrowserC
     dispatcher.addListener(listener, parentDisposable);
   }
 
+  @NotNull
+  public ActionCallback opened() {
+    return opened;
+  }
+
   @Override
   public void executeOnStart(@NotNull Runnable runnable) {
-    started.doWhenDone(runnable);
+    opened.doWhenDone(runnable);
   }
 
   protected void setState(@NotNull ConnectionStatus status, @Nullable String message) {
@@ -51,8 +56,12 @@ public abstract class VmConnection<T extends Vm> implements Disposable, BrowserC
   }
 
   protected void setState(@NotNull ConnectionStatus status, @Nullable String message, @Nullable HyperlinkListener messageLinkListener) {
-    ConnectionState oldState = state.getAndSet(new ConnectionState(status, message, messageLinkListener));
+    ConnectionState newState = new ConnectionState(status, message, messageLinkListener);
+    ConnectionState oldState = state.getAndSet(newState);
     if (oldState == null || oldState.getStatus() != status) {
+      if (status == ConnectionStatus.CONNECTION_FAILED) {
+        opened.reject(newState.getMessage());
+      }
       connectionDispatcher.getMulticaster().statusChanged(status);
     }
   }
@@ -67,29 +76,29 @@ public abstract class VmConnection<T extends Vm> implements Disposable, BrowserC
   }
 
   protected void startProcessing() {
-    started.setDone();
+    opened.setDone();
   }
 
-  public final void close(@Nullable String message) {
+  public final void close(@Nullable String message, @NotNull ConnectionStatus status) {
     if (!closed.compareAndSet(false, true)) {
       return;
     }
 
-    vm = null;
-    if (!started.isProcessed()) {
-      started.setRejected();
+    if (!opened.isProcessed()) {
+      opened.setRejected();
     }
-    setState(ConnectionStatus.DISCONNECTED, message);
+    setState(status, message);
     Disposer.dispose(this, false);
   }
 
   @Override
   public void dispose() {
+    vm = null;
   }
 
   public ActionCallback detachAndClose() {
-    if (!started.isProcessed()) {
-      started.setRejected();
+    if (!opened.isProcessed()) {
+      opened.setRejected();
     }
 
     Vm currentVm = vm;
@@ -101,7 +110,7 @@ public abstract class VmConnection<T extends Vm> implements Disposable, BrowserC
       vm = null;
       callback = currentVm.detach();
     }
-    close(null);
+    close(null, ConnectionStatus.DISCONNECTED);
     return callback;
   }
 }

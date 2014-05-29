@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -579,8 +579,14 @@ public class ChangeListManagerImpl extends ChangeListManagerEx implements Projec
   private void iterateScopes(DataHolder dataHolder, List<VcsDirtyScope> scopes, boolean wasEverythingDirty) {
     final ChangeListManagerGate gate = dataHolder.getChangeListWorker().createSelfGate();
     // do actual requests about file statuses
+    Getter<Boolean> disposedGetter = new Getter<Boolean>() {
+      @Override
+      public Boolean get() {
+        return myProject.isDisposed() || myUpdater.getIsStoppedGetter().get();
+      }
+    };
     final UpdatingChangeListBuilder builder = new UpdatingChangeListBuilder(dataHolder.getChangeListWorker(),
-      dataHolder.getComposite(), myUpdater.getIsStoppedGetter(), myIgnoredIdeaLevel, gate);
+      dataHolder.getComposite(), disposedGetter, myIgnoredIdeaLevel, gate);
 
     for (final VcsDirtyScope scope : scopes) {
       myUpdateChangesProgressIndicator.checkCanceled();
@@ -779,10 +785,10 @@ public class ChangeListManagerImpl extends ChangeListManagerEx implements Projec
     }
   }
 
-  Pair<Integer, Integer> getUnversionedFilesSize() {
+  Couple<Integer> getUnversionedFilesSize() {
     synchronized (myDataLock) {
       final VirtualFileHolder holder = myComposite.getVFHolder(FileHolder.HolderType.UNVERSIONED);
-      return new Pair<Integer, Integer>(holder.getSize(), holder.getNumDirs());
+      return Couple.newOne(holder.getSize(), holder.getNumDirs());
     }
   }
 

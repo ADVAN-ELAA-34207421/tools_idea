@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import icons.JetgroovyIcons;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.groovy.extensions.GroovyRunnableScriptType;
 import org.jetbrains.plugins.groovy.extensions.GroovyScriptType;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyFile;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.arguments.GrArgumentLabel;
@@ -46,7 +47,7 @@ import java.util.List;
 /**
  * @author ilyas
  */
-public class GantScriptType extends GroovyScriptType {
+public class GantScriptType extends GroovyRunnableScriptType {
   @NonNls public static final String DEFAULT_EXTENSION = "gant";
 
   public static final GroovyScriptType INSTANCE = new GantScriptType();
@@ -55,6 +56,7 @@ public class GantScriptType extends GroovyScriptType {
     super("gant");
   }
 
+  @Override
   @NotNull
   public Icon getScriptIcon() {
     return JetgroovyIcons.Groovy.Gant_16x16;

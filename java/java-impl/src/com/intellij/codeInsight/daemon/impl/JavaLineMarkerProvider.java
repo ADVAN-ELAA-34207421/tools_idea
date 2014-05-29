@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -129,7 +129,7 @@ public class JavaLineMarkerProvider implements LineMarkerProvider, DumbAware {
     return null;
   }
 
-  protected static int getCategory(@NotNull PsiElement element, @NotNull CharSequence documentChars) {
+  private static int getCategory(@NotNull PsiElement element, @NotNull CharSequence documentChars) {
     if (element instanceof PsiField || element instanceof PsiTypeParameter) return 1;
     if (element instanceof PsiClass || element instanceof PsiClassInitializer) return 2;
     if (element instanceof PsiMethod) {
@@ -173,7 +173,7 @@ public class JavaLineMarkerProvider implements LineMarkerProvider, DumbAware {
     }
   }
 
-  private static void collectInheritingClasses(PsiClass aClass, Collection<LineMarkerInfo> result) {
+  public static void collectInheritingClasses(PsiClass aClass, Collection<LineMarkerInfo> result) {
     if (aClass.hasModifierProperty(PsiModifier.FINAL)) {
       return;
     }

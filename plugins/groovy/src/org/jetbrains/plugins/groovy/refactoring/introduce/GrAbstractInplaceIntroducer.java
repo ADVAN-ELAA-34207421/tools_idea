@@ -37,7 +37,7 @@ import org.jetbrains.plugins.groovy.lang.psi.GroovyPsiElementFactory;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrVariable;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.*;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.path.GrMethodCallExpression;
-import org.jetbrains.plugins.groovy.refactoring.GroovyRefactoringUtil;
+import org.jetbrains.plugins.groovy.lang.psi.impl.PsiImplUtil;
 
 import java.util.List;
 
@@ -48,7 +48,7 @@ import java.util.List;
 public abstract class GrAbstractInplaceIntroducer<Settings extends GrIntroduceSettings> extends AbstractInplaceIntroducer<GrVariable, PsiElement> {
 
   private SmartTypePointer myTypePointer;
-  private OccurrencesChooser.ReplaceChoice myReplaceChoice;
+  private final OccurrencesChooser.ReplaceChoice myReplaceChoice;
 
   private RangeMarker myVarMarker;
   private final PsiFile myFile;
@@ -96,7 +96,7 @@ public abstract class GrAbstractInplaceIntroducer<Settings extends GrIntroduceSe
     if (expression == null) {
       expression = PsiTreeUtil.getParentOfType(refVariableElement, GrExpression.class);
     }
-    while (expression instanceof GrReferenceExpression) {
+    while (expression instanceof GrReferenceExpression || expression instanceof GrCall) {
       final PsiElement parent = expression.getParent();
       if (parent instanceof GrMethodCallExpression) {
         if (parent.getText().equals(exprText)) return (GrExpression)parent;
@@ -107,8 +107,10 @@ public abstract class GrAbstractInplaceIntroducer<Settings extends GrIntroduceSe
           return expression;
         }
       }
-      else {
+      else if (expression instanceof GrReferenceExpression){
         return null;
+      } else {
+        break;
       }
     }
     if (expression != null && expression.isValid() && expression.getText().equals(exprText)) {
@@ -176,7 +178,7 @@ public abstract class GrAbstractInplaceIntroducer<Settings extends GrIntroduceSe
     List<PsiElement> result = ContainerUtil.map(getOccurrenceMarkers(), new Function<RangeMarker, PsiElement>() {
       @Override
       public PsiElement fun(RangeMarker marker) {
-        return GroovyRefactoringUtil.findElementInRange(myFile, marker.getStartOffset(), marker.getEndOffset(), GrExpression.class);
+        return PsiImplUtil.findElementInRange(myFile, marker.getStartOffset(), marker.getEndOffset(), GrExpression.class);
       }
     });
     return PsiUtilCore.toPsiElementArray(result);

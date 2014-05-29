@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,14 +23,11 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.fileEditor.FileEditorManager;
-import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.intellij.util.IncorrectOperationException;
 import org.jetbrains.annotations.NotNull;
@@ -46,7 +43,7 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.GrTypeDefini
  * @author ilyas
  */
 public abstract class CreateClassActionBase extends Intention {
-  private CreateClassKind myType;
+  private final CreateClassKind myType;
 
   protected final GrReferenceElement myRefElement;
   private static final Logger LOG = Logger.getInstance("#org.jetbrains.plugins.groovy.annotator.intentions.CreateClassActionBase");
@@ -56,6 +53,7 @@ public abstract class CreateClassActionBase extends Intention {
     myRefElement = refElement;
   }
 
+  @Override
   @NotNull
   public String getText() {
     String referenceName = myRefElement.getReferenceName();
@@ -73,15 +71,18 @@ public abstract class CreateClassActionBase extends Intention {
     }
   }
 
+  @Override
   @NotNull
   public String getFamilyName() {
     return GroovyBundle.message("create.class.family.name");
   }
 
+  @Override
   public boolean isAvailable(@NotNull Project project, Editor editor, PsiFile file) {
     return myRefElement.isValid() && ModuleUtilCore.findModuleForPsiElement(myRefElement) != null;
   }
 
+  @Override
   public boolean startInWriteAction() {
     return false;
   }
@@ -116,6 +117,7 @@ public abstract class CreateClassActionBase extends Intention {
       }
       catch (final IncorrectOperationException e) {
         ApplicationManager.getApplication().invokeLater(new Runnable() {
+          @Override
           public void run() {
             Messages.showErrorDialog(
               GroovyBundle.message("cannot.create.class.error.text", name, e.getLocalizedMessage()),
@@ -138,19 +140,6 @@ public abstract class CreateClassActionBase extends Intention {
     }
     finally {
       accessToken.finish();
-    }
-  }
-
-  @Nullable
-  public static Editor putCursor(Project project, @NotNull PsiFile targetFile, PsiElement element) {
-    int textOffset = element.getTextOffset();
-    VirtualFile virtualFile = targetFile.getVirtualFile();
-    if (virtualFile != null) {
-      OpenFileDescriptor descriptor = new OpenFileDescriptor(project, virtualFile, textOffset);
-      return FileEditorManager.getInstance(project).openTextEditor(descriptor, true);
-    }
-    else {
-      return null;
     }
   }
 

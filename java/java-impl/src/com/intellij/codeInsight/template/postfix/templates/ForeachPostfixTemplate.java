@@ -22,53 +22,30 @@ import com.intellij.codeInsight.template.impl.TextExpression;
 import com.intellij.codeInsight.template.impl.VariableNode;
 import com.intellij.codeInsight.template.macro.IterableComponentTypeMacro;
 import com.intellij.codeInsight.template.macro.SuggestVariableNameMacro;
-import com.intellij.codeInsight.template.postfix.util.PostfixTemplatesUtils;
-import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiExpression;
-import org.jetbrains.annotations.NotNull;
+import com.intellij.psi.codeStyle.JavaCodeStyleSettingsFacade;
 
-public class ForeachPostfixTemplate extends PostfixTemplate {
+import static com.intellij.codeInsight.template.postfix.util.JavaPostfixTemplatesUtils.IS_ITERABLE_OR_ARRAY;
+import static com.intellij.codeInsight.template.postfix.util.JavaPostfixTemplatesUtils.JAVA_PSI_INFO;
+
+public class ForeachPostfixTemplate extends StringBasedPostfixTemplate {
   public ForeachPostfixTemplate() {
-    super("for", "Iterates over enumerable collection", "for (T item : collection)");
+    super("for", "for (T item : expr)", JAVA_PSI_INFO, IS_ITERABLE_OR_ARRAY);
   }
 
   @Override
-  public boolean isApplicable(@NotNull PsiElement context, @NotNull Document copyDocument, int newOffset) {
-    PsiExpression expr = PostfixTemplatesUtils.getTopmostExpression(context);
-    return expr != null && (PostfixTemplatesUtils.isArray(expr.getType()) || PostfixTemplatesUtils.isIterable(expr.getType()));
-  }
+  public void expandWithTemplateManager(TemplateManager manager, PsiElement expression, Editor editor) {
 
-  @Override
-  public void expand(@NotNull PsiElement context, @NotNull Editor editor) {
-    PsiExpression expr = PostfixTemplatesUtils.getTopmostExpression(context);
-    if (expr == null) return;
-    Project project = context.getProject();
-
-    Document document = editor.getDocument();
-    document.deleteString(expr.getTextRange().getStartOffset(), expr.getTextRange().getEndOffset());
-    TemplateManager manager = TemplateManager.getInstance(project);
-
-    Template template = manager.createTemplate("", "");
-    template.setToReformat(true);
-    template.addTextSegment("for (");
+    String finalPart = JavaCodeStyleSettingsFacade.getInstance(expression.getProject()).isGenerateFinalLocals() ? "final " : "";
+    Template template = manager.createTemplate("", "", "for (" + finalPart + "$type$ $name$ : $variable$) {\n    $END$\n}");
     MacroCallNode type = new MacroCallNode(new IterableComponentTypeMacro());
-
+    MacroCallNode name = new MacroCallNode(new SuggestVariableNameMacro());
     String variable = "variable";
     type.addParameter(new VariableNode(variable, null));
-    MacroCallNode name = new MacroCallNode(new SuggestVariableNameMacro());
-
     template.addVariable("type", type, type, false);
-    template.addTextSegment(" ");
     template.addVariable("name", name, name, true);
-
-    template.addTextSegment(" : ");
-    template.addVariable(variable, new TextExpression(expr.getText()), false);
-    template.addTextSegment(") {\n");
-    template.addEndVariable();
-    template.addTextSegment("\n}");
+    template.addVariable(variable, new TextExpression(expression.getText()), false);
 
     manager.startTemplate(editor, template);
   }

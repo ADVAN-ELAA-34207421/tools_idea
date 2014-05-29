@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.intellij.psi.statistics.StatisticsManager
 import com.intellij.psi.statistics.impl.StatisticsManagerImpl
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.plugins.groovy.GroovyFileType
+import org.jetbrains.plugins.groovy.GroovyLanguage
 import org.jetbrains.plugins.groovy.codeStyle.GrReferenceAdjuster
 import org.jetbrains.plugins.groovy.codeStyle.GroovyCodeStyleSettings
 import org.jetbrains.plugins.groovy.lang.psi.api.types.GrCodeReferenceElement
@@ -1853,7 +1854,7 @@ class Autocompletion {
   }
 
   void testSpaceBeforeMethodCallParentheses() {
-    def settings = CodeStyleSettingsManager.getSettings(myFixture.project).getCommonSettings(GroovyFileType.GROOVY_LANGUAGE)
+    def settings = CodeStyleSettingsManager.getSettings(myFixture.project).getCommonSettings(GroovyLanguage.INSTANCE)
 
     boolean old = settings.SPACE_BEFORE_METHOD_CALL_PARENTHESES
     try {
@@ -1893,4 +1894,33 @@ def foo() {
 }
 ''', '', CompletionType.BASIC, CompletionResult.notContain, 1, 'vaIntellijIdeaRulezzzr')
   }
+
+  void testTraitWithAsOperator1() {
+    doVariantableTest('''
+trait A {
+  def foo(){}
+}
+class B {
+  def bar() {}
+}
+
+def var = new B() as A
+var.<caret>
+''', '', CompletionType.BASIC, CompletionResult.contain, 1, 'foo', 'bar')
+  }
+
+  void testTraitWithAsOperator2() {
+    doVariantableTest('''
+trait A {
+  public foo = 5
+}
+class B {
+  def bar() {}
+}
+
+def var = new B() as A
+var.<caret>
+''', '', CompletionType.BASIC, CompletionResult.contain, 1, 'A__foo', 'bar')
+  }
+
 }

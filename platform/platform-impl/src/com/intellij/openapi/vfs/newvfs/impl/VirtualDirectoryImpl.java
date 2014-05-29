@@ -33,6 +33,7 @@ import com.intellij.openapi.vfs.JarFileSystem;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.impl.win32.Win32LocalFileSystem;
 import com.intellij.openapi.vfs.newvfs.NewVirtualFile;
 import com.intellij.openapi.vfs.newvfs.NewVirtualFileSystem;
 import com.intellij.openapi.vfs.newvfs.RefreshQueue;
@@ -92,6 +93,7 @@ public class VirtualDirectoryImpl extends VirtualFileSystemEntry {
                               @PersistentFS.Attributes final int attributes) {
     super(nameId, parent, id, attributes);
     myFS = fs;
+    LOG.assertTrue(!(fs instanceof Win32LocalFileSystem));
   }
 
   @Override
@@ -283,7 +285,7 @@ public class VirtualDirectoryImpl extends VirtualFileSystemEntry {
 
     final int attributes = ourPersistence.getFileAttributes(id);
     if (PersistentFS.isDirectory(attributes)) {
-      child = new VirtualDirectoryImpl(nameId, this, delegate, id, attributes);
+      child = new VirtualDirectoryImpl(nameId, this, getFileSystem(), id, attributes);
     }
     else {
       child = new VirtualFileImpl(nameId, this, id, attributes);
@@ -617,7 +619,7 @@ public class VirtualDirectoryImpl extends VirtualFileSystemEntry {
       }
       if (i != 0) {
         VirtualFileSystemEntry prev = array[i - 1];
-        String prevName = prev.getName();
+        CharSequence prevName = prev.getNameSequence();
         int cmp = file.compareNameTo(prevName, ignoreCase);
         if (cmp == 0) {
           error(verboseToString.fun(prev) + " equals to " + verboseToString.fun(file), array, details);

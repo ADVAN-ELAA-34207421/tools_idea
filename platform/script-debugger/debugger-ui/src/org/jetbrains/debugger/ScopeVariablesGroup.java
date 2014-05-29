@@ -8,6 +8,7 @@ import com.intellij.xdebugger.frame.XValueChildrenList;
 import com.intellij.xdebugger.frame.XValueGroup;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.TestOnly;
 
 import java.util.List;
 
@@ -27,10 +28,16 @@ public class ScopeVariablesGroup extends XValueGroup {
       this.context = new ParentlessVariableContext(context, scope, scope.getType() == Scope.Type.GLOBAL);
     }
     else {
-      this.context = new ScopedVariableContext(context, scope);
+      this.context = new VariableContextWrapper(context, scope);
     }
 
     this.callFrame = scope.getType() == Scope.Type.LOCAL ? callFrame : null;
+  }
+
+  @TestOnly
+  @NotNull
+  public Scope getScope() {
+    return scope;
   }
 
   public static void createAndAddScopeList(@NotNull XCompositeNode node, @NotNull List<Scope> scopes, @NotNull VariableContext context, @Nullable CallFrame callFrame) {
@@ -91,7 +98,7 @@ public class ScopeVariablesGroup extends XValueGroup {
           @Override
           public void consume(Variable variable) {
             if (!node.isObsolete()) {
-              node.addChildren(variable == null ? XValueChildrenList.EMPTY : XValueChildrenList.singleton(CallFrameBase.RECEIVER_NAME, new VariableView(context, variable)), true);
+              node.addChildren(variable == null ? XValueChildrenList.EMPTY : XValueChildrenList.singleton(CallFrameBase.RECEIVER_NAME, new VariableView(variable, context)), true);
             }
           }
         }).doWhenRejected(new Consumer<String>() {
@@ -107,58 +114,7 @@ public class ScopeVariablesGroup extends XValueGroup {
     Variables.processScopeVariables(scope, node, context, callback);
   }
 
-  private static class ScopedVariableContext implements VariableContext {
-    private final VariableContext parentContext;
-    private final Scope scope;
-
-    public ScopedVariableContext(@NotNull VariableContext parentContext, @NotNull Scope scope) {
-      this.parentContext = parentContext;
-      this.scope = scope;
-    }
-
-    @Nullable
-    @Override
-    public String getName() {
-      return parentContext.getName();
-    }
-
-    @NotNull
-    @Override
-    public MemberFilter getMemberFilter() {
-      return parentContext.getMemberFilter();
-    }
-
-    @NotNull
-    @Override
-    public EvaluateContext getEvaluateContext() {
-      return parentContext.getEvaluateContext();
-    }
-
-    @NotNull
-    @Override
-    public DebuggerViewSupport getDebugProcess() {
-      return parentContext.getDebugProcess();
-    }
-
-    @Override
-    public boolean watchableAsEvaluationExpression() {
-      return parentContext.watchableAsEvaluationExpression();
-    }
-
-    @Nullable
-    @Override
-    public Scope getScope() {
-      return scope;
-    }
-
-    @Nullable
-    @Override
-    public VariableContext getParent() {
-      return parentContext;
-    }
-  }
-
-  private static final class ParentlessVariableContext extends ScopedVariableContext {
+  private static final class ParentlessVariableContext extends VariableContextWrapper {
     private final boolean watchableAsEvaluationExpression;
 
     public ParentlessVariableContext(@NotNull VariableContext parentContext, @NotNull Scope scope, boolean watchableAsEvaluationExpression) {

@@ -17,27 +17,34 @@ package com.intellij.vcs.log.graph;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.ui.JBColor;
 import com.intellij.util.NotNullFunction;
 import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.containers.hash.LinkedHashMap;
 import com.intellij.vcs.log.Hash;
 import com.intellij.vcs.log.VcsLogRefManager;
 import com.intellij.vcs.log.VcsRef;
 import com.intellij.vcs.log.data.RefsModel;
 import org.jetbrains.annotations.NotNull;
 
-import java.awt.*;
 import java.util.Collection;
 import java.util.Map;
 
-public class GraphColorManagerImpl implements GraphColorManager {
+public class GraphColorManagerImpl implements GraphColorManager<Integer> {
 
   private static final Logger LOG = Logger.getInstance(GraphColorManagerImpl.class);
-  private static final JBColor DEFAULT_COLOR = JBColor.BLACK;
+  static final int DEFAULT_COLOR = 0;
 
   @NotNull private final RefsModel myRefsModel;
   @NotNull private final NotNullFunction<Integer, Hash> myHashGetter;
   @NotNull private final Map<VirtualFile, VcsLogRefManager> myRefManagers;
+
+  @NotNull private final LinkedHashMap<Integer, Integer> myErrorWasReported = new LinkedHashMap<Integer, Integer>(10) {
+
+    @Override
+    protected boolean removeEldestEntry(Map.Entry<Integer, Integer> eldest) {
+      return size() > 100;
+    }
+  };
 
   public GraphColorManagerImpl(@NotNull RefsModel refsModel, @NotNull NotNullFunction<Integer, Hash> hashGetter,
                                @NotNull Map<VirtualFile, VcsLogRefManager> refManagers) {
@@ -46,53 +53,56 @@ public class GraphColorManagerImpl implements GraphColorManager {
     myRefManagers = refManagers;
   }
 
-  @NotNull
   @Override
-  public JBColor getColorOfBranch(int headCommit) {
+  public int getColorOfBranch(Integer headCommit) {
     Collection<VcsRef> refs = myRefsModel.refsToCommit(headCommit);
-    if (!checkEmptiness(refs, headCommit)) {
+    if (isEmptyRefs(refs, headCommit)) {
       return DEFAULT_COLOR;
     }
     VcsRef firstRef = getRefManager(refs).sort(refs).get(0);
-    Color color = ColorGenerator.getColor(firstRef.getName().hashCode());
     // TODO dark variant
-    return new JBColor(color, color);
+    return firstRef.getName().hashCode();
   }
 
-  private boolean checkEmptiness(@NotNull Collection<VcsRef> refs, int head) {
+  private boolean isEmptyRefs(@NotNull Collection<VcsRef> refs, int head) {
     if (refs.isEmpty()) {
-      LOG.error("No references found at head " + head + " which corresponds to hash " + myHashGetter.fun(head));
-      return false;
+      if (!myErrorWasReported.containsKey(head)) {
+        myErrorWasReported.put(head, head);
+        LOG.error("No references found at head " + head + " which corresponds to hash " + myHashGetter.fun(head));
+      }
+      return true;
     }
-    return true;
-  }
-
-  @NotNull
-  @Override
-  public JBColor getColorOfFragment(int headCommit, int magicIndex) {
-    Color color = ColorGenerator.getColor(magicIndex);
-    return new JBColor(color, color);
+    return false;
   }
 
   @Override
-  public int compareHeads(int head1, int head2) {
-    if (head1 == head2) {
+  public int getColorOfFragment(Integer headCommit, int magicIndex) {
+    return magicIndex;
+  }
+
+  @Override
+  public int compareHeads(Integer head1, Integer head2) {
+    if (head1.equals(head2)) {
       return 0;
     }
 
     Collection<VcsRef> refs1 = myRefsModel.refsToCommit(head1);
     Collection<VcsRef> refs2 = myRefsModel.refsToCommit(head2);
-    if (!checkEmptiness(refs1, head1)) {
+    boolean firstEmpty = isEmptyRefs(refs1, head1);
+    boolean secondEmpty = isEmptyRefs(refs2, head2);
+    if (firstEmpty && secondEmpty) {
+      return 0;
+    }
+    if (firstEmpty) {
       return -1;
     }
-    if (!checkEmptiness(refs2, head2)) {
+    if (secondEmpty) {
       return 1;
     }
 
     VcsLogRefManager refManager1 = getRefManager(refs1);
     VcsLogRefManager refManager2 = getRefManager(refs2);
     if (!refManager1.equals(refManager2)) {
-      LOG.debug("Different ref managers (and therefore different VCSs) are not comparable");
       return 0;
     }
 

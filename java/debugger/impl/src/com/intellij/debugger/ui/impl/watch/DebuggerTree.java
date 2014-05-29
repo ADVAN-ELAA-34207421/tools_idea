@@ -41,6 +41,7 @@ import com.intellij.debugger.ui.impl.tree.TreeBuilder;
 import com.intellij.debugger.ui.impl.tree.TreeBuilderNode;
 import com.intellij.debugger.ui.tree.DebuggerTreeNode;
 import com.intellij.debugger.ui.tree.NodeDescriptor;
+import com.intellij.debugger.ui.tree.render.ArrayRenderer;
 import com.intellij.debugger.ui.tree.render.ChildrenBuilder;
 import com.intellij.debugger.ui.tree.render.ClassRenderer;
 import com.intellij.debugger.ui.tree.render.NodeRenderer;
@@ -404,7 +405,7 @@ public abstract class DebuggerTree extends DebuggerTreeBase implements DataProvi
   public abstract class BuildNodeCommand extends DebuggerContextCommandImpl {
     private final DebuggerTreeNodeImpl myNode;
 
-    protected final List<DebuggerTreeNode> myChildren = new LinkedList<DebuggerTreeNode>();
+    protected final List<DebuggerTreeNodeImpl> myChildren = new LinkedList<DebuggerTreeNodeImpl>();
 
     protected BuildNodeCommand(DebuggerTreeNodeImpl node) {
       super(DebuggerTree.this.getDebuggerContext());
@@ -425,7 +426,7 @@ public abstract class DebuggerTree extends DebuggerTreeBase implements DataProvi
         @Override
         public void run() {
           myNode.removeAllChildren();
-          for (DebuggerTreeNode debuggerTreeNode : myChildren) {
+          for (DebuggerTreeNodeImpl debuggerTreeNode : myChildren) {
             myNode.add(debuggerTreeNode);
           }
           myNode.childrenChanged(scrollToVisible);
@@ -588,8 +589,18 @@ public abstract class DebuggerTree extends DebuggerTreeBase implements DataProvi
     }
 
     @Override
+    public void setRemaining(int remaining) {}
+
+    @Override
+    public void initChildrenArrayRenderer(ArrayRenderer renderer) {}
+
+    @Override
     public void setChildren(final List<DebuggerTreeNode> children) {
-      myChildren.addAll(children);
+      for (DebuggerTreeNode child : children) {
+        if (child instanceof DebuggerTreeNodeImpl) {
+          myChildren.add(((DebuggerTreeNodeImpl)child));
+        }
+      }
       updateUI(false);
     }
   }
@@ -661,7 +672,7 @@ public abstract class DebuggerTree extends DebuggerTreeBase implements DataProvi
 
   private class BuildThreadGroupCommand extends DebuggerCommandImpl {
     private final DebuggerTreeNodeImpl myNode;
-    protected final List<DebuggerTreeNode> myChildren = new LinkedList<DebuggerTreeNode>();
+    protected final List<DebuggerTreeNodeImpl> myChildren = new LinkedList<DebuggerTreeNodeImpl>();
 
     public BuildThreadGroupCommand(DebuggerTreeNodeImpl node) {
       myNode = node;
@@ -719,7 +730,7 @@ public abstract class DebuggerTree extends DebuggerTreeBase implements DataProvi
         @Override
         public void run() {
           myNode.removeAllChildren();
-          for (DebuggerTreeNode debuggerTreeNode : myChildren) {
+          for (DebuggerTreeNodeImpl debuggerTreeNode : myChildren) {
             myNode.add(debuggerTreeNode);
           }
           myNode.childrenChanged(scrollToVisible);

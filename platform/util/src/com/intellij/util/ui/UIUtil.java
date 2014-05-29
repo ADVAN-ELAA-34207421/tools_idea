@@ -41,9 +41,11 @@ import javax.swing.border.Border;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import javax.swing.plaf.ButtonUI;
 import javax.swing.plaf.ComboBoxUI;
 import javax.swing.plaf.ProgressBarUI;
 import javax.swing.plaf.basic.BasicComboBoxUI;
+import javax.swing.plaf.basic.BasicRadioButtonUI;
 import javax.swing.plaf.basic.ComboPopup;
 import javax.swing.text.DefaultEditorKit;
 import javax.swing.text.JTextComponent;
@@ -805,7 +807,7 @@ public class UIUtil {
   }
 
   public static Color getListUnfocusedSelectionBackground() {
-    return isUnderDarcula() ? Gray._52 : UNFOCUSED_SELECTION_COLOR;
+    return new JBColor(UNFOCUSED_SELECTION_COLOR, new Color(13, 41, 62));
   }
 
   public static Color getTreeSelectionBackground(boolean focused) {
@@ -2147,7 +2149,12 @@ public class UIUtil {
       UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 
       if (ourSystemFontData == null) {
-        final Font font = getLabelFont();
+        Font font = getLabelFont();
+        if (SystemInfo.isWindows) {
+          //noinspection HardCodedStringLiteral
+          Font winFont = (Font)Toolkit.getDefaultToolkit().getDesktopProperty("win.messagebox.font");
+          if (winFont != null) font = winFont;
+        }
         ourSystemFontData = Pair.create(font.getName(), font.getSize());
       }
     }
@@ -2463,7 +2470,7 @@ public class UIUtil {
     /**
      * _position(block width, block height) => (x, y) of the block
      */
-    public void draw(@NotNull final Graphics g, final PairFunction<Integer, Integer, Pair<Integer, Integer>> _position) {
+    public void draw(@NotNull final Graphics g, final PairFunction<Integer, Integer, Couple<Integer>> _position) {
       final int[] maxWidth = {0};
       final int[] height = {0};
       final int[] maxBulletWidth = {0};
@@ -2493,7 +2500,7 @@ public class UIUtil {
         }
       });
 
-      final Pair<Integer, Integer> position = _position.fun(maxWidth[0] + 20, height[0]);
+      final Couple<Integer> position = _position.fun(maxWidth[0] + 20, height[0]);
       assert position != null;
 
       final int[] yOffset = {position.getSecond()};
@@ -2948,5 +2955,35 @@ public class UIUtil {
   public static String rightArrow() {
     char rightArrow = '\u2192';
     return getLabelFont().canDisplay(rightArrow) ? String.valueOf(rightArrow) : "->";
+  }
+
+  public static EmptyBorder getTextAlignBorder(@NotNull JToggleButton alignSource) {
+    ButtonUI ui = alignSource.getUI();
+    int leftGap = alignSource.getIconTextGap();
+    Border border = alignSource.getBorder();
+    if (border != null) {
+      leftGap += border.getBorderInsets(alignSource).left;
+    }
+    if (ui instanceof BasicRadioButtonUI) {
+      leftGap += ((BasicRadioButtonUI)alignSource.getUI()).getDefaultIcon().getIconWidth();
+    }
+    else {
+      Method method = ReflectionUtil.getMethod(ui.getClass(), "getDefaultIcon", JComponent.class);
+      if (method != null) {
+        try {
+          Object o = method.invoke(ui, alignSource);
+          if (o instanceof Icon) {
+            leftGap += ((Icon)o).getIconWidth();
+          }
+        }
+        catch (IllegalAccessException e) {
+          e.printStackTrace();
+        }
+        catch (InvocationTargetException e) {
+          e.printStackTrace();
+        }
+      }
+    }
+    return new EmptyBorder(0, leftGap, 0, 0);
   }
 }

@@ -17,19 +17,23 @@ package com.intellij.openapi.updateSettings.impl;
 
 import com.intellij.ide.BrowserUtil;
 import com.intellij.ide.IdeBundle;
+import com.intellij.ide.plugins.IdeaPluginDescriptor;
 import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ApplicationNamesInfo;
 import com.intellij.openapi.application.PathManager;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.ui.BrowserHyperlinkListener;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.components.JBLabel;
+import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.io.File;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -37,18 +41,37 @@ import java.util.List;
  */
 class UpdateInfoDialog extends AbstractUpdateDialog {
   private final UpdateChannel myUpdatedChannel;
+  private final Collection<PluginDownloader> myUpdatedPlugins;
   private final BuildInfo myLatestBuild;
   private final PatchInfo myPatch;
   private final boolean myWriteProtected;
 
-  protected UpdateInfoDialog(@NotNull UpdateChannel channel, boolean enableLink) {
+  protected UpdateInfoDialog(@NotNull UpdateChannel channel,
+                             boolean enableLink,
+                             Collection<PluginDownloader> updatedPlugins,
+                             Collection<IdeaPluginDescriptor> incompatiblePlugins) {
     super(enableLink);
     myUpdatedChannel = channel;
+    myUpdatedPlugins = updatedPlugins;
     myLatestBuild = channel.getLatestBuild();
     myPatch = myLatestBuild != null ? myLatestBuild.findPatchForCurrentBuild() : null;
     myWriteProtected = myPatch != null && !new File(PathManager.getHomePath()).canWrite();
     getCancelAction().putValue(DEFAULT_ACTION, Boolean.TRUE);
     init();
+
+    if (incompatiblePlugins != null && !incompatiblePlugins.isEmpty()) {
+      final boolean onePluginFound = incompatiblePlugins.size() == 1;
+      String incompatibilityError = "Incompatible with new version plugin";
+      incompatibilityError += (onePluginFound ? " is" : "s are") + " detected: ";
+      incompatibilityError += onePluginFound ? "" : "<br>";
+      incompatibilityError += StringUtil.join(incompatiblePlugins, new Function<IdeaPluginDescriptor, String>() {
+        @Override
+        public String fun(IdeaPluginDescriptor downloader) {
+          return downloader.getName();
+        }
+      }, "<br/>");
+      setErrorText(incompatibilityError);
+    }
   }
 
   @Override
@@ -62,7 +85,7 @@ class UpdateInfoDialog extends AbstractUpdateDialog {
     List<Action> actions = ContainerUtil.newArrayList();
 
     if (myPatch != null) {
-      boolean canRestart = ApplicationManager.getApplication().isRestartCapable();
+      final boolean canRestart = ApplicationManager.getApplication().isRestartCapable();
       String button = IdeBundle.message(canRestart ? "updates.download.and.restart.button" : "updates.download.and.install.button");
       actions.add(new AbstractAction(button) {
         {
@@ -71,7 +94,7 @@ class UpdateInfoDialog extends AbstractUpdateDialog {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-          downloadPatch();
+          downloadPatch(canRestart);
         }
       });
     }
@@ -112,9 +135,22 @@ class UpdateInfoDialog extends AbstractUpdateDialog {
     return IdeBundle.message("updates.remind.later.button");
   }
 
-  private void downloadPatch() {
-    UpdateChecker.DownloadPatchResult result = UpdateChecker.downloadAndInstallPatch(myLatestBuild);
+  private void downloadPatch(final boolean canRestart) {
+    final UpdateChecker.DownloadPatchResult result = UpdateChecker.downloadAndInstallPatch(myLatestBuild);
     if (result == UpdateChecker.DownloadPatchResult.SUCCESS) {
+      if (myUpdatedPlugins != null && !myUpdatedPlugins.isEmpty()) {
+        new PluginUpdateInfoDialog(getContentPanel(), myUpdatedPlugins, true){
+          @Override
+          protected boolean toRestart() {
+            return true;
+          }
+
+          @Override
+          protected String getOkButtonText() {
+            return IdeBundle.message(canRestart ? "update.restart.plugins.update.action" : "update.shutdown.plugins.update.action");
+          }
+        }.show();
+      }
       restart();
     }
     else if (result == UpdateChecker.DownloadPatchResult.FAILED) {

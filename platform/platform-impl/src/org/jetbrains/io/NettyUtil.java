@@ -29,6 +29,7 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.socket.oio.OioSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.ide.PooledThreadExecutor;
 
@@ -37,21 +38,21 @@ import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.Random;
-import java.util.UUID;
 
 public final class NettyUtil {
+  public static final int MAX_CONTENT_LENGTH = 100 * 1024 * 1024;
+
   public static final int DEFAULT_CONNECT_ATTEMPT_COUNT = 20;
   public static final int MIN_START_TIME = 100;
 
   static {
     // IDEA-120811
-    if (SystemProperties.getBooleanProperty("io.netty.random.id", false)) {
-      String id = UUID.randomUUID().toString();
-      System.setProperty("io.netty.machineId", id.substring(id.length() - 8));
+    if (SystemProperties.getBooleanProperty("io.netty.random.id", true)) {
+      System.setProperty("io.netty.machineId", "9e43d860");
       System.setProperty("io.netty.processId", Integer.toString(new Random().nextInt(65535)));
     }
   }
-  
+
   public static void log(Throwable throwable, Logger log) {
     if (isAsWarning(throwable)) {
       log.warn(throwable);
@@ -82,13 +83,13 @@ public final class NettyUtil {
             Thread.sleep(attemptCount * MIN_START_TIME);
           }
           else {
-            asyncResult.reject("Cannot connect");
+            asyncResult.reject("Cannot connect: " + e.getMessage());
             return null;
           }
         }
       }
 
-      OioSocketChannel channel = new OioSocketChannel(bootstrap.group().next(), socket);
+      OioSocketChannel channel = new OioSocketChannel(socket);
       BootstrapUtil.initAndRegister(channel, bootstrap).awaitUninterruptibly();
       return channel;
     }
@@ -111,7 +112,7 @@ public final class NettyUtil {
   }
 
   // applicable only in case of ClientBootstrap&OioClientSocketChannelFactory
-  public static void closeAndReleaseFactory(Channel channel) {
+  public static void closeAndReleaseFactory(@NotNull Channel channel) {
     EventLoop channelFactory = channel.eventLoop();
     try {
       channel.close().awaitUninterruptibly();
@@ -142,6 +143,6 @@ public final class NettyUtil {
   }
 
   public static void addHttpServerCodec(ChannelPipeline pipeline) {
-    pipeline.addLast(new HttpServerCodec(), new HttpObjectAggregator(1048576 * 10));
+    pipeline.addLast(new HttpServerCodec(), new HttpObjectAggregator(MAX_CONTENT_LENGTH));
   }
 }

@@ -45,6 +45,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 public class MarkupModelImpl extends UserDataHolderBase implements MarkupModelEx {
   private static final Logger LOG = Logger.getInstance("#com.intellij.openapi.editor.impl.MarkupModelImpl");
@@ -52,16 +53,19 @@ public class MarkupModelImpl extends UserDataHolderBase implements MarkupModelEx
 
   private RangeHighlighter[] myCachedHighlighters;
   private final List<MarkupModelListener> myListeners = ContainerUtil.createLockFreeCopyOnWriteList();
-  private final RangeHighlighterTree myHighlighterTree;
+  private final RangeHighlighterTree myHighlighterTree;          // this tree holds regular highlighters with target = HighlighterTargetArea.EXACT_RANGE
+  private final RangeHighlighterTree myHighlighterTreeForLines;  // this tree holds line range highlighters with target = HighlighterTargetArea.LINES_IN_RANGE
 
   MarkupModelImpl(@NotNull DocumentEx document) {
     myDocument = document;
-    myHighlighterTree = new RangeHighlighterTree(myDocument, this);
+    myHighlighterTree = new RangeHighlighterTree(document, this);
+    myHighlighterTreeForLines = new RangeHighlighterTree(document, this);
   }
 
   @Override
   public void dispose() {
     myHighlighterTree.dispose();
+    myHighlighterTreeForLines.dispose();
   }
 
   @Override
@@ -96,15 +100,18 @@ public class MarkupModelImpl extends UserDataHolderBase implements MarkupModelEx
   public RangeHighlighter[] getAllHighlighters() {
     ApplicationManager.getApplication().assertIsDispatchThread();
     if (myCachedHighlighters == null) {
-      int size = myHighlighterTree.size();
+      int size = myHighlighterTree.size() + myHighlighterTreeForLines.size();
       if (size == 0) return RangeHighlighter.EMPTY_ARRAY;
       List<RangeHighlighterEx> list = new ArrayList<RangeHighlighterEx>(size);
-      myHighlighterTree.process(new CommonProcessors.CollectProcessor<RangeHighlighterEx>(list));
+      CommonProcessors.CollectProcessor<RangeHighlighterEx> collectProcessor = new CommonProcessors.CollectProcessor<RangeHighlighterEx>(list);
+      myHighlighterTree.process(collectProcessor);
+      myHighlighterTreeForLines.process(collectProcessor);
       myCachedHighlighters = list.toArray(new RangeHighlighter[list.size()]);
     }
     return myCachedHighlighters;
   }
 
+  @NotNull
   @Override
   public RangeHighlighterEx addRangeHighlighterAndChangeAttributes(int startOffset,
                                                                    int endOffset,
@@ -119,6 +126,7 @@ public class MarkupModelImpl extends UserDataHolderBase implements MarkupModelEx
                                                           false), changeAttributesAction);
   }
 
+  @NotNull
   private RangeHighlighterEx addRangeHighlighter(@NotNull RangeHighlighterImpl highlighter,
                                                  @Nullable Consumer<RangeHighlighterEx> changeAttributesAction) {
     ApplicationManager.getApplication().assertIsDispatchThread();
@@ -141,14 +149,18 @@ public class MarkupModelImpl extends UserDataHolderBase implements MarkupModelEx
   }
 
   @Override
-  public void addRangeHighlighter(RangeHighlighterEx marker,
+  public void addRangeHighlighter(@NotNull RangeHighlighterEx marker,
                                   int start,
                                   int end,
                                   boolean greedyToLeft,
                                   boolean greedyToRight,
                                   int layer) {
     ApplicationManager.getApplication().assertIsDispatchThread();
-    myHighlighterTree.addInterval(marker, start, end, greedyToLeft, greedyToRight, layer);
+    treeFor(marker).addInterval(marker, start, end, greedyToLeft, greedyToRight, layer);
+  }
+
+  private RangeHighlighterTree treeFor(RangeHighlighter marker) {
+    return marker.getTargetArea() == HighlighterTargetArea.EXACT_RANGE ? myHighlighterTree : myHighlighterTreeForLines;
   }
 
   @Override
@@ -167,7 +179,7 @@ public class MarkupModelImpl extends UserDataHolderBase implements MarkupModelEx
     myCachedHighlighters = null;
     if (!segmentHighlighter.isValid()) return;
 
-    boolean removed = myHighlighterTree.removeInterval((RangeHighlighterEx)segmentHighlighter);
+    boolean removed = treeFor(segmentHighlighter).removeInterval((RangeHighlighterEx)segmentHighlighter);
     LOG.assertTrue(removed);
   }
 
@@ -179,6 +191,7 @@ public class MarkupModelImpl extends UserDataHolderBase implements MarkupModelEx
     }
     myCachedHighlighters = null;
     myHighlighterTree.clear();
+    myHighlighterTreeForLines.clear();
   }
 
   @Override
@@ -233,30 +246,79 @@ public class MarkupModelImpl extends UserDataHolderBase implements MarkupModelEx
   @Override
   public boolean containsHighlighter(@NotNull final RangeHighlighter highlighter) {
     ApplicationManager.getApplication().assertIsDispatchThread();
-    return !myHighlighterTree
-      .processOverlappingWith(highlighter.getStartOffset(), highlighter.getEndOffset(), new Processor<RangeHighlighterEx>() {
-        @Override
-        public boolean process(RangeHighlighterEx h) {
-          return h.getId() != ((RangeHighlighterEx)highlighter).getId();
-        }
-      });
+    Processor<RangeHighlighterEx> equalId = new Processor<RangeHighlighterEx>() {
+      @Override
+      public boolean process(RangeHighlighterEx h) {
+        return h.getId() != ((RangeHighlighterEx)highlighter).getId();
+      }
+    };
+    return !treeFor(highlighter).processOverlappingWith(highlighter.getStartOffset(), highlighter.getEndOffset(), equalId);
   }
 
   @Override
   public boolean processRangeHighlightersOverlappingWith(int start, int end, @NotNull Processor<? super RangeHighlighterEx> processor) {
-    TextRangeInterval rangeInterval = roundToLineBoundaries(start, end);
-    return myHighlighterTree.processOverlappingWith(rangeInterval.getStartOffset(), rangeInterval.getEndOffset(), processor);
+    DisposableIterator<RangeHighlighterEx> iterator = overlappingIterator(start, end);
+    try {
+      while (iterator.hasNext()) {
+        if (!processor.process(iterator.next())) {
+          return false;
+        }
+      }
+      return true;
+    }
+    finally {
+      iterator.dispose();
+    }
   }
 
   @Override
   public boolean processRangeHighlightersOutside(int start, int end, @NotNull Processor<? super RangeHighlighterEx> processor) {
-    return myHighlighterTree.processOverlappingWithOutside(start, end, processor);
+    return myHighlighterTree.processOverlappingWithOutside(start, end, processor)
+           && myHighlighterTreeForLines.processOverlappingWithOutside(start, end, processor);
   }
 
   @Override
   @NotNull
   public DisposableIterator<RangeHighlighterEx> overlappingIterator(int startOffset, int endOffset) {
-    return myHighlighterTree.overlappingIterator(roundToLineBoundaries(startOffset, endOffset));
+    startOffset = Math.max(0,startOffset);
+    IntervalTreeImpl.PeekableIterator<RangeHighlighterEx> exact = myHighlighterTree.overlappingIterator(new TextRangeInterval(startOffset, Math.max(startOffset, endOffset)));
+    IntervalTreeImpl.PeekableIterator<RangeHighlighterEx> lines = myHighlighterTreeForLines.overlappingIterator(roundToLineBoundaries(startOffset, endOffset));
+    return merge(exact, lines);
+  }
+
+  @NotNull
+  private static <T extends RangeHighlighterEx> DisposableIterator<T> merge(@NotNull final IntervalTreeImpl.PeekableIterator<T> iterator1, @NotNull final IntervalTreeImpl.PeekableIterator<T> iterator2) {
+    return new DisposableIterator<T>() {
+      @Override
+      public void dispose() {
+        iterator1.dispose();
+        iterator2.dispose();
+      }
+
+      @Override
+      public boolean hasNext() {
+        return iterator1.hasNext() || iterator2.hasNext();
+      }
+
+      @Override
+      public T next() {
+        T t1 = iterator1.hasNext() ? iterator1.peek() : null;
+        T t2 = iterator2.hasNext() ? iterator2.peek() : null;
+        if (t1 == null) {
+          return iterator2.next();
+        }
+        if (t2 == null) {
+          return iterator1.next();
+        }
+        int compare = RangeHighlighterEx.BY_AFFECTED_START_OFFSET.compare(t1, t2);
+        return (compare < 0 ? iterator1 : iterator2).next();
+      }
+
+      @Override
+      public void remove() {
+        throw new NoSuchElementException();
+      }
+    };
   }
 
   @NotNull
@@ -265,11 +327,5 @@ public class MarkupModelImpl extends UserDataHolderBase implements MarkupModelEx
     int lineStartOffset = startOffset <= 0 ? 0 : document.getLineStartOffset(document.getLineNumber(startOffset));
     int lineEndOffset = endOffset <= 0 ? 0 : endOffset >= document.getTextLength() ? document.getTextLength() : document.getLineEndOffset(document.getLineNumber(endOffset));
     return new TextRangeInterval(lineStartOffset, lineEndOffset);
-  }
-
-  @Override
-  public boolean sweep(int start, int end, @NotNull SweepProcessor<RangeHighlighterEx> sweepProcessor) {
-    TextRangeInterval rangeInterval = roundToLineBoundaries(start, end);
-    return myHighlighterTree.sweep(rangeInterval.getStartOffset(), rangeInterval.getEndOffset(), sweepProcessor);
   }
 }

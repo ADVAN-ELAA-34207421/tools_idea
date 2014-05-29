@@ -102,6 +102,8 @@ public class ArrayRenderer extends NodeRendererImpl{
     NodeManagerImpl nodeManager = (NodeManagerImpl)builder.getNodeManager();
     NodeDescriptorFactory descriptorFactory = builder.getDescriptorManager();
 
+    builder.initChildrenArrayRenderer(this);
+
     ArrayReference array = (ArrayReference)value;
     if (array.length() > 0) {
       int added = 0;
@@ -123,23 +125,25 @@ public class ArrayRenderer extends NodeRendererImpl{
         for (idx = start; idx <= end; idx++) {
           DebuggerTreeNode arrayItemNode = nodeManager.createNode(descriptorFactory.getArrayItemDescriptor(builder.getParentDescriptor(), array, idx), evaluationContext);
 
+          if (arrayItemNode == null) continue;
           if (ViewsGeneralSettings.getInstance().HIDE_NULL_ARRAY_ELEMENTS && ((ValueDescriptorImpl)arrayItemNode.getDescriptor()).isNull()) continue;
-          if(added >= (ENTRIES_LIMIT  + 1)/ 2) break;
+          //if(added >= (ENTRIES_LIMIT  + 1)/ 2) break;
           children.add(arrayItemNode);
           added++;
         }
 
         start = idx;
 
-        List<DebuggerTreeNode> childrenTail = new ArrayList<DebuggerTreeNode>();
-        for (idx = end; idx >= start; idx--) {
-          DebuggerTreeNode arrayItemNode = nodeManager.createNode(descriptorFactory.getArrayItemDescriptor(builder.getParentDescriptor(), array, idx), evaluationContext);
-
-          if (ViewsGeneralSettings.getInstance().HIDE_NULL_ARRAY_ELEMENTS && ((ValueDescriptorImpl)arrayItemNode.getDescriptor()).isNull()) continue;
-          if(added >= ENTRIES_LIMIT) break;
-          childrenTail.add(arrayItemNode);
-          added++;
-        }
+        //List<DebuggerTreeNode> childrenTail = new ArrayList<DebuggerTreeNode>();
+        //for (idx = end; idx >= start; idx--) {
+        //  DebuggerTreeNode arrayItemNode = nodeManager.createNode(descriptorFactory.getArrayItemDescriptor(builder.getParentDescriptor(), array, idx), evaluationContext);
+        //
+        //  if (arrayItemNode == null) continue;
+        //  if (ViewsGeneralSettings.getInstance().HIDE_NULL_ARRAY_ELEMENTS && ((ValueDescriptorImpl)arrayItemNode.getDescriptor()).isNull()) continue;
+        //  if(added >= ENTRIES_LIMIT) break;
+        //  childrenTail.add(arrayItemNode);
+        //  added++;
+        //}
 
         //array is printed in the following way
         // ...
@@ -149,14 +153,14 @@ public class ArrayRenderer extends NodeRendererImpl{
         // ...
 
         //when itemENTRIES_LIMIT/2+1...itemENTRIES_LIMIT set is empty, we should not add middle "..." node
-        if(idx >= start && !(ENTRIES_LIMIT == 1 && END_INDEX < array.length())) {
-          children.add(nodeManager.createMessageNode(new MessageDescriptor(MORE_ELEMENTS, MessageDescriptor.SPECIAL)));
-        }
+        //if(idx >= start && !(ENTRIES_LIMIT == 1 && END_INDEX < array.length())) {
+        //  children.add(nodeManager.createMessageNode(new MessageDescriptor(MORE_ELEMENTS, MessageDescriptor.SPECIAL)));
+        //}
 
-        for (ListIterator<DebuggerTreeNode> iterator = childrenTail.listIterator(childrenTail.size()); iterator.hasPrevious();) {
-          DebuggerTreeNode debuggerTreeNode = iterator.previous();
-          children.add(debuggerTreeNode);
-        }
+        //for (ListIterator<DebuggerTreeNode> iterator = childrenTail.listIterator(childrenTail.size()); iterator.hasPrevious();) {
+        //  DebuggerTreeNode debuggerTreeNode = iterator.previous();
+        //  children.add(debuggerTreeNode);
+        //}
       }
 
       if (added == 0) {
@@ -168,12 +172,13 @@ public class ArrayRenderer extends NodeRendererImpl{
         }
       }
       else {
-        if(START_INDEX > 0) {
-          children.add(0, nodeManager.createMessageNode(new MessageDescriptor(MORE_ELEMENTS, MessageDescriptor.SPECIAL)));
-        }
+        //if(START_INDEX > 0) {
+        //  children.add(0, nodeManager.createMessageNode(new MessageDescriptor(MORE_ELEMENTS, MessageDescriptor.SPECIAL)));
+        //}
 
         if(END_INDEX < array.length() - 1) {
-          children.add(nodeManager.createMessageNode(new MessageDescriptor(MORE_ELEMENTS, MessageDescriptor.SPECIAL)));
+          //children.add(nodeManager.createMessageNode(new MessageDescriptor(MORE_ELEMENTS, MessageDescriptor.SPECIAL)));
+          builder.setRemaining(array.length()-END_INDEX);
         }
       }
     }

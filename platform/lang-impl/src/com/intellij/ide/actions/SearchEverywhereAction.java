@@ -152,10 +152,8 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
   private Component myContextComponent;
   private CalcThread myCalcThread;
   private static AtomicBoolean ourShiftIsPressed = new AtomicBoolean(false);
-  private static AtomicBoolean shift1Pressed = new AtomicBoolean(false);
-  private static AtomicBoolean shift1Released = new AtomicBoolean(false);
-  private static AtomicBoolean shift2Pressed = new AtomicBoolean(false);
-  private static AtomicBoolean shift2Released = new AtomicBoolean(false);
+  private final static Couple<AtomicBoolean> ourPressed = Couple.newOne(new AtomicBoolean(false), new AtomicBoolean(false));
+  private final static Couple<AtomicBoolean> ourReleased = Couple.newOne(new AtomicBoolean(false), new AtomicBoolean(false));
   private static AtomicBoolean ourOtherKeyWasPressed = new AtomicBoolean(false);
   private static AtomicLong ourLastTimePressed = new AtomicLong(0);
   private static AtomicBoolean showAll = new AtomicBoolean(false);
@@ -185,7 +183,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
               return false;
             }
             ourOtherKeyWasPressed.set(false);
-            if (shift1Pressed.get() && System.currentTimeMillis() - ourLastTimePressed.get() > 500) {
+            if (ourPressed.first.get() && System.currentTimeMillis() - ourLastTimePressed.get() > 500) {
               resetState();
             }
             handleShift((KeyEvent)event);
@@ -203,37 +201,37 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
       }
 
       private void resetState() {
-        shift1Pressed.set(false);
-        shift1Released.set(false);
-        shift2Pressed.set(false);
-        shift2Released.set(false);
+        ourPressed.first.set(false);
+        ourPressed.second.set(false);
+        ourReleased.first.set(false);
+        ourReleased.second.set(false);
       }
 
       private void handleShift(KeyEvent event) {
-        if (shift1Pressed.get() && System.currentTimeMillis() - ourLastTimePressed.get() > 300) {
+        if (ourPressed.first.get() && System.currentTimeMillis() - ourLastTimePressed.get() > 300) {
           resetState();
           return;
         }
 
         if (event.getID() == KeyEvent.KEY_PRESSED) {
-          if (!shift1Pressed.get()) {
+          if (!ourPressed.first.get()) {
             resetState();
-            shift1Pressed.set(true);
+            ourPressed.first.set(true);
             ourLastTimePressed.set(System.currentTimeMillis());
             return;
           } else {
-            if (shift1Pressed.get() && shift1Released.get()) {
-              shift2Pressed.set(true);
+            if (ourPressed.first.get() && ourReleased.first.get()) {
+              ourPressed.second.set(true);
               ourLastTimePressed.set(System.currentTimeMillis());
               return;
             }
           }
         } else if (event.getID() == KeyEvent.KEY_RELEASED) {
-          if (shift1Pressed.get() && !shift1Released.get()) {
-            shift1Released.set(true);
+          if (ourPressed.first.get() && !ourReleased.first.get()) {
+            ourReleased.first.set(true);
             ourLastTimePressed.set(System.currentTimeMillis());
             return;
-          } else if (shift1Pressed.get() && shift1Released.get() && shift2Pressed.get()) {
+          } else if (ourPressed.first.get() && ourReleased.first.get() && ourPressed.second.get()) {
             resetState();
             run(event);
             return;
@@ -426,16 +424,9 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
       @Override
       protected void textChanged(DocumentEvent e) {
         final String pattern = editor.getText();
-        final int len = pattern.trim().length();
-        myAlarm.cancelAllRequests();
-        myAlarm.addRequest(new Runnable() {
-          @Override
-          public void run() {
-            if (editor.hasFocus()) {
-              rebuildList(pattern);
-            }
-          }
-        }, len == 1 ? 400 : len == 2 ? 300 : len == 3 ? 250 : 30);
+        if (editor.hasFocus()) {
+          rebuildList(pattern);
+        }
       }
     });
     editor.addFocusListener(new FocusAdapter() {
@@ -781,7 +772,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
     String fqn = null;
     if (isActionValue(value)) {
       type = HistoryType.ACTION;
-      AnAction action = (AnAction)(value instanceof Map.Entry ? ((Map.Entry)value).getKey() : value);
+      AnAction action = (AnAction)(value instanceof GotoActionModel.ActionWrapper ? ((GotoActionModel.ActionWrapper)value).getAction() : value);
       fqn = ActionManager.getInstance().getId(action);
     } else if (value instanceof VirtualFile) {
       type = HistoryType.FILE;
@@ -943,12 +934,15 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
     ColoredListCellRenderer myLocation = new ColoredListCellRenderer() {
       @Override
       protected void customizeCellRenderer(JList list, Object value, int index, boolean selected, boolean hasFocus) {
+        setPaintFocusBorder(false);
         append(myLocationString, SimpleTextAttributes.GRAYED_ATTRIBUTES);
         setIcon(myLocationIcon);
       }
     };
     private String myLocationString;
-    private DefaultPsiElementCellRenderer myPsiRenderer = new DefaultPsiElementCellRenderer();
+    private DefaultPsiElementCellRenderer myPsiRenderer = new DefaultPsiElementCellRenderer() {
+      {setFocusBorderEnabled(false);}
+    };
     private Icon myLocationIcon;
     private Project myProject;
     private JPanel myMainPanel = new JPanel(new BorderLayout());
@@ -980,9 +974,9 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
         cmp = new GotoFileCellRenderer(Math.min(800, list.getWidth()))
           .getListCellRendererComponent(list, file == null ? value : file, index, isSelected, cellHasFocus);
       } else if (value instanceof PsiElement) {
-        cmp = myPsiRenderer.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+        cmp = myPsiRenderer.getListCellRendererComponent(list, value, index, isSelected, isSelected);
       } else {
-        cmp = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+        cmp = super.getListCellRendererComponent(list, value, index, isSelected, isSelected);
         final JPanel p = new JPanel(new BorderLayout());
         p.setBackground(UIUtil.getListBackground(isSelected));
         p.add(cmp, BorderLayout.CENTER);
@@ -999,7 +993,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
           rightComponent = button;
         }
         else {
-          rightComponent = myLocation.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+          rightComponent = myLocation.getListCellRendererComponent(list, value, index, isSelected, isSelected);
         }
         panel.add(rightComponent, BorderLayout.EAST);
         cmp = panel;
@@ -1021,13 +1015,14 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
       final int width = myMainPanel.getPreferredSize().width;
       if (width > myPopupActualWidth) {
         myPopupActualWidth = width;
-        schedulePopupUpdate();
+        //schedulePopupUpdate();
       }
       return myMainPanel;
     }
 
     @Override
     protected void customizeCellRenderer(JList list, Object value, int index, boolean selected, boolean hasFocus) {
+      setPaintFocusBorder(false);
       setIcon(EmptyIcon.ICON_16);
       AccessToken token = ApplicationManager.getApplication().acquireReadActionLock();
       try {
@@ -1051,8 +1046,8 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
           setIcon(IconUtil.getIcon(file, Iconable.ICON_FLAG_READ_STATUS, myProject));
         }
         else if (isActionValue(value)) {
-          final Map.Entry actionWithParentGroup = value instanceof Map.Entry ? (Map.Entry)value : null;
-          final AnAction anAction = actionWithParentGroup == null ? (AnAction)value : (AnAction)actionWithParentGroup.getKey();
+          final GotoActionModel.ActionWrapper actionWithParentGroup = value instanceof GotoActionModel.ActionWrapper ? (GotoActionModel.ActionWrapper)value : null;
+          final AnAction anAction = actionWithParentGroup == null ? (AnAction)value : actionWithParentGroup.getAction();
           final Presentation templatePresentation = anAction.getTemplatePresentation();
           Icon icon = templatePresentation.getIcon();
           if (anAction instanceof ActivateToolWindowAction) {
@@ -1065,13 +1060,13 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
 
           append(templatePresentation.getText());
           if (actionWithParentGroup != null) {
-            final Object groupName = actionWithParentGroup.getValue();
-            if (groupName instanceof String && StringUtil.isEmpty((String)groupName)) {
-              setLocationString((String)groupName);
+            final String groupName = actionWithParentGroup.getGroupName();
+            if (!StringUtil.isEmpty(groupName)) {
+              setLocationString(groupName);
             }
           }
 
-          final String groupName = actionWithParentGroup == null ? null : (String)actionWithParentGroup.getValue();
+          final String groupName = actionWithParentGroup == null ? null : actionWithParentGroup.getGroupName();
           if (!StringUtil.isEmpty(groupName)) {
             setLocationString(groupName);
           }
@@ -1159,7 +1154,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
   }
 
   private static boolean isActionValue(Object o) {
-    return o instanceof Map.Entry || o instanceof AnAction;
+    return o instanceof GotoActionModel.ActionWrapper || o instanceof AnAction;
   }
 
   private static boolean isSetting(Object o) {
@@ -1286,7 +1281,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
         for (Object object : objects) {
           check();
           if (isToolWindowAction(object) && toolWindows.size() < MAX_TOOL_WINDOWS) {
-            toolWindows.add((AnAction)((Map.Entry)object).getKey());
+            toolWindows.add(((GotoActionModel.ActionWrapper)object).getAction());
           }
         }
       }
@@ -1727,9 +1722,9 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
     private GotoActionModel createActionModel() {
       return new GotoActionModel(project, myFocusComponent, myEditor, myFile) {
         @Override
-        protected boolean actionMatches(String pattern, @NotNull AnAction anAction) {
+        protected MatchMode actionMatches(String pattern, @NotNull AnAction anAction) {
           return NameUtil.buildMatcher("*" + pattern, NameUtil.MatchingCaseSensitivity.NONE)
-            .matches(anAction.getTemplatePresentation().getText());
+            .matches(anAction.getTemplatePresentation().getText()) ? MatchMode.NAME : MatchMode.NONE;
         }
       };
     }
@@ -1977,7 +1972,9 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
   }
 
   private static boolean isToolWindowAction(Object o) {
-    return isActionValue(o) && (o instanceof Map.Entry && ((Map.Entry)o).getKey() instanceof ActivateToolWindowAction);
+    return isActionValue(o)
+           && o instanceof GotoActionModel.ActionWrapper
+           && ((GotoActionModel.ActionWrapper)o).getAction() instanceof ActivateToolWindowAction;
   }
 
   private void fillConfigurablesIds(String pathToParent, Configurable[] configurables) {

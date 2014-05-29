@@ -96,6 +96,10 @@ public class GlobalInspectionContextBase extends UserDataHolderBase implements G
     }
   }
 
+  public AnalysisScope getCurrentScope() {
+    return myCurrentScope;
+  }
+
   @Override
   @NotNull
   public Project getProject() {
@@ -402,7 +406,19 @@ public class GlobalInspectionContextBase extends UserDataHolderBase implements G
     }
   }
 
-  public void close(boolean noSuspisiousCodeFound) {
+  public void codeCleanup(final Project project,
+                          final AnalysisScope scope,
+                          final InspectionProfile profile,
+                          final String commandName, Runnable postRunnable) {}
+
+  public static void codeCleanup(Project project, AnalysisScope scope, Runnable runnable) {
+    GlobalInspectionContextBase globalContext =
+      (GlobalInspectionContextBase)InspectionManager.getInstance(project).createNewGlobalContext(false);
+    final InspectionProfile profile = InspectionProjectProfileManager.getInstance(project).getInspectionProfile();
+    globalContext.codeCleanup(project, scope, profile, null, runnable);
+  }
+
+   public void close(boolean noSuspisiousCodeFound) {
     cleanup();
   }
 
