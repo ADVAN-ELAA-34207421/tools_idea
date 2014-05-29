@@ -37,8 +37,8 @@ def send( client, data ):
     if data is None:
         sendInt(client, 0)
     else:
-        sendInt(client, len(data))
-        client.sendall( data )
+        # we need to send data length and data together because it may produce read problems, see org.zmlx.hg4idea.execution.SocketServer
+        client.sendall(struct.pack('>L', len(data)) + data)
     
 def receiveIntWithMessage(client, message):
     requiredLength = struct.calcsize('>L')
@@ -133,8 +133,10 @@ original_warn = ui.ui.warn
 @monkeypatch_method(ui.ui)
 def warn(self, *msg):
     original_warn(self, *msg)
-    
-    port = int(self.config( 'hg4ideawarn', 'port', None, True))
+    hg4ideaWarnConfig = self.config('hg4ideawarn', 'port', None, True)
+    if hg4ideaWarnConfig is None:
+        return
+    port = int(hg4ideaWarnConfig)
   
     if not port:
         raise util.Abort("No port was specified")

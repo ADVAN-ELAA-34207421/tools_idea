@@ -135,7 +135,7 @@ public class CreateFromUsageUtils {
 
     JVMElementFactory factory = JVMElementFactories.getFactory(aClass.getLanguage(), aClass.getProject());
 
-    LOG.assertTrue(!aClass.isInterface() || method.hasModifierProperty(PsiModifier.DEFAULT), "Interface bodies should be already set up");
+    LOG.assertTrue(!aClass.isInterface() || method.hasModifierProperty(PsiModifier.DEFAULT) || method.hasModifierProperty(PsiModifier.STATIC), "Interface bodies should be already set up");
 
     FileType fileType = FileTypeManager.getInstance().getFileTypeByExtension(template.getExtension());
     Properties properties = new Properties();
@@ -157,7 +157,7 @@ public class CreateFromUsageUtils {
       throw e;
     }
     catch (Exception e) {
-      throw new IncorrectOperationException("Failed to parse file template",e);
+      throw new IncorrectOperationException("Failed to parse file template", (Throwable)e);
     }
 
     if (methodText != null) {
@@ -864,7 +864,7 @@ public class CreateFromUsageUtils {
 
   public static boolean isAccessedForWriting(final PsiExpression[] expressionOccurences) {
     for (PsiExpression expression : expressionOccurences) {
-      if(PsiUtil.isAccessedForWriting(expression)) return true;
+      if(expression.isValid() && PsiUtil.isAccessedForWriting(expression)) return true;
     }
 
     return false;

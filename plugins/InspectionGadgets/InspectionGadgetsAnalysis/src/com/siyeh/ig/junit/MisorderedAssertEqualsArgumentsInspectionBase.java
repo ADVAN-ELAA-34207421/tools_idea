@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -181,13 +181,30 @@ public abstract class MisorderedAssertEqualsArgumentsInspectionBase extends Base
       if (expectedArgument == null || actualArgument == null) {
         return;
       }
-      if (ExpressionUtils.computeConstantExpression(expectedArgument) != null) {
-        return;
-      }
-      if (ExpressionUtils.computeConstantExpression(actualArgument) == null) {
+      if (looksLikeExpectedArgument(expectedArgument) || !looksLikeExpectedArgument(actualArgument)) {
         return;
       }
       registerMethodCallError(expression);
+    }
+
+    private boolean looksLikeExpectedArgument(PsiExpression expression) {
+      if (ExpressionUtils.computeConstantExpression(expression) != null) {
+        return true;
+      }
+      if (expression instanceof PsiReferenceExpression) {
+        final PsiReferenceExpression referenceExpression = (PsiReferenceExpression)expression;
+        final PsiElement target = referenceExpression.resolve();
+        if (target instanceof PsiEnumConstant) {
+          return true;
+        }
+        if ((target instanceof PsiField)) {
+          final PsiField field = (PsiField)target;
+          if (field.hasModifierProperty(PsiModifier.STATIC) && field.hasModifierProperty(PsiModifier.FINAL)) {
+            return true;
+          }
+        }
+      }
+      return false;
     }
   }
 }

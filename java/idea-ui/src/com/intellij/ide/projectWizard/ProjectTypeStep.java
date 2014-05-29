@@ -202,6 +202,11 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
         ModuleBuilder builder = getSelectedBuilder();
         return StringUtil.notNullize(builder.getContentEntryPath());
       }
+
+      @Override
+      public ModuleBuilder getModuleBuilder() {
+        return getSelectedBuilder();
+      }
     };
     myFrameworksPanel = new AddSupportForFrameworksPanel(Collections.<FrameworkSupportInModuleProvider>emptyList(), model, true, myHeaderPanel);
     Disposer.register(this, myFrameworksPanel);
@@ -451,13 +456,6 @@ public class ProjectTypeStep extends ModuleWizardStep implements SettingsStep, D
     ModuleBuilder moduleBuilder = group.getModuleBuilder();
     if (moduleBuilder != null && !(moduleBuilder instanceof TemplateModuleBuilder)) {
       list.add(0, new BuilderBasedTemplate(moduleBuilder));
-    }
-    if (group.getParentGroup() == null) {
-      for (TemplatesGroup templatesGroup : myTemplatesMap.keySet()) {
-        if (group.getName().equals(templatesGroup.getParentGroup())) {
-          list.addAll(myTemplatesMap.get(templatesGroup));
-        }
-      }
     }
     myTemplatesList.setTemplates(list, preserveSelection);
   }

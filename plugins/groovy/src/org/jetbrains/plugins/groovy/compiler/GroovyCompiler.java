@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import com.intellij.openapi.compiler.CompileScope;
 import com.intellij.openapi.compiler.CompilerManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.projectRoots.JavaSdkType;
 import com.intellij.openapi.projectRoots.Sdk;
@@ -40,8 +39,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.groovy.GroovyBundle;
 import org.jetbrains.plugins.groovy.GroovyFileType;
 import org.jetbrains.plugins.groovy.GroovyFileTypeLoader;
-import org.jetbrains.plugins.groovy.config.GroovyConfigUtils;
-import org.jetbrains.plugins.groovy.util.GroovyUtils;
+import org.jetbrains.plugins.groovy.config.GroovyFacetUtil;
 import org.jetbrains.plugins.groovy.util.LibrariesUtil;
 
 import java.util.HashSet;
@@ -60,6 +58,7 @@ public class GroovyCompiler extends GroovyCompilerBase {
     super(project);
   }
 
+  @Override
   @NotNull
   public String getDescription() {
     return "groovy compiler";
@@ -73,6 +72,7 @@ public class GroovyCompiler extends GroovyCompilerBase {
     runGroovycCompiler(context, module, toCompile, false, getMainOutput(context, module, tests), sink, tests);
   }
 
+  @Override
   public boolean validateConfiguration(CompileScope compileScope) {
     VirtualFile[] files = compileScope.getFiles(GroovyFileType.GROOVY_FILE_TYPE, true);
     if (files.length == 0) return true;
@@ -97,7 +97,7 @@ public class GroovyCompiler extends GroovyCompilerBase {
 
     Set<Module> nojdkModules = new HashSet<Module>();
     for (Module module : modules) {
-      if(!GroovyUtils.isAcceptableModuleType(ModuleType.get(module))) continue;
+      if(!GroovyFacetUtil.isSuitableModule(module)) continue;
       final Sdk sdk = ModuleRootManager.getInstance(module).getSdk();
       if (sdk == null || !(sdk.getSdkType() instanceof JavaSdkType)) {
         nojdkModules.add(module);
@@ -105,7 +105,7 @@ public class GroovyCompiler extends GroovyCompilerBase {
       }
 
       if (!LibrariesUtil.hasGroovySdk(module)) {
-        if (!GroovyConfigUtils.getInstance().tryToSetUpGroovyFacetOnTheFly(module)) {
+        if (!GroovyFacetUtil.tryToSetUpGroovyFacetOnTheFly(module)) {
           Messages.showErrorDialog(myProject, GroovyBundle.message("cannot.compile.groovy.files.no.facet", module.getName()),
                                    GroovyBundle.message("cannot.compile"));
           ModulesConfigurator.showDialog(module.getProject(), module.getName(), ClasspathEditor.NAME);

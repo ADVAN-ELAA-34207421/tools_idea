@@ -23,8 +23,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class AbstractVcsLogTableModel<CommitColumnClass> extends AbstractTableModel {
 
-  public static final VirtualFile FAKE_ROOT = NullVirtualFile.INSTANCE;
-
   public static final int ROOT_COLUMN = 0;
   public static final int COMMIT_COLUMN = 1;
   public static final int AUTHOR_COLUMN = 2;
@@ -97,11 +95,11 @@ public abstract class AbstractVcsLogTableModel<CommitColumnClass> extends Abstra
           return data.getAuthor().getName();
         }
       case DATE_COLUMN:
-        if (data == null || data.getTime() < 0) {
+        if (data == null || data.getTimestamp() < 0) {
           return "";
         }
         else {
-          return DateFormatUtil.formatDateTime(data.getTime());
+          return DateFormatUtil.formatDateTime(data.getTimestamp());
         }
       default:
         throw new IllegalArgumentException("columnIndex is " + columnIndex + " > " + (COLUMN_COUNT - 1));

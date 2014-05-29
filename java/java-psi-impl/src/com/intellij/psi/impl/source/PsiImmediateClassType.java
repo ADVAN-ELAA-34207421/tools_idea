@@ -169,7 +169,7 @@ public class PsiImmediateClassType extends PsiClassType.Stub {
   private enum TextType { PRESENTABLE, CANONICAL, INT_CANONICAL }
 
   private String getText(@NotNull TextType textType, boolean annotated) {
-    assert mySubstitutor.isValid();
+    mySubstitutor.ensureValid();
     StringBuilder buffer = new StringBuilder();
     buildText(myClass, mySubstitutor, buffer, textType, annotated);
     return buffer.toString();
@@ -184,6 +184,9 @@ public class PsiImmediateClassType extends PsiClassType.Stub {
       ClassResolveResult baseResolveResult = ((PsiAnonymousClass)aClass).getBaseClassType().resolveGenerics();
       PsiClass baseClass = baseResolveResult.getElement();
       if (baseClass != null) {
+        if (textType == TextType.INT_CANONICAL) {
+          buffer.append("anonymous ");
+        }
         buildText(baseClass, baseResolveResult.getSubstitutor(), buffer, textType, false);
       }
       return;

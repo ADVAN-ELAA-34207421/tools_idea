@@ -15,9 +15,6 @@
  */
 package com.intellij.ide.plugins;
 
-import com.intellij.icons.AllIcons;
-import com.intellij.ide.IdeBundle;
-import com.intellij.openapi.application.ApplicationNamesInfo;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
@@ -30,15 +27,11 @@ import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.JDOMExternalizableStringList;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vcs.FileStatus;
-import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.ui.BooleanTableCellEditor;
 import com.intellij.ui.BooleanTableCellRenderer;
-import com.intellij.ui.JBColor;
 import com.intellij.util.Function;
 import com.intellij.util.containers.hash.HashSet;
 import com.intellij.util.ui.ColumnInfo;
-import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -551,123 +544,6 @@ public class InstalledPluginsTableModel extends PluginTableModel {
         updatePluginDependencies();
         hideNotApplicablePlugins(newVal, pluginDependencies.toArray(new IdeaPluginDescriptor[pluginDependencies.size()]));
       }
-    }
-  }
-
-  private class InstalledPluginsTableRenderer extends DefaultTableCellRenderer {
-
-    private JLabel myNameLabel = new JLabel();
-    private JLabel myBundledLabel = new JLabel();
-    private JPanel myPanel = new JPanel(new BorderLayout());
-
-    private final IdeaPluginDescriptor myPluginDescriptor;
-
-    public InstalledPluginsTableRenderer(IdeaPluginDescriptor pluginDescriptor) {
-      myPluginDescriptor = pluginDescriptor;
-
-      myNameLabel.setFont(PluginManagerColumnInfo.getNameFont());
-      myBundledLabel.setFont(UIUtil.getLabelFont(UIUtil.FontSize.SMALL));
-      myPanel.setBorder(BorderFactory.createEmptyBorder(1, 0, 1, 1));
-      
-      myNameLabel.setOpaque(true);
-      myPanel.add(myNameLabel, BorderLayout.WEST);
-      myPanel.add(myBundledLabel, BorderLayout.EAST);
-    }
-
-    @Override
-    public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-      final Component orig = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-      if (myPluginDescriptor != null) {
-        myNameLabel.setText(myPluginDescriptor.getName());
-        final PluginId pluginId = myPluginDescriptor.getPluginId();
-        final String idString = pluginId.getIdString();
-        if (myPluginDescriptor.isBundled()) {
-          myBundledLabel.setText("Bundled");
-        } else {
-          final String host = myPlugin2host.get(idString);
-          if (host != null) {
-            String presentableUrl = VfsUtil.urlToPath(host);
-            final int idx = presentableUrl.indexOf('/');
-            if (idx > -1) {
-              presentableUrl = presentableUrl.substring(0, idx);
-            }
-            myBundledLabel.setText("From " + presentableUrl);
-          } else {
-            if (PluginManagerUISettings.getInstance().getInstalledPlugins().contains(idString)) {
-              myBundledLabel.setText("From repository");
-            } else {
-              myBundledLabel.setText("Custom");
-            }
-          }
-        }
-        if (myPluginDescriptor instanceof IdeaPluginDescriptorImpl && ((IdeaPluginDescriptorImpl)myPluginDescriptor).isDeleted()) {
-          myNameLabel.setIcon(AllIcons.Actions.Clean);
-        }
-        else if (hasNewerVersion(pluginId)) {
-          myNameLabel.setIcon(AllIcons.Nodes.Pluginobsolete);
-          myPanel.setToolTipText("Newer version of the plugin is available");
-        }
-        else {
-          myNameLabel.setIcon(AllIcons.Nodes.Plugin);
-        }
-
-        final Color fg = orig.getForeground();
-        final Color bg = orig.getBackground();
-        final Color grayedFg = isSelected ? fg : Color.GRAY;
-
-        myPanel.setBackground(bg);
-        myNameLabel.setBackground(bg);
-        myBundledLabel.setBackground(bg);
-
-        myNameLabel.setForeground(fg);
-        final boolean wasUpdated = wasUpdated(pluginId);
-        if (wasUpdated || PluginManager.getPlugin(pluginId) == null) {
-          if (!isSelected) {
-            myNameLabel.setForeground(FileStatus.COLOR_ADDED);
-          }
-          if (wasUpdated) {
-            myPanel.setToolTipText("Plugin was updated to the newest version. Changes will be available after restart");
-          } else {
-            myPanel.setToolTipText("Plugin will be activated after restart.");
-          }
-        }
-        myBundledLabel.setForeground(grayedFg);
-
-        final Set<PluginId> required = myDependentToRequiredListMap.get(pluginId);
-        if (required != null && required.size() > 0) {
-          myNameLabel.setForeground(JBColor.RED);
-
-          final StringBuilder s = new StringBuilder();
-          if (myEnabled.get(pluginId) == null) {
-            s.append("Plugin was not loaded.\n");
-          }
-          if (required.contains(PluginId.getId("com.intellij.modules.ultimate"))) {
-            s.append("The plugin requires IntelliJ IDEA Ultimate");
-          }
-          else {
-            s.append("Required plugin").append(required.size() == 1 ? " \"" : "s \"");
-            s.append(StringUtil.join(required, new Function<PluginId, String>() {
-              @Override
-              public String fun(final PluginId id) {
-                final IdeaPluginDescriptor plugin = PluginManager.getPlugin(id);
-                return plugin == null ? id.getIdString() : plugin.getName();
-              }
-            }, ","));
-
-            s.append(required.size() == 1 ? "\" is not enabled." : "\" are not enabled.");
-
-          }
-          myPanel.setToolTipText(s.toString());
-        }
-
-        if (PluginManager.isIncompatible(myPluginDescriptor)) {
-          myPanel.setToolTipText(
-            IdeBundle.message("plugin.manager.incompatible.tooltip.warning", ApplicationNamesInfo.getInstance().getFullProductName()));
-          myNameLabel.setForeground(JBColor.RED);
-        }
-      }
-
-      return myPanel;
     }
   }
 

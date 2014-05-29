@@ -18,13 +18,14 @@ import com.intellij.ui.components.JBLoadingPanel;
 import com.intellij.util.ArrayUtil;
 import com.intellij.vcs.log.VcsLog;
 import com.intellij.vcs.log.VcsLogDataKeys;
+import com.intellij.vcs.log.VcsLogFilterUi;
 import com.intellij.vcs.log.VcsLogSettings;
 import com.intellij.vcs.log.data.DataPack;
 import com.intellij.vcs.log.data.VcsLogDataHolder;
 import com.intellij.vcs.log.data.VcsLogUiProperties;
+import com.intellij.vcs.log.graph.impl.facade.bek.BekSorter;
 import com.intellij.vcs.log.ui.VcsLogUiImpl;
 import com.intellij.vcs.log.ui.filter.VcsLogClassicFilterUi;
-import com.intellij.vcs.log.VcsLogFilterUi;
 import com.intellij.vcs.log.ui.tables.GraphTableModel;
 import icons.VcsLogIcons;
 import org.jetbrains.annotations.NotNull;
@@ -70,8 +71,9 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
     myBranchesPanel.setVisible(settings.isShowBranchesPanel());
     myDetailsPanel = new DetailsPanel(logDataHolder, myGraphTable, vcsLogUI.getColorManager(), initialDataPack);
 
-    final ChangesBrowser changesBrowser = new RepositoryChangesBrowser(project, null, Collections.<Change>emptyList(), null);
+    final RepositoryChangesBrowser changesBrowser = new RepositoryChangesBrowser(project, null, Collections.<Change>emptyList(), null);
     changesBrowser.getDiffAction().registerCustomShortcutSet(CommonShortcuts.getDiff(), getGraphTable());
+    changesBrowser.getEditSourceAction().registerCustomShortcutSet(CommonShortcuts.getEditSource(), getGraphTable());
     setDefaultEmptyText(changesBrowser);
     myChangesLoadingPane = new JBLoadingPanel(new BorderLayout(), project);
     myChangesLoadingPane.add(changesBrowser);
@@ -162,6 +164,8 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
   }
 
   private JComponent createActionsToolbar() {
+    AnAction bekAction = new BekAction();
+
     AnAction hideBranchesAction = new GraphAction("Collapse linear branches", "Collapse linear branches", VcsLogIcons.CollapseBranches) {
       @Override
       public void actionPerformed(AnActionEvent e) {
@@ -193,7 +197,7 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
 
     refreshAction.registerShortcutOn(this);
 
-    DefaultActionGroup toolbarGroup = new DefaultActionGroup(hideBranchesAction, showBranchesAction, showFullPatchAction, refreshAction,
+    DefaultActionGroup toolbarGroup = new DefaultActionGroup(bekAction, hideBranchesAction, showBranchesAction, showFullPatchAction, refreshAction,
                                                              showDetailsAction);
     toolbarGroup.add(ActionManager.getInstance().getAction(VcsLogUiImpl.TOOLBAR_ACTION_GROUP));
 
@@ -230,10 +234,10 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
     else if (VcsLogDataKeys.VCS_LOG_DATA_PROVIDER == key) {
       sink.put(key, myLogDataHolder);
     }
-    else if (VcsDataKeys.CHANGES.equals(key)) {
+    else if (VcsDataKeys.CHANGES == key || VcsDataKeys.SELECTED_CHANGES == key) {
       List<Change> selectedChanges = getSelectedChanges();
       if (selectedChanges != null) {
-        sink.put(VcsDataKeys.CHANGES, ArrayUtil.toObjectArray(selectedChanges, Change.class));
+        sink.put(key, ArrayUtil.toObjectArray(selectedChanges, Change.class));
       }
     }
   }
@@ -272,6 +276,29 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
           myChangesLoadingPane.startLoading();
         }
       }
+    }
+  }
+
+  private class BekAction extends ToggleAction implements DumbAware {
+    public BekAction() {
+      super("BEK", "BEK", AllIcons.Actions.Lightning);
+    }
+
+    @Override
+    public boolean isSelected(AnActionEvent e) {
+      return myUI.isBek();
+    }
+
+    @Override
+    public void setSelected(AnActionEvent e, boolean state) {
+      myUI.setBek(state);
+    }
+
+    @Override
+    public void update(AnActionEvent e) {
+      super.update(e);
+      e.getPresentation().setVisible(BekSorter.isBekEnabled());
+      e.getPresentation().setEnabled(areGraphActionsEnabled());
     }
   }
 

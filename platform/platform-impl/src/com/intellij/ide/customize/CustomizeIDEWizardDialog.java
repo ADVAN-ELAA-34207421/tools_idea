@@ -15,7 +15,6 @@
  */
 package com.intellij.ide.customize;
 
-import com.intellij.ide.plugins.PluginManager;
 import com.intellij.ide.startup.StartupActionScriptManager;
 import com.intellij.openapi.application.ApplicationNamesInfo;
 import com.intellij.openapi.ui.DialogWrapper;
@@ -27,11 +26,12 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class CustomizeIDEWizardDialog extends DialogWrapper implements ActionListener {
+  private static final String BUTTONS = "BUTTONS";
+  private static final String NOBUTTONS = "NOBUTTONS";
   private final JButton mySkipButton = new JButton("Skip All and Set Defaults");
   private final JButton myBackButton = new JButton("Back");
   private final JButton myNextButton = new JButton("Next");
@@ -42,6 +42,8 @@ public class CustomizeIDEWizardDialog extends DialogWrapper implements ActionLis
   private final JLabel myNavigationLabel = new JLabel();
   private final JLabel myHeaderLabel = new JLabel();
   private final JLabel myFooterLabel = new JLabel();
+  private final CardLayout myButtonWrapperLayout = new CardLayout();
+  private final JPanel myButtonWrapper = new JPanel(myButtonWrapperLayout);
   private JPanel myContentPanel;
 
   public CustomizeIDEWizardDialog() {
@@ -99,23 +101,30 @@ public class CustomizeIDEWizardDialog extends DialogWrapper implements ActionLis
 
   @Override
   protected JComponent createSouthPanel() {
-    final JPanel result = new JPanel(new GridBagLayout());
+    final JPanel buttonPanel = new JPanel(new GridBagLayout());
     GridBagConstraints gbc = new GridBagConstraints();
     gbc.insets.right = 5;
     gbc.fill = GridBagConstraints.BOTH;
     gbc.gridx = 0;
     gbc.gridy = 0;
-    result.add(mySkipButton, gbc);
+    buttonPanel.add(mySkipButton, gbc);
     gbc.gridx++;
-    result.add(myBackButton, gbc);
+    buttonPanel.add(myBackButton, gbc);
     gbc.gridx++;
     gbc.weightx = 1;
-    result.add(Box.createHorizontalGlue(), gbc);
+    buttonPanel.add(Box.createHorizontalGlue(), gbc);
     gbc.gridx++;
     gbc.weightx = 0;
-    result.add(myNextButton, gbc);
-    result.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
-    return result;
+    buttonPanel.add(myNextButton, gbc);
+    buttonPanel.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
+    myButtonWrapper.add(buttonPanel, BUTTONS);
+    myButtonWrapper.add(new JLabel(), NOBUTTONS);
+    myButtonWrapperLayout.show(myButtonWrapper, BUTTONS);
+    return myButtonWrapper;
+  }
+
+  void setButtonsVisible(boolean visible) {
+    myButtonWrapperLayout.show(myButtonWrapper, visible ? BUTTONS : NOBUTTONS);
   }
 
   @Override
@@ -148,11 +157,6 @@ public class CustomizeIDEWizardDialog extends DialogWrapper implements ActionLis
   protected void doOKAction() {
     for (AbstractCustomizeWizardStep step : mySteps) {
       if (!step.beforeOkAction()) return;
-    }
-    try {
-      PluginManager.saveDisabledPlugins(PluginGroups.getInstance().getDisabledPluginIds(), false);
-    }
-    catch (IOException ignored) {
     }
     super.doOKAction();
   }

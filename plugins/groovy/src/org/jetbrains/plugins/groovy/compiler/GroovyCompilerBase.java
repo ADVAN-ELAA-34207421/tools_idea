@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,6 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.StdFileTypes;
 import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleType;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
@@ -72,10 +71,10 @@ import org.jetbrains.jps.incremental.messages.BuildMessage;
 import org.jetbrains.jps.incremental.messages.CompilerMessage;
 import org.jetbrains.plugins.groovy.GroovyFileType;
 import org.jetbrains.plugins.groovy.config.GroovyConfigUtils;
+import org.jetbrains.plugins.groovy.config.GroovyFacetUtil;
 import org.jetbrains.plugins.groovy.extensions.GroovyScriptType;
-import org.jetbrains.plugins.groovy.extensions.GroovyScriptTypeDetector;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyFile;
-import org.jetbrains.plugins.groovy.util.GroovyUtils;
+import org.jetbrains.plugins.groovy.runner.GroovyScriptUtil;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -295,6 +294,7 @@ public abstract class GroovyCompilerBase implements TranslatingCompiler {
   protected Set<VirtualFile> enumerateGroovyFiles(final Module module) {
     final Set<VirtualFile> moduleClasses = new THashSet<VirtualFile>();
     ModuleRootManager.getInstance(module).getFileIndex().iterateContent(new ContentIterator() {
+      @Override
       public boolean processFile(final VirtualFile vfile) {
         if (!vfile.isDirectory() &&
             GroovyFileType.GROOVY_FILE_TYPE.equals(vfile.getFileType())) {
@@ -353,6 +353,7 @@ public abstract class GroovyCompilerBase implements TranslatingCompiler {
     return new ModuleChunk((CompileContextEx)context, new Chunk<Module>(module), Collections.<Module, List<VirtualFile>>emptyMap());
   }
 
+  @Override
   public void compile(final CompileContext compileContext, Chunk<Module> moduleChunk, final VirtualFile[] virtualFiles, OutputSink sink) {
     Map<Module, List<VirtualFile>> mapModulesToVirtualFiles;
     if (moduleChunk.getNodes().size() == 1) {
@@ -373,7 +374,7 @@ public abstract class GroovyCompilerBase implements TranslatingCompiler {
       final CompilerConfiguration configuration = CompilerConfiguration.getInstance(myProject);
       final PsiManager psiManager = PsiManager.getInstance(myProject);
 
-      if (GroovyUtils.isAcceptableModuleType(ModuleType.get(module))) {
+      if (GroovyFacetUtil.isSuitableModule(module)) {
         for (final VirtualFile file : moduleFiles) {
           if (shouldCompile(file, configuration, psiManager)) {
             (index.isInTestSourceContent(file) ? toCompileTests : toCompile).add(file);
@@ -404,7 +405,7 @@ public abstract class GroovyCompilerBase implements TranslatingCompiler {
       try {
         PsiFile psiFile = manager.findFile(file);
         if (psiFile instanceof GroovyFile && ((GroovyFile)psiFile).isScript()) {
-          final GroovyScriptType scriptType = GroovyScriptTypeDetector.getScriptType((GroovyFile)psiFile);
+          final GroovyScriptType scriptType = GroovyScriptUtil.getScriptType((GroovyFile)psiFile);
           return scriptType.shouldBeCompiled((GroovyFile)psiFile);
         }
         return true;
@@ -420,6 +421,7 @@ public abstract class GroovyCompilerBase implements TranslatingCompiler {
   protected abstract void compileFiles(CompileContext compileContext, Module module,
                                        List<VirtualFile> toCompile, OutputSink sink, boolean tests);
 
+  @Override
   public boolean isCompilableFile(VirtualFile file, CompileContext context) {
     final boolean result = GroovyFileType.GROOVY_FILE_TYPE.equals(file.getFileType());
     if (result && LOG.isDebugEnabled()) {

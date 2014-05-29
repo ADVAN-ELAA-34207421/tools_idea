@@ -605,7 +605,7 @@ public class GitCheckinEnvironment implements CheckinEnvironment {
     /**
      * The author ComboBox, the combobox contains previously selected authors.
      */
-    private final JComboBox myAuthor;
+    private final ComboBox myAuthor;
 
     private Date myAuthorDate;
 
@@ -711,7 +711,7 @@ public class GitCheckinEnvironment implements CheckinEnvironment {
         VcsFullCommitDetails commit = (VcsFullCommitDetails)data;
         String author = String.format("%s <%s>", commit.getAuthor().getName(), commit.getAuthor().getEmail());
         myAuthor.getEditor().setItem(author);
-        myAuthorDate = new Date(commit.getTime());
+        myAuthorDate = new Date(commit.getTimestamp());
       }
     }
   }

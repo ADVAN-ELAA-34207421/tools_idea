@@ -204,12 +204,12 @@ public class ResolveClassTest extends ResolveTestCase {
     long start = System.currentTimeMillis();
     assertNull(ref.resolve());
     long elapsed = System.currentTimeMillis() - start;
-    PlatformTestUtil.assertTiming("exponent?", 200, elapsed);
+    PlatformTestUtil.assertTiming("exponent?", 500, elapsed);
   }
 
   public void testStaticImportNetwork() throws Exception {
     PsiReference ref = configure();
-    int count = 20;
+    int count = 15;
 
     String imports = "";
     for (int i = 0; i < count; i++) {
@@ -220,6 +220,7 @@ public class ResolveClassTest extends ResolveTestCase {
       createFile(myModule, "Foo" + i + ".java", imports + "class Foo" + i + " extends Bar1, Bar2, Bar3 {}");
     }
 
+    System.gc();
     long start = System.currentTimeMillis();
     assertNull(ref.resolve());
     PlatformTestUtil.assertTiming("exponent?", 20000, System.currentTimeMillis() - start);

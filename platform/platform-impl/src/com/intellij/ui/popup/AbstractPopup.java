@@ -799,10 +799,15 @@ public class AbstractPopup implements JBPopup {
       listener.beforeShown(new LightweightWindowEvent(this));
     }
 
+    // can be improved by moving in myPopup code
+    myPopup.getWindow().setSize(myComponent.getSize());
+
     myPopup.setRequestFocus(myRequestFocus);
     myPopup.show();
 
     final Window window = SwingUtilities.getWindowAncestor(myContent);
+
+    myWindow = window;
 
     myWindowListener = new MyWindowListener();
     window.addWindowListener(myWindowListener);
@@ -811,9 +816,6 @@ public class AbstractPopup implements JBPopup {
       window.setFocusableWindowState(true);
       window.setFocusable(true);
     }
-
-    myWindow = updateMaskAndAlpha(window);
-
 
     if (myWindow != null) {
       // dialogwrapper-based popups do this internally through peer,
@@ -1478,6 +1480,12 @@ public class AbstractPopup implements JBPopup {
   }
 
   private class MyWindowListener extends WindowAdapter {
+
+    @Override
+    public void windowOpened(WindowEvent e) {
+      updateMaskAndAlpha(myWindow);
+    }
+
     @Override
     public void windowClosing(final WindowEvent e) {
       resetWindow();
