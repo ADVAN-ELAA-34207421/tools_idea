@@ -24,9 +24,11 @@ import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.idea.IdeaPlugin;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.gradle.model.ExtIdeaContentRoot;
 import org.jetbrains.plugins.gradle.model.ModuleExtendedModel;
+import org.jetbrains.plugins.gradle.tooling.ErrorMessageBuilder;
 import org.jetbrains.plugins.gradle.tooling.ModelBuilderService;
 import org.jetbrains.plugins.gradle.tooling.internal.IdeaContentRootImpl;
 import org.jetbrains.plugins.gradle.tooling.internal.IdeaSourceDirectoryImpl;
@@ -57,8 +59,9 @@ public class ModuleExtendedModelBuilderImpl implements ModelBuilderService {
     final String moduleName = project.getName();
     final String moduleGroup = project.getGroup().toString();
     final String moduleVersion = project.getVersion().toString();
+    final File buildDir = project.getBuildDir();
 
-    final ModuleExtendedModelImpl moduleVersionModel = new ModuleExtendedModelImpl(moduleName, moduleGroup, moduleVersion);
+    final ModuleExtendedModelImpl moduleVersionModel = new ModuleExtendedModelImpl(moduleName, moduleGroup, moduleVersion, buildDir);
 
     final List<File> artifacts = new ArrayList<File>();
     for (Task task : project.getTasks()) {
@@ -164,6 +167,14 @@ public class ModuleExtendedModelBuilderImpl implements ModelBuilderService {
 
     moduleVersionModel.setContentRoots(Collections.<ExtIdeaContentRoot>singleton(contentRoot));
     return moduleVersionModel;
+  }
+
+  @NotNull
+  @Override
+  public ErrorMessageBuilder getErrorMessageBuilder(@NotNull Project project, @NotNull Exception e) {
+    return ErrorMessageBuilder.create(
+      project, e, "Other"
+    ).withDescription("Unable to resolve all content root directories");
   }
 
   private static boolean isTestDir(SourceSet sourceSet, List<File> testClassesDirs) {

@@ -55,6 +55,9 @@ import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.unscramble.ThreadState;
 import com.intellij.util.Alarm;
 import com.intellij.xdebugger.AbstractDebuggerSession;
+import com.intellij.xdebugger.XDebugProcess;
+import com.intellij.xdebugger.XDebugSession;
+import com.intellij.xdebugger.XDebuggerManager;
 import com.intellij.xdebugger.impl.actions.XDebuggerActions;
 import com.intellij.xdebugger.impl.evaluate.quick.common.ValueLookupManager;
 import com.sun.jdi.ObjectCollectedException;
@@ -333,10 +336,14 @@ public class DebuggerSession implements AbstractDebuggerSession {
   }
 
   public void dispose() {
-    ApplicationManager.getApplication().assertIsDispatchThread();
     getProcess().dispose();
-    getContextManager().setState(SESSION_EMPTY_CONTEXT, STATE_DISPOSED, EVENT_DISPOSE, null);
     Disposer.dispose(myUpdateAlarm);
+    DebuggerInvocationUtil.invokeLater(getProject(), new Runnable() {
+      @Override
+      public void run() {
+        getContextManager().setState(SESSION_EMPTY_CONTEXT, STATE_DISPOSED, EVENT_DISPOSE, null);
+      }
+    });
   }
 
   // ManagerCommands
@@ -693,4 +700,14 @@ public class DebuggerSession implements AbstractDebuggerSession {
     return Registry.is("debugger.enable.breakpoints.during.evaluation");
   }
 
+  @Nullable
+  public XDebugSession getXDebugSession() {
+    for (XDebugSession xDebugSession : XDebuggerManager.getInstance(getProject()).getDebugSessions()) {
+      XDebugProcess process = xDebugSession.getDebugProcess();
+      if (process instanceof JavaDebugProcess && ((JavaDebugProcess)process).getDebuggerSession() == this) {
+        return xDebugSession;
+      }
+    }
+    return null;
+  }
 }

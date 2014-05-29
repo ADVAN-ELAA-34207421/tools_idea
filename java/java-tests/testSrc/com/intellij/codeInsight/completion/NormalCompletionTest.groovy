@@ -1451,4 +1451,18 @@ class Bar {
     assertStringItems('abcdefgXxx')
   }
 
+  public void testProtectedFieldInAnotherPackage() {
+    myFixture.addClass("package foo; public class Super { protected String myString; }");
+    doTest()
+  }
+
+  public void testNoJavaLangPackagesInImport() { doAntiTest() }
+
+  public void testNoStaticDuplicatesFromExpectedMemberFactories() {
+    configure()
+    myFixture.complete(CompletionType.BASIC, 2)
+    myFixture.assertPreferredCompletionItems(0, "xcreateZoo", "xcreateElephant");
+  }
+
+
 }

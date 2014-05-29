@@ -29,6 +29,7 @@ import com.intellij.openapi.editor.impl.FontInfo;
 import com.intellij.openapi.editor.impl.IterationState;
 import com.intellij.openapi.fileEditor.impl.text.TextEditorImpl;
 import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider;
+import com.intellij.openapi.util.Couple;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.TextRange;
@@ -715,7 +716,9 @@ public final class EditorUtil {
    * @return          pair of the closest surrounding non-soft-wrapped logical positions for the visual line start and end
    */
   @SuppressWarnings("AssignmentToForLoopParameter")
-  public static Pair<LogicalPosition, LogicalPosition> calcSurroundingRange(@NotNull Editor editor, @NotNull VisualPosition start, @NotNull VisualPosition end) {
+  public static Couple<LogicalPosition> calcSurroundingRange(@NotNull Editor editor,
+                                                             @NotNull VisualPosition start,
+                                                             @NotNull VisualPosition end) {
     final Document document = editor.getDocument();
     final FoldingModel foldingModel = editor.getFoldingModel();
 
@@ -761,12 +764,17 @@ public final class EditorUtil {
     if (second.line >= document.getLineCount()) {
       second = editor.offsetToLogicalPosition(document.getTextLength());
     }
-    return new Pair<LogicalPosition, LogicalPosition>(first, second);
+    return Couple.newOne(first, second);
   }
 
   public static void scrollToTheEnd(@NotNull Editor editor) {
-    editor.getCaretModel().moveToOffset(editor.getDocument().getTextLength());
     editor.getSelectionModel().removeSelection();
+    int lastLine = Math.max(0, editor.getDocument().getLineCount() - 1);
+    if (editor.getCaretModel().getLogicalPosition().line == lastLine) {
+      editor.getCaretModel().moveToOffset(editor.getDocument().getTextLength());
+    } else {
+      editor.getCaretModel().moveToLogicalPosition(new LogicalPosition(lastLine, 0));
+    }
     editor.getScrollingModel().scrollToCaret(ScrollType.RELATIVE);
   }
 

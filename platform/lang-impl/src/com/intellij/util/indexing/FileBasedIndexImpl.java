@@ -159,15 +159,13 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     final MessageBusConnection connection = bus.connect();
     connection.subscribe(PsiDocumentTransactionListener.TOPIC, new PsiDocumentTransactionListener() {
       @Override
-      public void transactionStarted(final Document doc, final PsiFile file) {
-        if (file != null) {
-          myTransactionMap = myTransactionMap.plus(doc, file);
-          myUpToDateIndicesForUnsavedOrTransactedDocuments.clear();
-        }
+      public void transactionStarted(@NotNull final Document doc, @NotNull final PsiFile file) {
+        myTransactionMap = myTransactionMap.plus(doc, file);
+        myUpToDateIndicesForUnsavedOrTransactedDocuments.clear();
       }
 
       @Override
-      public void transactionCompleted(final Document doc, final PsiFile file) {
+      public void transactionCompleted(@NotNull final Document doc, @NotNull final PsiFile file) {
         myTransactionMap = myTransactionMap.minus(doc);
       }
     });
@@ -381,7 +379,10 @@ public class FileBasedIndexImpl extends FileBasedIndex {
         versionChanged = true;
         LOG.info("Version has changed for index " + name + ". The index will be rebuilt.");
       }
-      FileUtil.delete(IndexInfrastructure.getIndexRootDir(name));
+      if (extension.hasSnapshotMapping() && (isCurrentVersionCorrupted || versionChanged)) {
+        safeDelete(IndexInfrastructure.getPersistentIndexRootDir(name));
+      }
+      safeDelete(IndexInfrastructure.getIndexRootDir(name));
       IndexingStamp.rewriteVersion(versionFile, version);
     }
 
@@ -394,8 +395,14 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     throws IOException {
     MapIndexStorage<K, V> storage = null;
     final ID<K, V> name = extension.getName();
+    boolean contentHashesEnumeratorOk = false;
+
     for (int attempt = 0; attempt < 2; attempt++) {
       try {
+        if (extension.hasSnapshotMapping()) {
+          ContentHashesSupport.initContentHashesEnumerator();
+          contentHashesEnumeratorOk = true;
+        }
         storage = new MapIndexStorage<K, V>(
           IndexInfrastructure.getStorageFile(name),
           extension.getKeyDescriptor(),
@@ -443,6 +450,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
       }
       catch (Exception e) {
         LOG.info(e);
+        boolean instantiatedStorage = storage != null;
         try {
           if (storage != null) storage.close();
           storage = null;
@@ -450,10 +458,20 @@ public class FileBasedIndexImpl extends FileBasedIndex {
         catch (Exception ignored) {
         }
 
-        FileUtil.delete(IndexInfrastructure.getIndexRootDir(name));
+        safeDelete(IndexInfrastructure.getIndexRootDir(name));
+
+        if (extension.hasSnapshotMapping() && (!contentHashesEnumeratorOk || instantiatedStorage)) {
+          safeDelete(IndexInfrastructure.getPersistentIndexRootDir(name)); // todo there is possibility of corruption of storage and content hashes
+        }
         IndexingStamp.rewriteVersion(versionFile, version);
       }
     }
+  }
+
+  private static boolean safeDelete(File dir) {
+    File directory = FileUtil.findSequentNonexistentFile(dir.getParentFile(), dir.getName(), "");
+    boolean success = dir.renameTo(directory);
+    return FileUtil.delete(success ? directory:dir);
   }
 
   private static void saveRegisteredIndices(@NotNull Collection<ID<?, ?>> ids) {
@@ -519,7 +537,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
         extension.hasSnapshotMapping() && IdIndex.ourSnapshotMappingsEnabled
         ? createInputsIndexExternalizer(extension, indexId, extension.getKeyDescriptor())
         : null;
-      index = new MapReduceIndex<K, V, FileContent>(indexId, extension.getIndexer(), storage, externalizer);
+      index = new MapReduceIndex<K, V, FileContent>(indexId, extension.getIndexer(), storage, externalizer, extension.getValueExternalizer());
     }
     index.setInputIdToDataKeysIndex(new Factory<PersistentHashMap<Integer, Collection<K>>>() {
       @Override
@@ -1197,96 +1215,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
                                         @NotNull final Set<K> dataKeys,
                                         @NotNull Processor<VirtualFile> processor,
                                         @NotNull GlobalSearchScope filter) {
-    try {
-      final UpdatableIndex<K, V, FileContent> index = getIndex(indexId);
-      if (index == null) {
-        return true;
-      }
-      final Project project = filter.getProject();
-      //assert project != null : "GlobalSearchScope#getProject() should be not-null for all index queries";
-      ensureUpToDate(indexId, project, filter);
-
-      try {
-        index.getReadLock().lock();
-        final List<TIntHashSet> locals = new ArrayList<TIntHashSet>();
-        for (K dataKey : dataKeys) {
-          TIntHashSet local = new TIntHashSet();
-          locals.add(local);
-          final ValueContainer<V> container = index.getData(dataKey);
-
-          for (final Iterator<V> valueIt = container.getValueIterator(); valueIt.hasNext(); ) {
-            final V value = valueIt.next();
-            for (final ValueContainer.IntIterator inputIdsIterator = container.getInputIdsIterator(value); inputIdsIterator.hasNext(); ) {
-              final int id = inputIdsIterator.next();
-              local.add(id);
-            }
-          }
-        }
-
-        if (locals.isEmpty()) {
-          return true;
-        }
-
-        Collections.sort(locals, new Comparator<TIntHashSet>() {
-          @Override
-          public int compare(TIntHashSet o1, TIntHashSet o2) {
-            return o1.size() - o2.size();
-          }
-        });
-
-        final PersistentFS fs = (PersistentFS)ManagingFS.getInstance();
-        TIntIterator ids = join(locals).iterator();
-        ProjectIndexableFilesFilter projectIndexableFilesFilter = projectIndexableFiles(project);
-        while (ids.hasNext()) {
-          int id = ids.next();
-          if (projectIndexableFilesFilter != null && !projectIndexableFilesFilter.containsFileId(id)) continue;
-          //VirtualFile file = IndexInfrastructure.findFileById(fs, id);
-          VirtualFile file = IndexInfrastructure.findFileByIdIfCached(fs, id);
-          if (file != null && filter.accept(file)) {
-            if (!processor.process(file)) {
-              return false;
-            }
-          }
-        }
-      }
-      finally {
-        index.getReadLock().unlock();
-      }
-    }
-    catch (StorageException e) {
-      scheduleRebuild(indexId, e);
-    }
-    catch (RuntimeException e) {
-      final Throwable cause = e.getCause();
-      if (cause instanceof StorageException || cause instanceof IOException) {
-        scheduleRebuild(indexId, cause);
-      }
-      else {
-        throw e;
-      }
-    } catch (AssertionError ae) {
-      scheduleRebuild(indexId, ae);
-    }
-    return true;
-  }
-
-  @NotNull
-  private static TIntHashSet join(@NotNull List<TIntHashSet> locals) {
-    TIntHashSet result = locals.get(0);
-    if (locals.size() > 1) {
-      TIntIterator it = result.iterator();
-
-      while (it.hasNext()) {
-        int id = it.next();
-        for (int i = 1; i < locals.size(); i++) {
-          if (!locals.get(i).contains(id)) {
-            it.remove();
-            break;
-          }
-        }
-      }
-    }
-    return result;
+    return processFilesContainingAllKeys(indexId, dataKeys, filter, null, processor);
   }
 
   @Override
@@ -1405,7 +1334,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
 
     if (!documents.isEmpty()) {
       // now index unsaved data
-      final StorageGuard.Holder guard = setDataBufferingEnabled(true);
+      final StorageGuard.StorageModeExitHandler guard = setDataBufferingEnabled(true);
       try {
         final Semaphore semaphore = myUnsavedDataIndexingSemaphores.get(indexId);
 
@@ -1584,17 +1513,26 @@ public class FileBasedIndexImpl extends FileBasedIndex {
   }
 
   private final StorageGuard myStorageLock = new StorageGuard();
+  private volatile boolean myPreviousDataBufferingState;
+  private final Object myBufferingStateUpdateLock = new Object();
 
   @NotNull
-  private StorageGuard.Holder setDataBufferingEnabled(final boolean enabled) {
-    final StorageGuard.Holder holder = myStorageLock.enter(enabled);
-    for (ID<?, ?> indexId : myIndices.keySet()) {
-      final MapReduceIndex index = (MapReduceIndex)getIndex(indexId);
-      assert index != null;
-      final IndexStorage indexStorage = index.getStorage();
-      ((MemoryIndexStorage)indexStorage).setBufferingEnabled(enabled);
+  private StorageGuard.StorageModeExitHandler setDataBufferingEnabled(final boolean enabled) {
+    StorageGuard.StorageModeExitHandler storageModeExitHandler = myStorageLock.enter(enabled);
+
+    if (myPreviousDataBufferingState != enabled) {
+      synchronized (myBufferingStateUpdateLock) {
+        if (myPreviousDataBufferingState != enabled) {
+          for (ID<?, ?> indexId : myIndices.keySet()) {
+            final MapReduceIndex index = (MapReduceIndex)getIndex(indexId);
+            assert index != null;
+            ((MemoryIndexStorage)index.getStorage()).setBufferingEnabled(enabled);
+          }
+          myPreviousDataBufferingState = enabled;
+        }
+      }
     }
-    return holder;
+    return storageModeExitHandler;
   }
 
   private void cleanupMemoryStorage() {
@@ -1620,7 +1558,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
       indicesToDrop.remove(key.toString());
     }
     for (String s : indicesToDrop) {
-      FileUtil.delete(IndexInfrastructure.getIndexRootDir(ID.create(s)));
+      safeDelete(IndexInfrastructure.getIndexRootDir(ID.create(s)));
     }
   }
 
@@ -1698,7 +1636,8 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     myChangedFilesCollector.ensureAllInvalidateTasksCompleted();
     final VirtualFile file = content.getVirtualFile();
 
-    FileTypeManagerImpl.cacheFileType(file, file.getFileType());
+    FileType fileType = file.getFileType();
+    FileTypeManagerImpl.cacheFileType(file, fileType);
 
     try {
       PsiFile psiFile = null;
@@ -1711,13 +1650,16 @@ public class FileBasedIndexImpl extends FileBasedIndex {
         if (shouldIndexFile(file, indexId)) {
           if (fc == null) {
             byte[] currentBytes;
+            byte[] hash;
             try {
               currentBytes = content.getBytes();
+              hash = fileType.isBinary() || !IdIndex.ourSnapshotMappingsEnabled ? null:ContentHashesSupport.calcContentHashWithFileType(currentBytes, fileType);
             }
             catch (IOException e) {
               currentBytes = ArrayUtil.EMPTY_BYTE_ARRAY;
+              hash = null;
             }
-            fc = new FileContentImpl(file, currentBytes);
+            fc = new FileContentImpl(file, currentBytes, hash);
             if (project == null) {
               project = ProjectUtil.guessProjectForFile(file);
             }
@@ -1832,7 +1774,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
       @Override
       public Boolean compute() {
         Boolean result;
-        final StorageGuard.Holder lock = setDataBufferingEnabled(false);
+        final StorageGuard.StorageModeExitHandler lock = setDataBufferingEnabled(false);
         try {
           result = update.compute();
         }
@@ -1917,11 +1859,6 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     @Override
     public void fileCreated(@NotNull final VirtualFileEvent event) {
       markDirty(event, false);
-    }
-
-    @Override
-    public void fileDeleted(@NotNull final VirtualFileEvent event) {
-      myFilesToUpdate.remove(event.getFile()); // no need to update it anymore
     }
 
     @Override
@@ -2085,6 +2022,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
             }
           }
         }
+        myFilesToUpdate.remove(file); // no need to update it anymore
       }
 
       Collection<ID<?, ?>> fileIndexedStatesToUpdate = ContainerUtil.intersection(nontrivialFileIndexedStates, myRequiringContentIndices);
@@ -2578,12 +2516,12 @@ public class FileBasedIndexImpl extends FileBasedIndex {
       }
       for (VirtualFile root : IndexableSetContributor.getRootsToIndex(provider)) {
         if (visitedRoots.add(root)) {
-          iterateRecursively(root, processor, indicator);
+          iterateRecursively(root, processor, indicator, visitedRoots);
         }
       }
       for (VirtualFile root : IndexableSetContributor.getProjectRootsToIndex(provider, project)) {
         if (visitedRoots.add(root)) {
-          iterateRecursively(root, processor, indicator);
+          iterateRecursively(root, processor, indicator, visitedRoots);
         }
       }
     }
@@ -2606,7 +2544,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
             for (VirtualFile[] roots : new VirtualFile[][]{libSources, libClasses}) {
               for (VirtualFile root : roots) {
                 if (visitedRoots.add(root)) {
-                  iterateRecursively(root, processor, indicator);
+                  iterateRecursively(root, processor, indicator, null);
                 }
               }
             }
@@ -2618,7 +2556,9 @@ public class FileBasedIndexImpl extends FileBasedIndex {
 
   private static void iterateRecursively(@Nullable final VirtualFile root,
                                          @NotNull final ContentIterator processor,
-                                         @Nullable final ProgressIndicator indicator) {
+                                         @Nullable final ProgressIndicator indicator,
+                                         @Nullable final Set<VirtualFile> visitedRoots
+                                         ) {
     if (root == null) {
       return;
     }
@@ -2626,6 +2566,9 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     VfsUtilCore.visitChildrenRecursively(root, new VirtualFileVisitor() {
       @Override
       public boolean visitFile(@NotNull VirtualFile file) {
+        if (visitedRoots != null && root != file && file.isDirectory() && !visitedRoots.add(file)) {
+          return false; // avoid visiting files more than once, e.g. additional indexed roots intersect sometimes
+        }
         if (indicator != null) indicator.checkCanceled();
 
         processor.processFile(file);
@@ -2637,18 +2580,19 @@ public class FileBasedIndexImpl extends FileBasedIndex {
   @SuppressWarnings({"WhileLoopSpinsOnField", "SynchronizeOnThis"})
   private static class StorageGuard {
     private int myHolds = 0;
+    private int myWaiters = 0;
 
-    public interface Holder {
+    public interface StorageModeExitHandler {
       void leave();
     }
 
-    private final Holder myTrueHolder = new Holder() {
+    private final StorageModeExitHandler myTrueStorageModeExitHandler = new StorageModeExitHandler() {
       @Override
       public void leave() {
         StorageGuard.this.leave(true);
       }
     };
-    private final Holder myFalseHolder = new Holder() {
+    private final StorageModeExitHandler myFalseStorageModeExitHandler = new StorageModeExitHandler() {
       @Override
       public void leave() {
         StorageGuard.this.leave(false);
@@ -2656,34 +2600,37 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     };
 
     @NotNull
-    public synchronized Holder enter(boolean mode) {
+    private synchronized StorageModeExitHandler enter(boolean mode) {
       if (mode) {
         while (myHolds < 0) {
-          try {
-            wait();
-          }
-          catch (InterruptedException ignored) {
-          }
+          doWait();
         }
         myHolds++;
-        return myTrueHolder;
+        return myTrueStorageModeExitHandler;
       }
       else {
         while (myHolds > 0) {
-          try {
-            wait();
-          }
-          catch (InterruptedException ignored) {
-          }
+          doWait();
         }
         myHolds--;
-        return myFalseHolder;
+        return myFalseStorageModeExitHandler;
+      }
+    }
+
+    private void doWait() {
+      try {
+        ++myWaiters;
+        wait();
+      }
+      catch (InterruptedException ignored) {
+      } finally {
+        --myWaiters;
       }
     }
 
     private synchronized void leave(boolean mode) {
       myHolds += mode ? -1 : 1;
-      if (myHolds == 0) {
+      if (myHolds == 0 && myWaiters > 0) {
         notifyAll();
       }
     }

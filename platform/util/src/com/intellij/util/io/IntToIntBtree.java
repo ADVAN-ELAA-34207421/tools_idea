@@ -32,7 +32,7 @@ import java.util.Arrays;
 */
 class IntToIntBtree {
   public static int version() {
-    return 3 + (IOUtil.ourByteBuffersUseNativeByteOrder ? 0xFF : 0);
+    return 4 + (IOUtil.ourByteBuffersUseNativeByteOrder ? 0xFF : 0);
   }
 
   private static final int HAS_ZERO_KEY_MASK = 0xFF000000;
@@ -73,7 +73,7 @@ class IntToIntBtree {
       FileUtil.delete(file);
     }
 
-    storage = new ResizeableMappedFile(file, pageSize, storageLockContext, pageSize, true, IOUtil.ourByteBuffersUseNativeByteOrder);
+    storage = new ResizeableMappedFile(file, pageSize, storageLockContext, 1024 * 1024, true, IOUtil.ourByteBuffersUseNativeByteOrder);
     root = new BtreeIndexNodeView(this);
 
     if (initial) {
@@ -563,6 +563,7 @@ class IntToIntBtree {
           if (key != HASH_FREE) {
             int value = buffer.getInt(offset);
 
+            if (keyNumber == keys.length) throw new IllegalStateException("Index corrupted");
             keys[keyNumber++] = key;
             values.put(key, value);
           }

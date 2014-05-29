@@ -127,6 +127,8 @@ public class ExecutionPointHighlighter {
 
   private void doShow() {
     ApplicationManager.getApplication().assertIsDispatchThread();
+    if (ApplicationManager.getApplication().isUnitTestMode()) return;
+
     removeHighlighter();
 
     myEditor = myOpenFileDescriptor == null ? null : XDebuggerUtilImpl.createEditor(myOpenFileDescriptor);
@@ -136,16 +138,14 @@ public class ExecutionPointHighlighter {
   }
 
   private void removeHighlighter() {
-    if (myRangeHighlighter == null || myEditor == null) {
-      return;
-    }
-
-    if (myUseSelection) {
+    if (myUseSelection && myEditor != null) {
       myEditor.getSelectionModel().removeSelection();
     }
 
-    myRangeHighlighter.dispose();
-    myRangeHighlighter = null;
+    if (myRangeHighlighter != null) {
+      myRangeHighlighter.dispose();
+      myRangeHighlighter = null;
+    }
   }
 
   private void addHighlighter() {

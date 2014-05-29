@@ -51,6 +51,7 @@ import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.projectRoots.Sdk;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtil;
@@ -69,10 +70,15 @@ import com.intellij.util.PathMappingSettings;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.net.NetUtils;
 import com.intellij.util.ui.UIUtil;
+import com.intellij.xdebugger.XDebugProcess;
+import com.intellij.xdebugger.XDebugProcessStarter;
+import com.intellij.xdebugger.XDebugSession;
+import com.intellij.xdebugger.XDebuggerManager;
 import com.jetbrains.python.PythonHelpersLocator;
 import com.jetbrains.python.console.completion.PydevConsoleElement;
 import com.jetbrains.python.console.parsing.PythonConsoleData;
 import com.jetbrains.python.console.pydev.ConsoleCommunication;
+import com.jetbrains.python.debugger.PyDebugRunner;
 import com.jetbrains.python.debugger.PySourcePosition;
 import com.jetbrains.python.remote.PyRemoteSdkAdditionalDataBase;
 import com.jetbrains.python.remote.PyRemoteSdkCredentials;
@@ -82,6 +88,7 @@ import com.jetbrains.python.run.PythonCommandLineState;
 import com.jetbrains.python.run.PythonTracebackFilter;
 import com.jetbrains.python.sdk.PySdkUtil;
 import com.jetbrains.python.sdk.flavors.PythonSdkFlavor;
+import icons.PythonIcons;
 import org.apache.xmlrpc.XmlRpcException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -90,6 +97,7 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.IOException;
+import java.net.ServerSocket;
 import java.nio.charset.Charset;
 import java.util.*;
 
@@ -121,8 +129,6 @@ public class PydevConsoleRunner extends AbstractConsoleRunnerWithHistory<PythonC
   public static Key<ConsoleCommunication> CONSOLE_KEY = new Key<ConsoleCommunication>("PYDEV_CONSOLE_KEY");
 
   public static Key<Sdk> CONSOLE_SDK = new Key<Sdk>("PYDEV_CONSOLE_SDK_KEY");
-
-  private static final String PYTHON_ENV_COMMAND = "import sys; print('Python %s on %s' % (sys.version, sys.platform))\n";
 
   private static final long APPROPRIATE_TO_WAIT = 60000;
 
@@ -174,6 +180,8 @@ public class PydevConsoleRunner extends AbstractConsoleRunnerWithHistory<PythonC
     AnAction showVarsAction = new ShowVarsAction();
     toolbarActions.add(showVarsAction);
     toolbarActions.add(myHistoryController.getBrowseHistory());
+
+    toolbarActions.add(new ConnectDebuggerAction());
     return actions;
   }
 
@@ -357,7 +365,7 @@ public class PydevConsoleRunner extends AbstractConsoleRunnerWithHistory<PythonC
       remoteProcess.addRemoteTunnel(remotePorts.second, "localhost", myPorts[1]);
 
 
-      myPydevConsoleCommunication = new PydevConsoleCommunication(getProject(), myPorts[0], remoteProcess, myPorts[1]);
+      myPydevConsoleCommunication = new PydevRemoteConsoleCommunication(getProject(), myPorts[0], remoteProcess, myPorts[1]);
       return remoteProcess;
     }
     catch (Exception e) {
@@ -412,8 +420,29 @@ public class PydevConsoleRunner extends AbstractConsoleRunnerWithHistory<PythonC
 
   @Override
   protected PyConsoleProcessHandler createProcessHandler(final Process process) {
-    myProcessHandler = new PyConsoleProcessHandler(process, getConsoleView(), myPydevConsoleCommunication, myCommandLine,
-                                                   CharsetToolkit.UTF8_CHARSET);
+    if (PySdkUtil.isRemote(mySdk)) {
+      PythonRemoteInterpreterManager manager = PythonRemoteInterpreterManager.getInstance();
+      if (manager != null) {
+        PyRemoteSdkAdditionalDataBase data = (PyRemoteSdkAdditionalDataBase)mySdk.getSdkAdditionalData();
+        assert data != null;
+        try {
+          myProcessHandler =
+            manager.createConsoleProcessHandler(process, data.getRemoteSdkCredentials(), getConsoleView(), myPydevConsoleCommunication,
+                                                myCommandLine, CharsetToolkit.UTF8_CHARSET,
+                                                manager.setupMappings(getProject(), data, null));
+        }
+        catch (InterruptedException e) {
+          LOG.error("Error getting remote credentials");
+        }
+      }
+      else {
+        LOG.error("Can't create remote console process handler");
+      }
+    }
+    else {
+      myProcessHandler = new PyConsoleProcessHandler(process, getConsoleView(), myPydevConsoleCommunication, myCommandLine,
+                                                     CharsetToolkit.UTF8_CHARSET);
+    }
     return myProcessHandler;
   }
 
@@ -440,8 +469,6 @@ public class PydevConsoleRunner extends AbstractConsoleRunnerWithHistory<PythonC
           });
 
           enableConsoleExecuteAction();
-
-          consoleView.executeStatement(PYTHON_ENV_COMMAND, ProcessOutputTypes.SYSTEM);
 
           for (String statement : statements2execute) {
             consoleView.executeStatement(statement + "\n", ProcessOutputTypes.SYSTEM);
@@ -782,5 +809,88 @@ public class PydevConsoleRunner extends AbstractConsoleRunnerWithHistory<PythonC
         getConsoleView().restoreWindow();
       }
     }
+  }
+
+
+  private class ConnectDebuggerAction extends ToggleAction implements DumbAware {
+    private boolean mySelected = false;
+    private XDebugSession mySession = null;
+
+    public ConnectDebuggerAction() {
+      super("Attach Debugger", "Enables tracing of code executed in console", AllIcons.Actions.StartDebugger);
+    }
+
+    @Override
+    public boolean isSelected(AnActionEvent e) {
+      return mySelected;
+    }
+
+    @Override
+    public void update(AnActionEvent e) {
+      if (mySession != null) {
+        e.getPresentation().setEnabled(false);
+      }
+      else {
+        e.getPresentation().setEnabled(true);
+      }
+    }
+
+    @Override
+    public void setSelected(AnActionEvent e, boolean state) {
+      mySelected = state;
+
+      if (mySelected) {
+        try {
+          mySession = connectToDebugger();
+        }
+        catch (Exception e1) {
+          LOG.error(e1);
+          Messages.showErrorDialog("Can't connect to debugger", "Error Connecting Debugger");
+        }
+      }
+      else {
+        //TODO: disable debugging
+      }
+    }
+  }
+
+  private XDebugSession connectToDebugger() throws ExecutionException {
+    final ServerSocket serverSocket = PythonCommandLineState.createServerSocket();
+
+    final XDebugSession session = XDebuggerManager.getInstance(getProject()).
+      startSessionAndShowTab("Python Console Debugger", PythonIcons.Python.Python, null, true, new XDebugProcessStarter() {
+        @NotNull
+        public XDebugProcess start(@NotNull final XDebugSession session) {
+          PythonDebugLanguageConsoleView debugConsoleView = new PythonDebugLanguageConsoleView(getProject(), mySdk);
+
+          PyConsoleDebugProcessHandler consoleDebugProcessHandler =
+            new PyConsoleDebugProcessHandler(myProcessHandler);
+
+          PyConsoleDebugProcess consoleDebugProcess =
+            new PyConsoleDebugProcess(session, serverSocket, debugConsoleView,
+                                      consoleDebugProcessHandler);
+
+          PythonDebugConsoleCommunication communication =
+            PyDebugRunner.initDebugConsoleView(getProject(), consoleDebugProcess, debugConsoleView, consoleDebugProcessHandler);
+
+          myPydevConsoleCommunication.setDebugCommunication(communication);
+          debugConsoleView.attachToProcess(consoleDebugProcessHandler);
+
+          consoleDebugProcess.waitForNextConnection();
+
+          try {
+            consoleDebugProcess.connect(myPydevConsoleCommunication);
+          }
+          catch (Exception e) {
+            LOG.error(e); //TODO
+          }
+
+          myProcessHandler.notifyTextAvailable("\nDebugger connected.\n", ProcessOutputTypes.STDERR);
+
+          return consoleDebugProcess;
+        }
+      });
+
+    return session;
   }
 }

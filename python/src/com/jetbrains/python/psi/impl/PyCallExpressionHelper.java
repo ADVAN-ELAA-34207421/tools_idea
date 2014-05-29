@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiReference;
 import com.intellij.psi.ResolveResult;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.jetbrains.python.FunctionParameter;
 import com.jetbrains.python.PyNames;
 import com.jetbrains.python.nameResolver.FQNamesProvider;
 import com.jetbrains.python.nameResolver.NameResolverTools;
@@ -86,7 +87,7 @@ public class PyCallExpressionHelper {
                   PsiElement original = ((PyReferenceExpression)possible_original_ref).getReference().resolve();
                   if (original instanceof PyFunction) {
                     // pinned down the original; replace our resolved callee with it and add flags.
-                    return new Pair<String, PyFunction>(refname, (PyFunction)original);
+                    return Pair.create(refname, (PyFunction)original);
                   }
                 }
               }
@@ -359,6 +360,27 @@ public class PyCallExpressionHelper {
       }
     }
     return false;
+  }
+
+
+  /**
+   * Returns argument if it exists and has appropriate type
+   * @param parameter argument
+   * @param argClass expected class
+   * @param expression call expression
+   * @param <T> expected class
+   * @return argument expression or null if has wrong type of does not exist
+   */
+  @Nullable
+  public static  <T extends PsiElement> T getArgument(
+    @NotNull final FunctionParameter parameter,
+    @NotNull final Class<T> argClass,
+    @NotNull final PyCallExpression expression) {
+    final PyArgumentList list = expression.getArgumentList();
+    if (list == null) {
+      return null;
+    }
+    return PyUtil.as(list.getValueExpressionForParam(parameter), argClass);
   }
 
   @Nullable

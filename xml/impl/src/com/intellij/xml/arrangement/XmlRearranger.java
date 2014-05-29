@@ -40,7 +40,7 @@ public class XmlRearranger
   static {
     DEFAULT_MATCH_RULES.add(new StdArrangementMatchRule(new StdArrangementEntryMatcher(
       new ArrangementAtomMatchCondition(StdArrangementTokens.Regexp.NAME, "xmlns:.*"))));
-    DEFAULT_SETTINGS = new StdRulePriorityAwareSettings(
+    DEFAULT_SETTINGS = StdArrangementSettings.createByMatchRules(
       Collections.<ArrangementGroupingRule>emptyList(), DEFAULT_MATCH_RULES);
   }
 
@@ -86,7 +86,7 @@ public class XmlRearranger
                                                                                          @Nullable Document document,
                                                                                          @NotNull Collection<TextRange> ranges,
                                                                                          @NotNull PsiElement element,
-                                                                                         @Nullable ArrangementSettings settings)
+                                                                                         @NotNull ArrangementSettings settings)
   {
     final XmlArrangementParseInfo newEntryInfo = new XmlArrangementParseInfo();
     element.accept(new XmlArrangementVisitor(newEntryInfo, Collections.singleton(element.getTextRange())));
@@ -105,7 +105,7 @@ public class XmlRearranger
   public List<XmlElementArrangementEntry> parse(@NotNull PsiElement root,
                                                 @Nullable Document document,
                                                 @NotNull Collection<TextRange> ranges,
-                                                @Nullable ArrangementSettings settings) {
+                                                @NotNull ArrangementSettings settings) {
     final XmlArrangementParseInfo parseInfo = new XmlArrangementParseInfo();
     root.accept(new XmlArrangementVisitor(parseInfo, ranges));
     return parseInfo.getEntries();

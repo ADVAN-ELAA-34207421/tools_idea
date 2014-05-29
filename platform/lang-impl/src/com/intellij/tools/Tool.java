@@ -46,6 +46,7 @@ import org.jetbrains.annotations.Nullable;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 
 public class Tool implements SchemeElement {
   @NonNls public static final String ACTION_ID_PREFIX = "Tool_";
@@ -202,9 +203,7 @@ public class Tool implements SchemeElement {
   public void setOutputFilters(FilterInfo[] filters) {
     myOutputFilters = new ArrayList<FilterInfo>();
     if (filters != null) {
-      for (int i = 0; i < filters.length; i++) {
-        myOutputFilters.add(filters[i]);
-      }
+      Collections.addAll(myOutputFilters, filters);
     }
   }
 
@@ -232,11 +231,11 @@ public class Tool implements SchemeElement {
   }
 
   public boolean equals(Object obj) {
-    if (!(obj instanceof Tool)) return false;
-    Tool secondTool = (Tool)obj;
+    if (!(obj instanceof Tool)) {
+      return false;
+    }
 
-    Tool source = secondTool;
-
+    Tool source = (Tool)obj;
     return
       Comparing.equal(myName, source.myName) &&
       Comparing.equal(myDescription, source.myDescription) &&
@@ -266,14 +265,12 @@ public class Tool implements SchemeElement {
     return name.toString();
   }
 
-  /**
-   * @return <code>true</code> if task has been started successfully
-   */
-  public boolean execute(AnActionEvent event, DataContext dataContext, long executionId, @Nullable final ProcessListener processListener) {
+  public void execute(AnActionEvent event, DataContext dataContext, long executionId, @Nullable final ProcessListener processListener) {
     final Project project = CommonDataKeys.PROJECT.getData(dataContext);
     if (project == null) {
-      return false;
+      return;
     }
+
     FileDocumentManager.getInstance().saveAllDocuments();
     try {
       if (isUseConsole()) {
@@ -294,12 +291,11 @@ public class Tool implements SchemeElement {
             }
           }
         });
-        return true;
       }
       else {
         GeneralCommandLine commandLine = createCommandLine(dataContext);
         if (commandLine == null) {
-          return false;
+          return;
         }
         OSProcessHandler handler = new OSProcessHandler(commandLine.createProcess(), commandLine.getCommandLineString());
         handler.addProcessListener(new ToolProcessAdapter(project, synchronizeAfterExecution(), getName()));
@@ -307,13 +303,11 @@ public class Tool implements SchemeElement {
           handler.addProcessListener(processListener);
         }
         handler.startNotify();
-        return true;
       }
     }
     catch (ExecutionException ex) {
       ExecutionErrorDialog.show(ex, ToolsBundle.message("tools.process.start.error"), project);
     }
-    return false;
   }
 
   @Nullable
@@ -347,7 +341,7 @@ public class Tool implements SchemeElement {
         commandLine.setExePath(exePath);
       }
     }
-    catch (Macro.ExecutionCancelledException e) {
+    catch (Macro.ExecutionCancelledException ignored) {
       return null;
     }
     return commandLine;

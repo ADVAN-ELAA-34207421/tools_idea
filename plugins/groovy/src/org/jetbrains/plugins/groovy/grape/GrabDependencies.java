@@ -81,22 +81,21 @@ import java.util.*;
 public class GrabDependencies implements IntentionAction {
   private static final Logger LOG = Logger.getInstance("#org.jetbrains.plugins.groovy.grape.GrabDependencies");
 
-  public static final String GRAB_ANNO = "groovy.lang.Grab";
-  public static final String GRAPES_ANNO = "groovy.lang.Grapes";
-  public static final String GRAB_EXCLUDE_ANNO = "groovy.lang.GrabExclude";
-  public static final String GRAB_RESOLVER_ANNO = "groovy.lang.GrabResolver";
   private static final NotificationGroup NOTIFICATION_GROUP = new NotificationGroup("Grape", NotificationDisplayType.BALLOON, true);
 
+  @Override
   @NotNull
   public String getText() {
     return "Grab the artifacts";
   }
 
+  @Override
   @NotNull
   public String getFamilyName() {
     return "Grab";
   }
 
+  @Override
   public boolean isAvailable(@NotNull Project project, Editor editor, PsiFile file) {
     if (!isCorrectModule(file)) return false;
 
@@ -121,7 +120,7 @@ public class GrabDependencies implements IntentionAction {
       @Nullable
       @Override
       public Result<PsiAnnotation> compute() {
-        PsiClass grab = JavaPsiFacade.getInstance(file.getProject()).findClass(GRAB_ANNO, file.getResolveScope());
+        PsiClass grab = JavaPsiFacade.getInstance(file.getProject()).findClass(GrabAnnos.GRAB_ANNO, file.getResolveScope());
         final Ref<PsiAnnotation> result = Ref.create();
         if (grab != null) {
           ReferencesSearch.search(grab, new LocalSearchScope(file)).forEach(new Processor<PsiReference>() {
@@ -150,7 +149,7 @@ public class GrabDependencies implements IntentionAction {
 
   private static boolean isGrabAnnotation(@NotNull GrAnnotation anno) {
     final String qname = anno.getQualifiedName();
-    return qname != null && (qname.startsWith(GRAB_ANNO) || GRAPES_ANNO.equals(qname));
+    return qname != null && (qname.startsWith(GrabAnnos.GRAB_ANNO) || GrabAnnos.GRAPES_ANNO.equals(qname));
   }
 
   private static boolean isCorrectModule(PsiFile file) {
@@ -167,6 +166,7 @@ public class GrabDependencies implements IntentionAction {
     return file.getOriginalFile().getVirtualFile() != null && sdk.getSdkType() instanceof JavaSdkType;
   }
 
+  @Override
   public void invoke(@NotNull final Project project, Editor editor, PsiFile file) throws IncorrectOperationException {
     final Module module = ModuleUtilCore.findModuleForPsiElement(file);
     assert module != null;
@@ -210,6 +210,7 @@ public class GrabDependencies implements IntentionAction {
 
     ProgressManager.getInstance().run(new Task.Backgroundable(project, "Processing @Grab annotations") {
 
+      @Override
       public void run(@NotNull ProgressIndicator indicator) {
         int jarCount = 0;
         String messages = "";
@@ -246,9 +247,9 @@ public class GrabDependencies implements IntentionAction {
         if (element instanceof GrAnnotation) {
           GrAnnotation anno = (GrAnnotation)element;
           String qname = anno.getQualifiedName();
-          if (GRAB_ANNO.equals(qname)) grabs.add(anno);
-          else if (GRAB_EXCLUDE_ANNO.equals(qname)) excludes.add(anno);
-          else if (GRAB_RESOLVER_ANNO.equals(qname)) resolvers.add(anno);
+          if (GrabAnnos.GRAB_ANNO.equals(qname)) grabs.add(anno);
+          else if (GrabAnnos.GRAB_EXCLUDE_ANNO.equals(qname)) excludes.add(anno);
+          else if (GrabAnnos.GRAB_RESOLVER_ANNO.equals(qname)) resolvers.add(anno);
         }
         super.visitElement(element);
       }
@@ -269,6 +270,7 @@ public class GrabDependencies implements IntentionAction {
     return result;
   }
 
+  @Override
   public boolean startInWriteAction() {
     return false;
   }
@@ -354,6 +356,7 @@ public class GrabDependencies implements IntentionAction {
           }
         }
         new WriteAction() {
+          @Override
           protected void run(Result result) throws Throwable {
             jarCount = jars.size();
             messages = jarCount + " jar";

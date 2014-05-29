@@ -27,9 +27,7 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.SelectionModel;
 import com.intellij.openapi.extensions.Extensions;
 import com.intellij.openapi.fileEditor.FileEditorManager;
-import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleUtil;
-import com.intellij.openapi.module.ModuleUtilCore;
+import com.intellij.openapi.module.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.TextRange;
@@ -54,6 +52,7 @@ import com.intellij.usages.UsageViewManager;
 import com.intellij.usages.rules.PsiElementUsage;
 import com.intellij.util.PlatformUtils;
 import com.intellij.util.TreeItem;
+import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.model.java.JavaSourceRootType;
@@ -173,11 +172,13 @@ public class ScopeChooserCombo extends ComboboxWithBrowseButton implements Dispo
 
     createPredefinedScopeDescriptors(model);
 
-    model.addElement(new ScopeSeparator("VCS Scopes"));
     final List<NamedScope> changeLists = ChangeListsScopesProvider.getInstance(myProject).getCustomScopes();
-    for (NamedScope changeListScope : changeLists) {
-      final GlobalSearchScope scope = GlobalSearchScopesCore.filterScope(myProject, changeListScope);
-      model.addElement(new ScopeDescriptor(scope));
+    if (!changeLists.isEmpty()) {
+      model.addElement(new ScopeSeparator("VCS Scopes"));
+      for (NamedScope changeListScope : changeLists) {
+        final GlobalSearchScope scope = GlobalSearchScopesCore.filterScope(myProject, changeListScope);
+        model.addElement(new ScopeDescriptor(scope));
+      }
     }
 
     final List<ScopeDescriptor> customScopes = new ArrayList<ScopeDescriptor>();
@@ -235,13 +236,13 @@ public class ScopeChooserCombo extends ComboboxWithBrowseButton implements Dispo
                                                       boolean prevSearchFiles,
                                                       boolean currentSelection,
                                                       boolean usageView) {
-    ArrayList<SearchScope> result = new ArrayList<SearchScope>();
+    Collection<SearchScope> result = ContainerUtil.newLinkedHashSet();
     result.add(GlobalSearchScope.projectScope(project));
     if (suggestSearchInLibs) {
       result.add(GlobalSearchScope.allScope(project));
     }
 
-    if (!PlatformUtils.isCidr() && ModuleUtil.isSupportedRootType(project, JavaSourceRootType.TEST_SOURCE)) { // TODO: fix these scopes in AppCode
+    if (ModuleUtil.isSupportedRootType(project, JavaSourceRootType.TEST_SOURCE)) {
       result.add(GlobalSearchScopesCore.projectProductionScope(project));
       result.add(GlobalSearchScopesCore.projectTestScope(project));
     }
@@ -259,7 +260,7 @@ public class ScopeChooserCombo extends ComboboxWithBrowseButton implements Dispo
           if (module == null) {
             module = LangDataKeys.MODULE.getData(dataContext);
           }
-          if (module != null) {
+          if (module != null && !(ModuleType.get(module) instanceof InternalModuleType)) {
             result.add(module.getModuleScope());
           }
         }
@@ -312,29 +313,21 @@ public class ScopeChooserCombo extends ComboboxWithBrowseButton implements Dispo
         final List<PsiElement> results = new ArrayList<PsiElement>(usages.size());
 
         if (prevSearchFiles) {
-          final Set<VirtualFile> files = new HashSet<VirtualFile>();
-          for (Usage usage : usages) {
-            if (usage instanceof PsiElementUsage) {
-              PsiElement psiElement = ((PsiElementUsage)usage).getElement();
-              if (psiElement != null && psiElement.isValid()) {
-                PsiFile psiFile = psiElement.getContainingFile();
-                if (psiFile != null) {
-                  VirtualFile file = psiFile.getVirtualFile();
-                  if (file != null) files.add(file);
-                }
-              }
-            }
-          }
+          final Set<VirtualFile> files = collectFiles(usages, true);
           if (!files.isEmpty()) {
             GlobalSearchScope prev = new GlobalSearchScope(project) {
+              private Set<VirtualFile> myFiles = null;
               @Override
               public String getDisplayName() {
                 return IdeBundle.message("scope.files.in.previous.search.result");
               }
 
               @Override
-              public boolean contains(@NotNull VirtualFile file) {
-                return files.contains(file);
+              public synchronized boolean contains(@NotNull VirtualFile file) {
+                if (myFiles == null) {
+                  myFiles = collectFiles(usages, false);
+                }
+                return myFiles.contains(file);
               }
 
               @Override
@@ -419,7 +412,27 @@ public class ScopeChooserCombo extends ComboboxWithBrowseButton implements Dispo
       }
     }
 
-    return result;
+    return ContainerUtil.newArrayList(result);
+  }
+
+  protected static Set<VirtualFile> collectFiles(Set<Usage> usages, boolean findFirst) {
+    final Set<VirtualFile> files = new HashSet<VirtualFile>();
+    for (Usage usage : usages) {
+      if (usage instanceof PsiElementUsage) {
+        PsiElement psiElement = ((PsiElementUsage)usage).getElement();
+        if (psiElement != null && psiElement.isValid()) {
+          PsiFile psiFile = psiElement.getContainingFile();
+          if (psiFile != null) {
+            VirtualFile file = psiFile.getVirtualFile();
+            if (file != null) {
+              files.add(file);
+              if (findFirst) return files;
+            }
+          }
+        }
+      }
+    }
+    return files;
   }
 
   @Nullable

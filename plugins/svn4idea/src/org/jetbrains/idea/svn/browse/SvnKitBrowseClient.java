@@ -37,7 +37,7 @@ public class SvnKitBrowseClient extends BaseSvnClient implements BrowseClient {
                    @Nullable ISVNDirEntryHandler handler) throws VcsException {
     assertUrl(target);
 
-    SVNLogClient client = myVcs.createLogClient();
+    SVNLogClient client = myVcs.getSvnKitManager().createLogClient();
     ISVNDirEntryHandler wrappedHandler = wrapHandler(handler);
 
     try {
@@ -47,6 +47,21 @@ public class SvnKitBrowseClient extends BaseSvnClient implements BrowseClient {
       else {
         client.doList(target.getURL(), target.getPegRevision(), revision, true, depth, SVNDirEntry.DIRENT_ALL, wrappedHandler);
       }
+    }
+    catch (SVNException e) {
+      throw new SvnBindException(e);
+    }
+  }
+
+  @Override
+  public long createDirectory(@NotNull SvnTarget target, @NotNull String message, boolean makeParents) throws VcsException {
+    assertUrl(target);
+
+    try {
+      SVNCommitInfo commitInfo =
+        myVcs.getSvnKitManager().createCommitClient().doMkDir(new SVNURL[]{target.getURL()}, message, null, makeParents);
+
+      return commitInfo.getNewRevision();
     }
     catch (SVNException e) {
       throw new SvnBindException(e);

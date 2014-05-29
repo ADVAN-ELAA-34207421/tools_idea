@@ -32,28 +32,31 @@ import java.util.List;
 
 public class ApplyIntentionAction extends AnAction {
 
-  private final HighlightInfo.IntentionActionDescriptor myDescriptor;
+  private final IntentionAction myAction;
   private final Editor myEditor;
   private final PsiFile myFile;
 
-  public ApplyIntentionAction(HighlightInfo.IntentionActionDescriptor descriptor, Editor editor, PsiFile file) {
-    super(descriptor.getAction().getText());
-    myDescriptor = descriptor;
+  public ApplyIntentionAction(final HighlightInfo.IntentionActionDescriptor descriptor, String text, Editor editor, PsiFile file) {
+    this(descriptor.getAction(), text, editor, file);
+  }
+
+  public ApplyIntentionAction(final IntentionAction action, String text, Editor editor, PsiFile file) {
+    super(text);
+    myAction = action;
     myEditor = editor;
     myFile = file;
   }
 
   @Override
   public void actionPerformed(AnActionEvent e) {
-    final IntentionAction action = myDescriptor.getAction();
-    ShowIntentionActionsHandler.chooseActionAndInvoke(myFile, myEditor, action, action.getText());
+    ShowIntentionActionsHandler.chooseActionAndInvoke(myFile, myEditor, myAction, myAction.getText());
   }
 
   public String getName() {
     return ApplicationManager.getApplication().runReadAction(new Computable<String>() {
       @Override
       public String compute() {
-        return myDescriptor.getAction().getText();
+        return myAction.getText();
       }
     });
   }
@@ -76,7 +79,14 @@ public class ApplyIntentionAction extends AnAction {
 
     final ApplyIntentionAction[] result = new ApplyIntentionAction[actions.size()];
     for (int i = 0; i < result.length; i++) {
-      result[i] = new ApplyIntentionAction(actions.get(i), editor, file);
+      final HighlightInfo.IntentionActionDescriptor descriptor = actions.get(i);
+      final String actionText = ApplicationManager.getApplication().runReadAction(new Computable<String>() {
+        @Override
+        public String compute() {
+          return descriptor.getAction().getText();
+        }
+      });
+      result[i] = new ApplyIntentionAction(descriptor, actionText, editor, file);
     }
     return result;
   }

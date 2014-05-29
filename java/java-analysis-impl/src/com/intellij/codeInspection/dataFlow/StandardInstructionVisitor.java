@@ -118,6 +118,12 @@ public class StandardInstructionVisitor extends InstructionVisitor {
 
     if (dfaDest instanceof DfaVariableValue) {
       DfaVariableValue var = (DfaVariableValue) dfaDest;
+
+      DfaValueFactory factory = runner.getFactory();
+      if (dfaSource instanceof DfaVariableValue && factory.getVarFactory().getAllQualifiedBy(var).contains(dfaSource)) {
+        dfaSource = factory.createTypeValue(((DfaVariableValue)dfaSource).getVariableType(), ((DfaVariableValue)dfaSource).getInherentNullability());
+      }
+
       if (var.getInherentNullability() == Nullness.NOT_NULL) {
         checkNotNullable(memState, dfaSource, NullabilityProblem.assigningToNotNull, instruction.getRExpression());
       }
@@ -266,7 +272,8 @@ public class StandardInstructionVisitor extends InstructionVisitor {
 
     if (methodType == MethodCallInstruction.MethodType.CAST) {
       if (qualifierValue instanceof DfaConstValue) {
-        return factory.getConstFactory().createFromValue(castConstValue((DfaConstValue)qualifierValue), type, ((DfaConstValue)qualifierValue).getConstant());
+        Object casted = TypeConversionUtil.computeCastTo(((DfaConstValue)qualifierValue).getValue(), type);
+        return factory.getConstFactory().createFromValue(casted, type, ((DfaConstValue)qualifierValue).getConstant());
       }
       return qualifierValue;
     }
@@ -275,19 +282,6 @@ public class StandardInstructionVisitor extends InstructionVisitor {
       return factory.createTypeValue(type, myReturnTypeNullability.get(instruction));
     }
     return DfaUnknownValue.getInstance();
-  }
-
-  private static Object castConstValue(DfaConstValue constValue) {
-    Object o = constValue.getValue();
-    if (o instanceof Double || o instanceof Float) {
-      double dbVal = o instanceof Double ? ((Double)o).doubleValue() : ((Float)o).doubleValue();
-      // 5.0f == 5
-      if (Math.floor(dbVal) != dbVal) {
-        return o;
-      }
-    }
-
-    return TypeConversionUtil.computeCastTo(o, PsiType.LONG);
   }
 
   protected boolean checkNotNullable(DfaMemoryState state,

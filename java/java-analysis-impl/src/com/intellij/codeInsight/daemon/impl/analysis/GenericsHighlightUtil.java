@@ -540,6 +540,11 @@ public class GenericsHighlightUtil {
       return null;
     }
 
+    if (superMethod.hasModifierProperty(PsiModifier.STATIC) && superContainingClass != null &&
+        superContainingClass.isInterface() && PsiUtil.isLanguageLevel8OrHigher(superContainingClass)) {
+      return null;
+    }
+
     final PsiType retErasure1 = TypeConversionUtil.erasure(checkMethod.getReturnType());
     final PsiType retErasure2 = TypeConversionUtil.erasure(superMethod.getReturnType());
 
@@ -683,7 +688,7 @@ public class GenericsHighlightUtil {
     final PsiType parameterType = parameter.getType();
     HighlightInfo highlightInfo = HighlightUtil.checkAssignability(parameterType, itemType, null, new TextRange(start, end), 0);
     if (highlightInfo != null) {
-      HighlightUtil.registerChangeVariableTypeFixes(parameter, itemType, highlightInfo);
+      HighlightUtil.registerChangeVariableTypeFixes(parameter, itemType, expression, highlightInfo);
     }
     return highlightInfo;
   }
@@ -1253,7 +1258,9 @@ public class GenericsHighlightUtil {
           final PsiElement superClass = referenceElement.resolve();
           if (superClass instanceof PsiClass) {
             final PsiClass superContainingClass = ((PsiClass)superClass).getContainingClass();
-            if (superContainingClass != null && InheritanceUtil.isInheritorOrSelf(containingClass, superContainingClass, true)) {
+            if (superContainingClass != null && 
+                InheritanceUtil.isInheritorOrSelf(containingClass, superContainingClass, true) && 
+                !PsiTreeUtil.isAncestor(superContainingClass, containingClass, true)) {
               return true;
             }
           }
@@ -1290,7 +1297,7 @@ public class GenericsHighlightUtil {
         }
         PsiSubstitutor substitutor = factory.createSubstitutor(map);
         PsiType suggestedType = factory.createType(aClass, substitutor);
-        HighlightUtil.registerChangeVariableTypeFixes(variable, suggestedType, highlightInfo);
+        HighlightUtil.registerChangeVariableTypeFixes(variable, suggestedType, variable.getInitializer(), highlightInfo);
       }
     }
   }

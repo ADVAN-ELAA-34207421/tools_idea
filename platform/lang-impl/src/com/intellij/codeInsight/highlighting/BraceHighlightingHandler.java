@@ -103,7 +103,8 @@ public class BraceHighlightingHandler {
   static void lookForInjectedAndMatchBracesInOtherThread(@NotNull final Editor editor,
                                                          @NotNull final Alarm alarm,
                                                          @NotNull final Processor<BraceHighlightingHandler> processor) {
-    ApplicationManagerEx.getApplicationEx().assertIsDispatchThread();
+    // TODO it really should be .assertIsDispatchThread() with no editor. Dmitry promised he'll revert this shortly
+    ApplicationManagerEx.getApplicationEx().assertIsDispatchThread(editor.getComponent());
     final Project project = editor.getProject();
     if (project == null || project.isDisposed()) return;
     if (!PROCESSED_EDITORS.add(editor)) {

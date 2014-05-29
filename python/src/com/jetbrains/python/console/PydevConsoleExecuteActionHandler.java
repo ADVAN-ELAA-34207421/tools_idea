@@ -61,9 +61,9 @@ public class PydevConsoleExecuteActionHandler extends ProcessBackedConsoleExecut
   private int myIpythonInputPromptCount = 1;
 
   public PydevConsoleExecuteActionHandler(LanguageConsoleView consoleView,
-                                          ProcessHandler myProcessHandler,
+                                          ProcessHandler processHandler,
                                           ConsoleCommunication consoleCommunication) {
-    super(myProcessHandler, false);
+    super(processHandler, false);
     myConsoleView = consoleView;
     myConsoleCommunication = consoleCommunication;
     myConsoleCommunication.addCommunicationListener(this);
@@ -266,7 +266,6 @@ public class PydevConsoleExecuteActionHandler extends ProcessBackedConsoleExecut
   }
 
   private void ordinaryPrompt(LanguageConsoleImpl console, Editor currentEditor) {
-
     if (!myConsoleCommunication.isExecuting()) {
       if (!PyConsoleUtil.ORDINARY_PROMPT.equals(console.getPrompt())) {
         console.setPrompt(PyConsoleUtil.ORDINARY_PROMPT);
