@@ -1,8 +1,6 @@
 package com.intellij.compiler;
 
-import com.intellij.compiler.impl.TranslatingCompilerFilesMonitor;
 import com.intellij.compiler.impl.javaCompiler.javac.JavacConfiguration;
-import com.intellij.compiler.options.ExternalBuildOptionListener;
 import com.intellij.compiler.server.BuildManager;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.application.Result;
@@ -50,7 +48,8 @@ public class CompilerTestUtil {
   public static void scanSourceRootsToRecompile(Project project) {
     // need this to emulate project opening
     final List<VirtualFile> roots = ProjectRootManager.getInstance(project).getModuleSourceRoots(JavaModuleSourceRootTypes.SOURCES);
-    TranslatingCompilerFilesMonitor.getInstance().scanSourceContent(new TranslatingCompilerFilesMonitor.ProjectRef(project), roots, roots.size(), true);
+    // todo: forced source roots scan is not needed?
+    //TranslatingCompilerFilesMonitor.getInstance().scanSourceContent(new TranslatingCompilerFilesMonitor.ProjectRef(project), roots, roots.size(), true);
   }
 
   public static void saveApplicationSettings() {
@@ -78,11 +77,9 @@ public class CompilerTestUtil {
     JDOMUtil.writeDocument(new Document(root), file, SystemProperties.getLineSeparator());
   }
 
-  public static void enableExternalCompiler(final Project project) {
+  public static void enableExternalCompiler() {
     new WriteAction() {
       protected void run(final Result result) {
-        CompilerWorkspaceConfiguration.getInstance(project).USE_OUT_OF_PROCESS_BUILD = true;
-        project.getMessageBus().syncPublisher(ExternalBuildOptionListener.TOPIC).externalBuildOptionChanged(true);
         ApplicationManagerEx.getApplicationEx().doNotSave(false);
         JavaAwareProjectJdkTableImpl table = JavaAwareProjectJdkTableImpl.getInstanceEx();
         table.addJdk(table.getInternalJdk());
@@ -93,12 +90,10 @@ public class CompilerTestUtil {
   public static void disableExternalCompiler(final Project project) {
     new WriteAction() {
       protected void run(final Result result) {
-        CompilerWorkspaceConfiguration.getInstance(project).USE_OUT_OF_PROCESS_BUILD = false;
-        project.getMessageBus().syncPublisher(ExternalBuildOptionListener.TOPIC).externalBuildOptionChanged(false);
         ApplicationManagerEx.getApplicationEx().doNotSave(true);
         JavaAwareProjectJdkTableImpl table = JavaAwareProjectJdkTableImpl.getInstanceEx();
         table.removeJdk(table.getInternalJdk());
-        BuildManager.getInstance().stopWatchingProject(project);
+        BuildManager.getInstance().clearState(project);
       }
     }.execute();
   }

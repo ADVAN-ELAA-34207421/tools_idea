@@ -31,6 +31,7 @@ import com.intellij.openapi.editor.actionSystem.EditorAction;
 import com.intellij.openapi.editor.actionSystem.EditorWriteActionHandler;
 import com.intellij.openapi.editor.ex.util.EditorUtil;
 import com.intellij.openapi.util.Couple;
+import com.intellij.openapi.util.Pair;
 import org.jetbrains.annotations.Nullable;
 
 public class DuplicateAction extends EditorAction {
@@ -75,7 +76,7 @@ public class DuplicateAction extends EditorAction {
 
   @Nullable
   static Couple<Integer> duplicateLinesRange(Editor editor, Document document, VisualPosition rangeStart, VisualPosition rangeEnd) {
-    Couple<LogicalPosition> lines = EditorUtil.calcSurroundingRange(editor, rangeStart, rangeEnd);
+    Pair<LogicalPosition, LogicalPosition> lines = EditorUtil.calcSurroundingRange(editor, rangeStart, rangeEnd);
     int offset = editor.getCaretModel().getOffset();
 
     LogicalPosition lineStart = lines.first;
@@ -100,7 +101,7 @@ public class DuplicateAction extends EditorAction {
 
     editor.getCaretModel().moveToOffset(newOffset);
     editor.getScrollingModel().scrollToCaret(ScrollType.RELATIVE);
-    return Couple.newOne(end, end+s.length()-1);   // don't include separator of last line in range to select
+    return Couple.of(end, end + s.length() - 1);   // don't include separator of last line in range to select
   }
 
   @Override

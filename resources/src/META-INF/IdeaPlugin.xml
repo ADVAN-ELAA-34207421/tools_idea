@@ -518,6 +518,9 @@
     <localInspection language="JAVA" shortName="ConstantConditions" bundle="messages.InspectionsBundle" key="inspection.data.flow.display.name"
                      groupName="Probable bugs" enabledByDefault="true" level="WARNING"
                      implementationClass="com.intellij.codeInspection.dataFlow.DataFlowInspection"/>
+    <localInspection language="JAVA" shortName="Contract" bundle="messages.InspectionsBundle" key="inspection.contract.display.name"
+                     groupName="Probable bugs" enabledByDefault="true" level="WARNING"
+                     implementationClass="com.intellij.codeInspection.dataFlow.ContractInspection"/>
     <localInspection language="JAVA" shortName="UnusedAssignment" displayName="Unused assignment" groupName="Probable bugs" enabledByDefault="true"
                      level="WARNING" implementationClass="com.intellij.codeInspection.defUse.DefUseInspection"/>
     <localInspection language="JAVA" shortName="NumericOverflow" displayName="Numeric overflow" groupName="Numeric issues" enabledByDefault="true"
@@ -658,6 +661,11 @@
                      groupKey="group.names.inheritance.issues" enabledByDefault="false" level="WARNING"
                      implementationClass="com.intellij.codeInspection.inheritance.SuperClassHasFrequentlyUsedInheritorsInspection"
                      displayName="Class may extend a commonly used base class instead of implementing interface"/>
+    <localInspection language="JAVA" shortName="BlockMarkerComments"
+                     groupBundle="messages.InspectionsBundle"
+                     groupName="Code style issues" enabledByDefault="false" level="WARNING"
+                     implementationClass="com.intellij.codeInspection.BlockMarkerCommentsInspection"
+                     displayName="Block marker comment"/>
 
     <intentionAction>
       <className>com.intellij.codeInsight.daemon.quickFix.RedundantLambdaParameterTypeIntention</className>
@@ -707,6 +715,10 @@
       <className>com.intellij.codeInsight.intention.impl.DeannotateIntentionAction</className>
       <category>Control Flow</category>
     </intentionAction>
+    <intentionAction>
+      <className>com.intellij.codeInsight.intention.impl.CreateSwitchIntention</className>
+      <category>Control Flow</category>
+    </intentionAction>
 
     <intentionAction>
       <className>com.intellij.codeInsight.intention.impl.CreateFieldFromParameterAction</className>
@@ -730,6 +742,10 @@
     </intentionAction>
     <intentionAction>
       <className>com.intellij.testIntegration.createTest.CreateTestAction</className>
+      <category>Declaration</category>
+    </intentionAction>
+    <intentionAction>
+      <className>com.intellij.testIntegration.createTest.GenerateMissedTestsAction</className>
       <category>Declaration</category>
     </intentionAction>
     <intentionAction>
@@ -847,6 +863,11 @@
     </intentionAction>
 
     <intentionAction>
+      <className>com.intellij.codeInsight.intention.impl.AddJavadocIntention</className>
+      <category>Declaration</category>
+    </intentionAction>
+
+    <intentionAction>
       <className>com.intellij.codeInsight.intention.impl.ConvertAbsolutePathToRelativeIntentionAction</className>
       <category>Other</category>
     </intentionAction>
@@ -865,8 +886,6 @@
       <className>com.intellij.codeInsight.intention.impl.BreakStringOnLineBreaksIntentionAction</className>
       <category>Other</category>
     </intentionAction>
-
-
 
 
     <intentionAction>

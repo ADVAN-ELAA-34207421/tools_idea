@@ -153,14 +153,17 @@ public class AnnotationsHighlightUtil {
 
       String description = JavaErrorMessages.message("annotation.incompatible.types",
                                                      JavaHighlightUtil.formatType(type), JavaHighlightUtil.formatType(expectedType));
-      return HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(value).descriptionAndTooltip(description).create();
+      final HighlightInfo info =
+        HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(value).descriptionAndTooltip(description).create();
+      QuickFixAction.registerQuickFixAction(info, QuickFixFactory.getInstance().createSurroundWithQuotesAnnotationParameterValueFix(value, expectedType));
+      return info;
     }
 
     LOG.error("Unknown annotation member value: " + value);
     return null;
   }
 
-  static HighlightInfo checkDuplicateAnnotations(@NotNull PsiAnnotation annotationToCheck) {
+  static HighlightInfo checkDuplicateAnnotations(@NotNull PsiAnnotation annotationToCheck, @NotNull LanguageLevel languageLevel) {
     PsiAnnotationOwner owner = annotationToCheck.getOwner();
     if (owner == null) return null;
 
@@ -183,7 +186,7 @@ public class AnnotationsHighlightUtil {
       }
     }
     else if (isAnnotationRepeatedTwice(owner, annotationType.getQualifiedName())) {
-      if (!PsiUtil.isLanguageLevel8OrHigher(annotationToCheck)) {
+      if (!languageLevel.isAtLeast(LanguageLevel.JDK_1_8)) {
         String description = JavaErrorMessages.message("annotation.duplicate.annotation");
         return HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(element).descriptionAndTooltip(description).create();
       }
@@ -294,7 +297,12 @@ public class AnnotationsHighlightUtil {
         }
 
         String description = JavaErrorMessages.message("annotation.missing.attribute", buff);
-        return HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(nameRef).descriptionAndTooltip(description).create();
+        HighlightInfo info =
+          HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(nameRef).descriptionAndTooltip(description).create();
+        IntentionAction fix = QuickFixFactory.getInstance().createAddMissingRequiredAnnotationParametersFix(
+          annotation, annotationMethods, missed);
+        QuickFixAction.registerQuickFixAction(info, fix);
+        return info;
       }
     }
 
@@ -332,9 +340,7 @@ public class AnnotationsHighlightUtil {
   );
 
   @Nullable
-  public static HighlightInfo checkApplicability(@NotNull PsiAnnotation annotation,
-                                                 @NotNull LanguageLevel languageLevel,
-                                                 @NotNull PsiFile containingFile) {
+  public static HighlightInfo checkApplicability(@NotNull PsiAnnotation annotation, @NotNull LanguageLevel level, @NotNull PsiFile file) {
     if (ANY_ANNOTATION_ALLOWED.accepts(annotation)) {
       return null;
     }
@@ -350,7 +356,7 @@ public class AnnotationsHighlightUtil {
     }
 
     if (!(owner instanceof PsiModifierList)) {
-      HighlightInfo info = HighlightUtil.checkTypeAnnotationFeature(annotation, languageLevel,containingFile);
+      HighlightInfo info = HighlightUtil.checkFeature(annotation, HighlightUtil.Feature.TYPE_ANNOTATIONS, level, file);
       if (info != null) return info;
     }
 
@@ -700,7 +706,7 @@ public class AnnotationsHighlightUtil {
         if (field instanceof PsiEnumConstant) {
           String name = ((PsiEnumConstant)field).getName();
           try {
-            return RetentionPolicy.valueOf(name);
+            return RetentionPolicy.valueOf(RetentionPolicy.class, name);
           }
           catch (Exception e) {
             LOG.warn("Unknown policy: " + name);

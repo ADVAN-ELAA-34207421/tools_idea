@@ -53,6 +53,7 @@ public class ClsMirrorBuildingTest extends LightIdeaTestCase {
   public void testDefaultPackage() { doTest(); }
   public void testLocalClass() { doTest(); }
   public void testBounds() { doTest(); }
+  public void testGrEnum() { doTest(); }
 
   public void testTextPsiMismatch() {
     CommonCodeStyleSettings.IndentOptions options =
@@ -70,7 +71,7 @@ public class ClsMirrorBuildingTest extends LightIdeaTestCase {
   public void testJdk8Class() {
     String testDir = JavaTestUtil.getJavaTestDataPath();
     String clsPath = testDir + "/../../mockJDK-1.8/jre/lib/rt.jar!/java/lang/Class.class";
-    String txtPath = testDir + "/psi/cls/mirror/" + "Class.txt";
+    String txtPath = testDir + "/psi/cls/mirror/Class.txt";
     doTest(clsPath, txtPath);
   }
 
