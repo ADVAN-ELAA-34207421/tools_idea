@@ -54,6 +54,7 @@ public class RootIndex extends DirectoryIndex {
   private final Set<VirtualFile> myProjectExcludedRoots = ContainerUtil.newHashSet();
   private final Set<VirtualFile> myModuleExcludedRoots;
   private final MultiMap<String, VirtualFile> myPackagePrefixRoots = new MultiMap<String, VirtualFile>() {
+    @NotNull
     @Override
     protected Collection<VirtualFile> createCollection() {
       return ContainerUtil.newLinkedHashSet();
@@ -68,7 +69,7 @@ public class RootIndex extends DirectoryIndex {
   private volatile Map<VirtualFile, OrderEntry[]> myOrderEntries;
 
   // made public for Upsource
-  public RootIndex(@NotNull Project project, InfoCache cache) {
+  public RootIndex(@NotNull Project project, @NotNull InfoCache cache) {
     myProject = project;
     myInfoCache = cache;
     final RootInfo info = buildRootInfo(project);

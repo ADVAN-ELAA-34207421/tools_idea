@@ -29,21 +29,23 @@ import com.intellij.openapi.editor.highlighter.EditorHighlighter;
 import com.intellij.openapi.editor.highlighter.HighlighterIterator;
 import com.intellij.openapi.editor.impl.DefaultEditorTextRepresentationHelper;
 import com.intellij.openapi.editor.impl.SoftWrapModelImpl;
+import com.intellij.openapi.editor.impl.softwrap.SoftWrapDrawingType;
+import com.intellij.openapi.editor.impl.softwrap.SoftWrapPainter;
 import com.intellij.openapi.editor.impl.softwrap.mapping.SoftWrapApplianceManager;
+import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.tree.IElementType;
-import org.junit.Assert;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.junit.Assert;
 
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.*;
 
 /**
  * @author Maxim.Mossienko
@@ -167,6 +169,27 @@ public class EditorTestUtil {
   public static boolean configureSoftWraps(Editor editor, final int visibleWidth, final int charWidthInPixels) {
     editor.getSettings().setUseSoftWraps(true);
     SoftWrapModelImpl model = (SoftWrapModelImpl)editor.getSoftWrapModel();
+    model.setSoftWrapPainter(new SoftWrapPainter() {
+      @Override
+      public int paint(@NotNull Graphics g, @NotNull SoftWrapDrawingType drawingType, int x, int y, int lineHeight) {
+        return charWidthInPixels;
+      }
+
+      @Override
+      public int getDrawingHorizontalOffset(@NotNull Graphics g, @NotNull SoftWrapDrawingType drawingType, int x, int y, int lineHeight) {
+        return charWidthInPixels;
+      }
+
+      @Override
+      public int getMinDrawingWidth(@NotNull SoftWrapDrawingType drawingType) {
+        return charWidthInPixels;
+      }
+
+      @Override
+      public boolean canUse() {
+        return true;
+      }
+    });
     model.reinitSettings();
 
     SoftWrapApplianceManager applianceManager = model.getApplianceManager();
@@ -389,6 +412,21 @@ public class EditorTestUtil {
 
   public static void disableMultipleCarets() {
     Registry.get("editor.allow.multiple.carets").setValue(false);
+  }
+
+  public static FoldRegion addFoldRegion(@NotNull Editor editor, final int startOffset, final int endOffset, final String placeholder, final boolean collapse) {
+    final FoldingModel foldingModel = editor.getFoldingModel();
+    final Ref<FoldRegion> ref = new Ref<FoldRegion>();
+    foldingModel.runBatchFoldingOperation(new Runnable() {
+      @Override
+      public void run() {
+        FoldRegion region = foldingModel.addFoldRegion(startOffset, endOffset, placeholder);
+        assertNotNull(region);
+        region.setExpanded(!collapse);
+        ref.set(region);
+      }
+    });
+    return ref.get();
   }
 
   public static class CaretAndSelectionState {

@@ -120,6 +120,7 @@ public class ZenCodingTemplate extends CustomLiveTemplateBase {
     return parse(key, callback, generator, null) != null;
   }
 
+  @Override
   public void expand(@NotNull String key, @NotNull CustomTemplateCallback callback) {
     ZenCodingGenerator defaultGenerator = findApplicableDefaultGenerator(callback.getContext(), false);
     assert defaultGenerator != null;
@@ -300,6 +301,7 @@ public class ZenCodingTemplate extends CustomLiveTemplateBase {
     return false;
   }
 
+  @Override
   public void wrap(@NotNull final String selection, @NotNull final CustomTemplateCallback callback) {
     final TextFieldWithStoredHistory field = new TextFieldWithStoredHistory(EMMET_RECENT_WRAP_ABBREVIATIONS_KEY);
     final Dimension fieldPreferredSize = field.getPreferredSize();
@@ -321,7 +323,7 @@ public class ZenCodingTemplate extends CustomLiveTemplateBase {
     });
     field.addKeyboardListener(new KeyAdapter() {
       @Override
-      public void keyPressed(KeyEvent e) {
+      public void keyPressed(@NotNull KeyEvent e) {
         if (!field.isPopupVisible()) {
           switch (e.getKeyCode()) {
             case KeyEvent.VK_ENTER:
@@ -396,6 +398,7 @@ public class ZenCodingTemplate extends CustomLiveTemplateBase {
     return checkTemplateKey(inputString, callback, generator);
   }
 
+  @Override
   public boolean isApplicable(PsiFile file, int offset, boolean wrapping) {
     if (file == null) {
       return false;
@@ -416,10 +419,13 @@ public class ZenCodingTemplate extends CustomLiveTemplateBase {
     final ZenCodingGenerator defaultGenerator = findApplicableDefaultGenerator(callback.getContext(), true);
     assert defaultGenerator != null;
     ApplicationManager.getApplication().runWriteAction(new Runnable() {
+      @Override
       public void run() {
         CommandProcessor.getInstance().executeCommand(callback.getProject(), new Runnable() {
+          @Override
           public void run() {
             callback.getEditor().getCaretModel().runForEachCaret(new CaretAction() {
+              @Override
               public void perform(Caret caret) {
                 String selectedText = callback.getEditor().getSelectionModel().getSelectedText();
                 if (selectedText != null) {
@@ -443,21 +449,25 @@ public class ZenCodingTemplate extends CustomLiveTemplateBase {
     });
   }
 
+  @Override
   @NotNull
   public String getTitle() {
     return XmlBundle.message("emmet.title");
   }
 
+  @Override
   public char getShortcut() {
     return (char)EmmetOptions.getInstance().getEmmetExpandShortcut();
   }
 
+  @Override
   public String computeTemplateKey(@NotNull CustomTemplateCallback callback) {
     ZenCodingGenerator generator = findApplicableDefaultGenerator(callback.getContext(), false);
     if (generator == null) return null;
     return generator.computeTemplateKey(callback);
   }
 
+  @Override
   public boolean supportsWrapping() {
     return true;
   }
@@ -499,6 +509,8 @@ public class ZenCodingTemplate extends CustomLiveTemplateBase {
           }
         }).isEmpty();
         
+        CompletionResultSet resultSet = result.withPrefixMatcher(result.getPrefixMatcher().cloneWithPrefix(templatePrefix));
+        resultSet.restartCompletionOnPrefixChange(StandardPatterns.string().startsWith(templatePrefix));
         if (!regularTemplateWithSamePrefixExists) {
           // exclude perfect matches with existing templates because LiveTemplateCompletionContributor handles it
           final Collection<SingleLineEmmetFilter> extraFilters = ContainerUtil.newLinkedList(new SingleLineEmmetFilter());
@@ -508,9 +520,8 @@ public class ZenCodingTemplate extends CustomLiveTemplateBase {
             template.setKey(templatePrefix);
             template.setDescription(template.getTemplateText());
 
-            CompletionResultSet resultSet = result.withPrefixMatcher(result.getPrefixMatcher().cloneWithPrefix(templatePrefix));
-            resultSet.restartCompletionOnPrefixChange(StandardPatterns.string().startsWith(templatePrefix));
-            resultSet.addElement(new CustomLiveTemplateLookupElement(this, template.getKey(), template.getKey(), template.getDescription(), true, true));
+            resultSet.addElement(new CustomLiveTemplateLookupElement(this, template.getKey(), template.getKey(), template.getDescription(), 
+              !LiveTemplateCompletionContributor.shouldShowAllTemplates(), true));
           }
         }
       }
