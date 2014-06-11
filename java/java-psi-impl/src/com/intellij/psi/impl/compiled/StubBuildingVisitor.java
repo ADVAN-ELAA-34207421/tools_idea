@@ -95,7 +95,7 @@ public class StubBuildingVisitor<T> extends ClassVisitor {
       shortName = PsiNameHelper.getShortClassName(fqn);
     }
 
-    int flags = myAccess == 0 ? access : myAccess;
+    int flags = myAccess | access;
     boolean isDeprecated = (flags & Opcodes.ACC_DEPRECATED) != 0;
     boolean isInterface = (flags & Opcodes.ACC_INTERFACE) != 0;
     boolean isEnum = (flags & Opcodes.ACC_ENUM) != 0;
@@ -408,6 +408,13 @@ public class StubBuildingVisitor<T> extends ClassVisitor {
 
     if (SYNTHETIC_CLASS_INIT_METHOD.equals(name)) return null;
 
+    // skip semi-synthetic enum methods
+    boolean isEnum = myResult.isEnum();
+    if (isEnum) {
+      if ("values".equals(name) && desc.startsWith("()")) return null;
+      if ("valueOf".equals(name) && desc.startsWith("(Ljava/lang/String;)")) return null;
+    }
+
     boolean isDeprecated = (access & Opcodes.ACC_DEPRECATED) != 0;
     boolean isConstructor = SYNTHETIC_INIT_METHOD.equals(name);
     boolean isVarargs = (access & Opcodes.ACC_VARARGS) != 0;
@@ -417,30 +424,33 @@ public class StubBuildingVisitor<T> extends ClassVisitor {
 
     final byte flags = PsiMethodStubImpl.packFlags(isConstructor, isAnnotationMethod, isVarargs, isDeprecated, false);
 
-    final String canonicalMethodName = isConstructor ? myResult.getName() : name;
-    final List<String> args = new ArrayList<String>();
-    final List<String> throwables = exceptions != null ? new ArrayList<String>() : null;
+    String canonicalMethodName = isConstructor ? myResult.getName() : name;
+    List<String> args = new ArrayList<String>();
+    List<String> throwables = exceptions != null ? new ArrayList<String>() : null;
 
     final PsiMethodStubImpl stub = new PsiMethodStubImpl(myResult, StringRef.fromString(canonicalMethodName), flags, null);
 
     final PsiModifierListStub modList = new PsiModifierListStubImpl(stub, packMethodFlags(access, myResult.isInterface()));
 
+    String returnType = null;
     boolean parsedViaGenericSignature = false;
-    String returnType;
-    if (signature == null) {
-      returnType = parseMethodViaDescription(desc, stub, args);
-    }
-    else {
+    if (signature != null) {
       try {
         returnType = parseMethodViaGenericSignature(signature, stub, args, throwables);
         parsedViaGenericSignature = true;
       }
-      catch (ClsFormatException e) {
-        returnType = parseMethodViaDescription(desc, stub, args);
-      }
+      catch (ClsFormatException ignored) { }
+    }
+    if (returnType == null) {
+      returnType = parseMethodViaDescription(desc, stub, args);
     }
 
     stub.setReturnType(TypeInfo.fromString(returnType));
+
+    if (isEnum && isConstructor && signature == null && args.size() >= 2 && JAVA_LANG_STRING.equals(args.get(0)) && "int".equals(args.get(1))) {
+      // exclude synthetic enum constructor parameters
+      args = args.subList(2, args.size());
+    }
 
     final boolean isNonStaticInnerClassConstructor =
       isConstructor && !(myParent instanceof PsiFileStub) && (myModList.getModifiersMask() & Opcodes.ACC_STATIC) == 0;
@@ -465,8 +475,8 @@ public class StubBuildingVisitor<T> extends ClassVisitor {
     String[] thrownTypes = buildThrowsList(exceptions, throwables, parsedViaGenericSignature);
     newReferenceList(JavaStubElementTypes.THROWS_LIST, stub, thrownTypes);
 
-    final int localVarIgnoreCount = (access & Opcodes.ACC_STATIC) != 0 ? 0 : isConstructor && myResult.isEnum() ? 3 : 1;
-    final int paramIgnoreCount = isConstructor && myResult.isEnum() ? 2 : isNonStaticInnerClassConstructor ? 1 : 0;
+    int localVarIgnoreCount = (access & Opcodes.ACC_STATIC) != 0 ? 0 : isConstructor && isEnum ? 3 : 1;
+    int paramIgnoreCount = isConstructor && isEnum ? 2 : isNonStaticInnerClassConstructor ? 1 : 0;
     return new AnnotationParamCollectingVisitor(stub, modList, localVarIgnoreCount, paramIgnoreCount, paramCount, paramStubs);
   }
 
@@ -505,8 +515,7 @@ public class StubBuildingVisitor<T> extends ClassVisitor {
   private static String parseMethodViaGenericSignature(final String signature,
                                                        final PsiMethodStubImpl stub,
                                                        final List<String> args,
-                                                       final List<String> throwables)
-    throws ClsFormatException {
+                                                       final List<String> throwables) throws ClsFormatException {
     StringCharacterIterator iterator = new StringCharacterIterator(signature);
     SignatureParsing.parseTypeParametersDeclaration(iterator, stub);
 

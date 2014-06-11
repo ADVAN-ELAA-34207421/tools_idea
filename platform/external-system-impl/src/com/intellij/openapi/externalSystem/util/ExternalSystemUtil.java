@@ -31,6 +31,8 @@ import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.Extensions;
 import com.intellij.openapi.externalSystem.ExternalSystemManager;
+import com.intellij.openapi.externalSystem.importing.ImportSpec;
+import com.intellij.openapi.externalSystem.importing.ImportSpecBuilder;
 import com.intellij.openapi.externalSystem.model.*;
 import com.intellij.openapi.externalSystem.model.execution.ExternalSystemTaskExecutionSettings;
 import com.intellij.openapi.externalSystem.model.execution.ExternalTaskExecutionInfo;
@@ -65,6 +67,7 @@ import com.intellij.openapi.roots.ex.ProjectRootManagerEx;
 import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.roots.libraries.LibraryTable;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -99,8 +102,9 @@ import java.util.List;
 public class ExternalSystemUtil {
 
   private static final Logger LOG = Logger.getInstance("#" + ExternalSystemUtil.class.getName());
-  
+
   @NotNull private static final Map<String, String> RUNNER_IDS = ContainerUtilRt.newHashMap();
+
   static {
     RUNNER_IDS.put(DefaultRunExecutor.EXECUTOR_ID, ExternalSystemConstants.RUNNER_ID);
     RUNNER_IDS.put(DefaultDebugExecutor.EXECUTOR_ID, ExternalSystemConstants.DEBUG_RUNNER_ID);
@@ -127,14 +131,13 @@ public class ExternalSystemUtil {
       }
     }
   }
-  
+
   @SuppressWarnings("unchecked")
   @Nullable
   public static <T> T getToolWindowElement(@NotNull Class<T> clazz,
                                            @NotNull Project project,
                                            @NotNull DataKey<T> key,
-                                           @NotNull ProjectSystemId externalSystemId)
-  {
+                                           @NotNull ProjectSystemId externalSystemId) {
     if (project.isDisposed() || !project.isOpen()) {
       return null;
     }
@@ -181,12 +184,14 @@ public class ExternalSystemUtil {
   /**
    * Asks to refresh all external projects of the target external system linked to the given ide project.
    * <p/>
-   * 'Refresh' here means 'obtain the most up-to-date version and apply it to the ide'. 
+   * 'Refresh' here means 'obtain the most up-to-date version and apply it to the ide'.
    *
-   * @param project           target ide project
-   * @param externalSystemId  target external system which projects should be refreshed
-   * @param force             flag which defines if external project refresh should be performed if it's config is up-to-date
+   * @param project          target ide project
+   * @param externalSystemId target external system which projects should be refreshed
+   * @param force            flag which defines if external project refresh should be performed if it's config is up-to-date
+   * @deprecated use {@link  ExternalSystemUtil#refreshProjects(com.intellij.openapi.externalSystem.importing.ImportSpecBuilder)}
    */
+  @Deprecated
   public static void refreshProjects(@NotNull final Project project, @NotNull final ProjectSystemId externalSystemId, boolean force) {
     refreshProjects(project, externalSystemId, force, ProgressExecutionMode.IN_BACKGROUND_ASYNC);
   }
@@ -199,13 +204,31 @@ public class ExternalSystemUtil {
    * @param project           target ide project
    * @param externalSystemId  target external system which projects should be refreshed
    * @param force             flag which defines if external project refresh should be performed if it's config is up-to-date
+   *
+   * @deprecated use {@link  ExternalSystemUtil#refreshProjects(com.intellij.openapi.externalSystem.importing.ImportSpecBuilder)}
    */
+  @Deprecated
   public static void refreshProjects(@NotNull final Project project, @NotNull final ProjectSystemId externalSystemId, boolean force, @NotNull final ProgressExecutionMode progressExecutionMode) {
-    ExternalSystemManager<?, ?, ?, ?, ?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
+    refreshProjects(
+      new ImportSpecBuilder(project, externalSystemId)
+        .forceWhenUptodate(force)
+        .use(progressExecutionMode)
+    );
+  }
+
+  /**
+   * Asks to refresh all external projects of the target external system linked to the given ide project based on provided spec
+   *
+   * @param specBuilder import specification builder
+   */
+  public static void refreshProjects(@NotNull final ImportSpecBuilder specBuilder) {
+    ImportSpec spec = specBuilder.build();
+
+    ExternalSystemManager<?, ?, ?, ?, ?> manager = ExternalSystemApiUtil.getManager(spec.getExternalSystemId());
     if (manager == null) {
       return;
     }
-    AbstractExternalSystemSettings<?, ?, ?> settings = manager.getSettingsProvider().fun(project);
+    AbstractExternalSystemSettings<?, ?, ?> settings = manager.getSettingsProvider().fun(spec.getProject());
     final Collection<? extends ExternalProjectSettings> projectsSettings = settings.getLinkedProjectsSettings();
     if (projectsSettings.isEmpty()) {
       return;
@@ -215,25 +238,36 @@ public class ExternalSystemUtil {
     final int[] counter = new int[1];
 
     ExternalProjectRefreshCallback callback =
-      new MyMultiExternalProjectRefreshCallback(project, projectDataManager, counter, externalSystemId);
+      new MyMultiExternalProjectRefreshCallback(spec.getProject(), projectDataManager, counter, spec.getExternalSystemId());
 
-    Map<String, Long> modificationStamps = manager.getLocalSettingsProvider().fun(project).getExternalConfigModificationStamps();
+    Map<String, Long> modificationStamps =
+      manager.getLocalSettingsProvider().fun(spec.getProject()).getExternalConfigModificationStamps();
     Set<String> toRefresh = ContainerUtilRt.newHashSet();
     for (ExternalProjectSettings setting : projectsSettings) {
-      Long oldModificationStamp = modificationStamps.get(setting.getExternalProjectPath());
-      long currentModificationStamp = getTimeStamp(setting, externalSystemId);
-      if (force || oldModificationStamp == null || oldModificationStamp < currentModificationStamp) {
+
+      // don't refresh project when auto-import is disabled if such behavior needed (e.g. on project opening when auto-import is disabled)
+      if (!setting.isUseAutoImport() && spec.isWhenAutoImportEnabled()) continue;
+
+      if (spec.isForceWhenUptodate()) {
         toRefresh.add(setting.getExternalProjectPath());
+      }
+      else {
+        Long oldModificationStamp = modificationStamps.get(setting.getExternalProjectPath());
+        long currentModificationStamp = getTimeStamp(setting, spec.getExternalSystemId());
+        if (oldModificationStamp == null || oldModificationStamp < currentModificationStamp) {
+          toRefresh.add(setting.getExternalProjectPath());
+        }
       }
     }
 
     if (!toRefresh.isEmpty()) {
-      ExternalSystemNotificationManager.getInstance(project)
-        .clearNotifications(null, NotificationSource.PROJECT_SYNC, externalSystemId);
+      ExternalSystemNotificationManager.getInstance(spec.getProject())
+        .clearNotifications(null, NotificationSource.PROJECT_SYNC, spec.getExternalSystemId());
 
       counter[0] = toRefresh.size();
       for (String path : toRefresh) {
-        refreshProject(project, externalSystemId, path, callback, false, progressExecutionMode);
+        refreshProject(
+          spec.getProject(), spec.getExternalSystemId(), path, callback, false, spec.getProgressExecutionMode());
       }
     }
   }
@@ -340,6 +374,8 @@ public class ExternalSystemUtil {
   }
 
   /**
+   * TODO[Vlad]: refactor the method to use {@link com.intellij.openapi.externalSystem.importing.ImportSpecBuilder}
+   *
    * Queries slave gradle process to refresh target gradle project.
    *
    * @param project               target intellij project to use
@@ -358,6 +394,8 @@ public class ExternalSystemUtil {
   }
 
   /**
+   * TODO[Vlad]: refactor the method to use {@link com.intellij.openapi.externalSystem.importing.ImportSpecBuilder}
+   *
    * Queries slave gradle process to refresh target gradle project.
    *
    * @param project               target intellij project to use
@@ -500,40 +538,50 @@ public class ExternalSystemUtil {
   public static void runTask(@NotNull ExternalSystemTaskExecutionSettings taskSettings,
                              @NotNull String executorId,
                              @NotNull Project project,
-                             @NotNull ProjectSystemId externalSystemId)
-  {
+                             @NotNull ProjectSystemId externalSystemId) {
+    runTask(taskSettings, executorId, project, externalSystemId, null);
+  }
+
+  public static void runTask(@NotNull ExternalSystemTaskExecutionSettings taskSettings,
+                             @NotNull String executorId,
+                             @NotNull Project project,
+                             @NotNull ProjectSystemId externalSystemId,
+                             @Nullable ProgramRunner.Callback callback) {
+    final Pair<ProgramRunner, ExecutionEnvironment> pair = createRunner(taskSettings, executorId, project, externalSystemId);
+    if (pair == null) return;
+
+    try {
+      pair.first.execute(pair.second, callback);
+    }
+    catch (ExecutionException e) {
+      LOG.warn("Can't execute task " + taskSettings, e);
+    }
+  }
+
+  @Nullable
+  public static Pair<ProgramRunner, ExecutionEnvironment> createRunner(@NotNull ExternalSystemTaskExecutionSettings taskSettings,
+                                                                       @NotNull String executorId,
+                                                                       @NotNull Project project,
+                                                                       @NotNull ProjectSystemId externalSystemId) {
     Executor executor = ExecutorRegistry.getInstance().getExecutorById(executorId);
-    if (executor == null) {
-      return;
-    }
+    if (executor == null) return null;
+
     String runnerId = getRunnerId(executorId);
-    if (runnerId == null) {
-      return;
-    }
+    if (runnerId == null) return null;
+
     ProgramRunner runner = RunnerRegistry.getInstance().findRunnerById(runnerId);
-    if (runner == null) {
-      return;
-    }
+    if (runner == null) return null;
+
     AbstractExternalSystemTaskConfigurationType configurationType = findConfigurationType(externalSystemId);
-    if (configurationType == null) {
-      return;
-    }
+    if (configurationType == null) return null;
 
     String name = AbstractExternalSystemTaskConfigurationType.generateName(project, taskSettings);
     RunnerAndConfigurationSettings settings = RunManager.getInstance(project).createRunConfiguration(name, configurationType.getFactory());
     ExternalSystemRunConfiguration runConfiguration = (ExternalSystemRunConfiguration)settings.getConfiguration();
     runConfiguration.getSettings().setExternalProjectPath(taskSettings.getExternalProjectPath());
     runConfiguration.getSettings().setTaskNames(taskSettings.getTaskNames());
-    
-    
-    ExecutionEnvironment env = new ExecutionEnvironment(executor, runner, settings, project);
-    
-    try {
-      runner.execute(env, null);
-    }
-    catch (ExecutionException e) {
-      LOG.warn("Can't execute task " + taskSettings, e);
-    }
+
+    return Pair.create(runner, new ExecutionEnvironment(executor, runner, settings, project));
   }
 
   @Nullable

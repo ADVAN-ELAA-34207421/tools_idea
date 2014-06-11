@@ -29,7 +29,6 @@ import com.intellij.openapi.editor.impl.FontInfo;
 import com.intellij.openapi.editor.impl.IterationState;
 import com.intellij.openapi.fileEditor.impl.text.TextEditorImpl;
 import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider;
-import com.intellij.openapi.util.Couple;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.TextRange;
@@ -714,11 +713,14 @@ public final class EditorUtil {
    * @param start     target start coordinate
    * @param end       target end coordinate
    * @return          pair of the closest surrounding non-soft-wrapped logical positions for the visual line start and end
+   *
+   * @see #getNotFoldedLineStartOffset(com.intellij.openapi.editor.Editor, int)
+   * @see #getNotFoldedLineEndOffset(com.intellij.openapi.editor.Editor, int)
    */
   @SuppressWarnings("AssignmentToForLoopParameter")
-  public static Couple<LogicalPosition> calcSurroundingRange(@NotNull Editor editor,
-                                                             @NotNull VisualPosition start,
-                                                             @NotNull VisualPosition end) {
+  public static Pair<LogicalPosition, LogicalPosition> calcSurroundingRange(@NotNull Editor editor,
+                                                                            @NotNull VisualPosition start,
+                                                                            @NotNull VisualPosition end) {
     final Document document = editor.getDocument();
     final FoldingModel foldingModel = editor.getFoldingModel();
 
@@ -726,8 +728,7 @@ public final class EditorUtil {
     for (
       int line = first.line, offset = document.getLineStartOffset(line);
       offset >= 0;
-      offset = document.getLineStartOffset(line))
-    {
+      offset = document.getLineStartOffset(line)) {
       final FoldRegion foldRegion = foldingModel.getCollapsedRegionAtOffset(offset);
       if (foldRegion == null) {
         first = new LogicalPosition(line, 0);
@@ -746,8 +747,7 @@ public final class EditorUtil {
     for (
       int line = second.line, offset = document.getLineEndOffset(line);
       offset <= document.getTextLength();
-      offset = document.getLineEndOffset(line))
-    {
+      offset = document.getLineEndOffset(line)) {
       final FoldRegion foldRegion = foldingModel.getCollapsedRegionAtOffset(offset);
       if (foldRegion == null) {
         second = new LogicalPosition(line + 1, 0);
@@ -764,7 +764,53 @@ public final class EditorUtil {
     if (second.line >= document.getLineCount()) {
       second = editor.offsetToLogicalPosition(document.getTextLength());
     }
-    return Couple.newOne(first, second);
+    return Pair.create(first, second);
+  }
+
+  /**
+   * Finds the start offset of visual line at which given offset is located, not taking soft wraps into account.
+   */
+  public static int getNotFoldedLineStartOffset(@NotNull Editor editor, int offset) {
+    while(true) {
+      offset = getLineStartOffset(offset, editor.getDocument());
+      FoldRegion foldRegion = editor.getFoldingModel().getCollapsedRegionAtOffset(offset - 1);
+      if (foldRegion == null || foldRegion.getStartOffset() >= offset) {
+        break;
+      }
+      offset = foldRegion.getStartOffset();
+    }
+    return offset;
+  }
+
+  /**
+   * Finds the end offset of visual line at which given offset is located, not taking soft wraps into account.
+   */
+  public static int getNotFoldedLineEndOffset(@NotNull Editor editor, int offset) {
+    while(true) {
+      offset = getLineEndOffset(offset, editor.getDocument());
+      FoldRegion foldRegion = editor.getFoldingModel().getCollapsedRegionAtOffset(offset);
+      if (foldRegion == null || foldRegion.getEndOffset() <= offset) {
+        break;
+      }
+      offset = foldRegion.getEndOffset();
+    }
+    return offset;
+  }
+
+  private static int getLineStartOffset(int offset, Document document) {
+    if (offset > document.getTextLength()) {
+      return offset;
+    }
+    int lineNumber = document.getLineNumber(offset);
+    return document.getLineStartOffset(lineNumber);
+  }
+
+  private static int getLineEndOffset(int offset, Document document) {
+    if (offset >= document.getTextLength()) {
+      return offset;
+    }
+    int lineNumber = document.getLineNumber(offset);
+    return document.getLineEndOffset(lineNumber);
   }
 
   public static void scrollToTheEnd(@NotNull Editor editor) {

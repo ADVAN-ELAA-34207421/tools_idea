@@ -49,6 +49,7 @@ import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.pom.PomNamedTarget;
+import com.intellij.pom.java.LanguageLevel;
 import com.intellij.profile.codeInspection.InspectionProjectProfileManager;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.JavaCodeStyleManager;
@@ -72,14 +73,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.PropertyKey;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class PostHighlightingPass extends ProgressableTextEditorHighlightingPass {
   private static final Logger LOG = Logger.getInstance("#com.intellij.codeInsight.daemon.impl.PostHighlightingPass");
   private static final Key<Long> LAST_POST_PASS_TIMESTAMP = Key.create("LAST_POST_PASS_TIMESTAMP");
+  private final LanguageLevel myLanguageLevel;
   private RefCountHolder myRefCountHolder;
   private final PsiFile myFile;
   @Nullable private final Editor myEditor;
@@ -112,6 +111,7 @@ public class PostHighlightingPass extends ProgressableTextEditorHighlightingPass
     myEndOffset = file.getTextLength();
 
     myCurrentEntryIndex = -1;
+    myLanguageLevel = PsiUtil.getLanguageLevel(file);
   }
 
   static boolean isUpToDate(@NotNull PsiFile file) {
@@ -165,9 +165,11 @@ public class PostHighlightingPass extends ProgressableTextEditorHighlightingPass
     }
   }
 
+  @NotNull
   @Override
   public List<HighlightInfo> getInfos() {
-    return myHighlights == null ? null : new ArrayList<HighlightInfo>(myHighlights);
+    Collection<HighlightInfo> infos = myHighlights;
+    return infos == null ? Collections.<HighlightInfo>emptyList() : new ArrayList<HighlightInfo>(infos);
   }
 
   @Override
@@ -510,7 +512,7 @@ public class PostHighlightingPass extends ProgressableTextEditorHighlightingPass
       //parameter is defined by functional interface
       final PsiElement declarationScope = parameter.getDeclarationScope();
       if (declarationScope instanceof PsiMethod && 
-          myRefCountHolder.isReferencedByMethodReference((PsiMethod)declarationScope)) {
+          myRefCountHolder.isReferencedByMethodReference((PsiMethod)declarationScope, myLanguageLevel)) {
         return null;
       }
       String message = JavaErrorMessages.message("parameter.is.not.used", identifier.getText());

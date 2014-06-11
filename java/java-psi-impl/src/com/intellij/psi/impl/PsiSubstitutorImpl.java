@@ -158,16 +158,10 @@ public class PsiSubstitutorImpl implements PsiSubstitutor {
         }
         if (newBound instanceof PsiCapturedWildcardType) {
           final PsiWildcardType wildcard = ((PsiCapturedWildcardType)newBound).getWildcard();
-          if (wildcardType.isExtends() != wildcard.isExtends()) {
-            if (wildcard.isBounded()) {
-              return wildcardType.isExtends() ? PsiWildcardType.createExtends(wildcardType.getManager(), newBound)
-                                              : PsiWildcardType.createSuper(wildcardType.getManager(), newBound);
-            }
-            else {
-              return newBound;
-            }
+          if (wildcardType.isExtends() != wildcard.isExtends() && wildcard.isBounded()) {
+            return wildcardType.isExtends() ? PsiWildcardType.createExtends(wildcardType.getManager(), newBound)
+                                            : PsiWildcardType.createSuper(wildcardType.getManager(), newBound);
           }
-          if (!wildcard.isBounded()) return PsiWildcardType.createUnbounded(wildcardType.getManager());
           return newBound;
         }
 
@@ -377,7 +371,12 @@ public class PsiSubstitutorImpl implements PsiSubstitutor {
               !TypeConversionUtil.erasure(substitutedBoundType).isAssignableFrom(TypeConversionUtil.erasure(originalBound)) &&
               !TypeConversionUtil.erasure(substitutedBoundType).isAssignableFrom(originalBound)) { //erasure is essential to avoid infinite recursion
             if (wildcardType.isExtends()) {
-              final PsiType glb = GenericsUtil.getGreatestLowerBound(wildcardType.getBound(), substitutedBoundType);
+              final PsiType bound = wildcardType.getBound();
+              if (bound instanceof PsiArrayType && substitutedBoundType instanceof PsiArrayType &&
+                  !bound.isAssignableFrom(substitutedBoundType) && !substitutedBoundType.isAssignableFrom(bound)) {
+                continue;
+              }
+              final PsiType glb = GenericsUtil.getGreatestLowerBound(bound, substitutedBoundType);
               if (glb != null) {
                 substituted = PsiWildcardType.createExtends(manager, glb);
               }
