@@ -133,6 +133,27 @@ public class ConfigImportHelper {
         maxFile = file;
       }
     }
+
+    // Android Studio: Attempt to find user settings from earlier versions where the settings names
+    // are different from the current setting name
+    if (maxFile == null) {
+      File preview = new File(PathManager.getDefaultConfigPathFor("AndroidStudioPreview"));
+      File beta = new File(PathManager.getDefaultConfigPathFor("AndroidStudioBeta")); // relevant when we switch from beta to stable
+      for (File file : new File[] { preview, beta }) {
+        if (!file.isDirectory()) {
+          continue;
+        }
+        File options = new File(file, CONFIG_RELATED_PATH + OPTIONS_XML);
+        if (options.exists()) {
+          final long modified = options.lastModified();
+          if (modified > lastModified) {
+            lastModified = modified;
+            maxFile = file;
+          }
+        }
+      }
+    }
+
     return maxFile != null ? new File(maxFile, CONFIG_RELATED_PATH) : null;
   }
 
