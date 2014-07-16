@@ -83,7 +83,6 @@
     <orderEntry type="module" module-name="github" />
     <orderEntry type="module" module-name="hg4idea" />
     <orderEntry type="module" module-name="android" />
-    <orderEntry type="module" module-name="android-designer" />
     <orderEntry type="module" module-name="adt-branding" />
     <orderEntry type="module" module-name="relaxng" />
     <orderEntry type="module" module-name="gradle" />
