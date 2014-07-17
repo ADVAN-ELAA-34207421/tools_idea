@@ -2,7 +2,6 @@ package org.jetbrains.rpc;
 
 import com.intellij.openapi.util.ActionCallback;
 import com.intellij.openapi.util.AsyncResult;
-import com.intellij.util.BooleanFunction;
 import com.intellij.util.Function;
 import com.intellij.util.PairConsumer;
 import org.jetbrains.annotations.NotNull;
@@ -17,10 +16,7 @@ public abstract class MessageHandler<INCOMING, INCOMING_WITH_SEQ, SUCCESS_RESPON
   private final AtomicInteger currentSequence = new AtomicInteger();
   protected final MessageManager<Request, INCOMING, INCOMING_WITH_SEQ, SUCCESS_RESPONSE, ERROR_DETAILS> messageManager;
 
-  private final BooleanFunction<Request> out;
-
-  protected MessageHandler(@NotNull BooleanFunction<Request> out) {
-    this.out = out;
+  protected MessageHandler() {
     messageManager = new MessageManager<Request, INCOMING, INCOMING_WITH_SEQ, SUCCESS_RESPONSE, ERROR_DETAILS>(this);
   }
 
@@ -30,11 +26,6 @@ public abstract class MessageHandler<INCOMING, INCOMING_WITH_SEQ, SUCCESS_RESPON
 
   public void closed() {
     messageManager.closed();
-  }
-
-  @Override
-  public boolean write(@NotNull Request message) {
-    return out.fun(message);
   }
 
   @Override
@@ -83,7 +74,16 @@ public abstract class MessageHandler<INCOMING, INCOMING_WITH_SEQ, SUCCESS_RESPON
   public final <RESULT, TRANSFORMED_RESULT> AsyncResult<TRANSFORMED_RESULT> send(@NotNull AsyncResult<TRANSFORMED_RESULT> result,
                                                                                  @NotNull RequestWithResponse message,
                                                                                  @NotNull PairConsumer<RESULT, AsyncResult<TRANSFORMED_RESULT>> consumer) {
-    messageManager.send(message, new NestedCommandCallbackWithResponse<SUCCESS_RESPONSE, RESULT, TRANSFORMED_RESULT, ERROR_DETAILS>(result, message.getMethodName(), consumer));
+    messageManager.send(message, new NestedCommandCallbackWithResponse<SUCCESS_RESPONSE, RESULT, TRANSFORMED_RESULT, ERROR_DETAILS>(result, message.getMethodName(), consumer, null));
+    return result;
+  }
+
+  @Override
+  public final <RESULT, TRANSFORMED_RESULT> AsyncResult<TRANSFORMED_RESULT> send(@NotNull AsyncResult<TRANSFORMED_RESULT> result,
+                                                                                 @NotNull RequestWithResponse message,
+                                                                                 @NotNull PairConsumer<RESULT, AsyncResult<TRANSFORMED_RESULT>> consumer,
+                                                                                 @Nullable ErrorConsumer<AsyncResult<TRANSFORMED_RESULT>, ERROR_DETAILS> errorConsumer) {
+    messageManager.send(message, new NestedCommandCallbackWithResponse<SUCCESS_RESPONSE, RESULT, TRANSFORMED_RESULT, ERROR_DETAILS>(result, message.getMethodName(), consumer, errorConsumer));
     return result;
   }
 }

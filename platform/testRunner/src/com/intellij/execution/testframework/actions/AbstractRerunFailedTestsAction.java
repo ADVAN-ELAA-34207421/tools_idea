@@ -139,9 +139,9 @@ public class AbstractRerunFailedTestsAction extends AnAction implements AnAction
     TestFrameworkRunningModel model = getModel();
     if (model == null || model.getRoot() == null) return false;
     final List<? extends AbstractTestProxy> myAllTests = model.getRoot().getAllTests();
-    final GlobalSearchScope searchScope = model.getProperties().getScope();
+    final Filter filter = getFailuresFilter();
     for (Object test : myAllTests) {
-      if (getFilter(project, searchScope).shouldAccept((AbstractTestProxy)test)) return true;
+      if (filter.shouldAccept((AbstractTestProxy)test)) return true;
     }
     return false;
   }
@@ -157,8 +157,12 @@ public class AbstractRerunFailedTestsAction extends AnAction implements AnAction
 
   @NotNull
   protected Filter getFilter(Project project, GlobalSearchScope searchScope) {
+    return getFailuresFilter();
+  }
+
+  protected Filter getFailuresFilter() {
     if (TestConsoleProperties.INCLUDE_NON_STARTED_IN_RERUN_FAILED.value(myConsoleProperties)) {
-      return Filter.NOT_PASSED.or(Filter.FAILED_OR_INTERRUPTED);
+      return Filter.NOT_PASSED.and(Filter.IGNORED.not()).or(Filter.FAILED_OR_INTERRUPTED);
     }
     return Filter.FAILED_OR_INTERRUPTED;
   }

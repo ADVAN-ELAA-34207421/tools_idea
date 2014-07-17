@@ -56,7 +56,6 @@ import com.intellij.util.PairConsumer;
 import com.intellij.util.PairFunction;
 import com.intellij.util.containers.ContainerUtil;
 import gnu.trove.THashSet;
-import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -447,8 +446,10 @@ public class JavaCompletionUtil {
 
             PsiSubstitutor plainSub = plainResult.getSubstitutor();
             PsiSubstitutor castSub = TypeConversionUtil.getSuperClassSubstitutor(plainClass, (PsiClassType)castType);
+            PsiType returnType = method.getReturnType();
             if (method.getSignature(plainSub).equals(method.getSignature(castSub)) &&
-                Comparing.equal(plainSub.substitute(method.getReturnType()), castSub.substitute(method.getReturnType())) &&
+                returnType != null &&
+                castSub.substitute(returnType).isAssignableFrom(plainSub.substitute(returnType)) &&
                 processor.isAccessible(plainClass.findMethodBySignature(method, true))
               ) {
               return item;
@@ -600,12 +601,7 @@ public class JavaCompletionUtil {
   }
 
   public static LookupItem setShowFQN(final LookupItem ret) {
-    final PsiClass psiClass = (PsiClass)ret.getObject();
-    @NonNls String packageName = PsiFormatUtil.getPackageDisplayName(psiClass);
-
-    final String tailText = (String)ret.getAttribute(LookupItem.TAIL_TEXT_ATTR);
-    ret.setAttribute(LookupItem.TAIL_TEXT_ATTR, StringUtil.notNullize(tailText) + " (" + packageName + ")");
-    ret.setAttribute(LookupItem.TAIL_TEXT_SMALL_ATTR, "");
+    ret.setAttribute(JavaPsiClassReferenceElement.PACKAGE_NAME, PsiFormatUtil.getPackageDisplayName((PsiClass)ret.getObject()));
     return ret;
   }
 

@@ -15,10 +15,13 @@
  */
 package com.intellij.util.indexing.containers;
 
+import com.intellij.util.indexing.DebugAssertions;
 import com.intellij.util.indexing.ValueContainer;
 import gnu.trove.TIntProcedure;
 
 import java.util.Arrays;
+
+import static com.intellij.util.indexing.DebugAssertions.DEBUG;
 
 /**
  * Class buffers changes in 2 modes:
@@ -37,8 +40,6 @@ public class ChangeBufferingList implements Cloneable {
   private short removals;
   private volatile RandomAccessIntContainer randomAccessContainer;
 
-  private static final boolean DEBUG = false;
-  //private static final boolean DEBUG = false;
   private IdSet checkSet;
 
   public ChangeBufferingList() { this(3); }
@@ -126,8 +127,19 @@ public class ChangeBufferingList implements Cloneable {
 
         if (someElementsNumberEstimation < MAX_FILES) {
           if (removals == 0) {
-            Arrays.sort(currentChanges, 0, length);
-            idSet = new SortedIdSet(currentChanges, length);
+            if (DEBUG) {
+              ValueContainer.IntIterator sorted = SortedFileIdSetIterator.getTransientIterator(new ChangesIterator(changes, length));
+              int lastIndex = 0;
+              while(sorted.hasNext()) {
+                currentChanges[lastIndex++] = sorted.next();
+              }
+
+              DebugAssertions.assertTrue(lastIndex == length);
+              idSet = new SortedIdSet(currentChanges, lastIndex);
+            } else {
+              Arrays.sort(currentChanges, 0, length);
+              idSet = new SortedIdSet(currentChanges, length);
+            }
             copyChanges = false;
           } else {
             idSet = new SortedIdSet(Math.max(someElementsNumberEstimation, 3));
@@ -162,16 +174,12 @@ public class ChangeBufferingList implements Cloneable {
       }
 
       if (DEBUG) {
-        if(checkSet.size() != idSet.size()) {
-          int a = 1; assert false;
-        }
+        DebugAssertions.assertTrue(checkSet.size() == idSet.size());
         final RandomAccessIntContainer finalIdSet = idSet;
         checkSet.forEach(new TIntProcedure() {
           @Override
           public boolean execute(int value) {
-            if (!finalIdSet.contains(value)) {
-              int a = 1; assert false;
-            }
+            DebugAssertions.assertTrue(finalIdSet.contains(value));
             return true;
           }
         });
@@ -205,15 +213,22 @@ public class ChangeBufferingList implements Cloneable {
 
   static int calcNextArraySize(int currentSize, int wantedSize) {
     return Math.min(
-          Math.max(currentSize < 1024 ? currentSize << 1 : currentSize + currentSize / 5, wantedSize),
-          MAX_FILES
-        );
+      Math.max(currentSize < 1024 ? currentSize << 1 : currentSize + currentSize / 5, wantedSize),
+      MAX_FILES
+    );
   }
 
   public boolean isEmpty() {
     if (randomAccessContainer == null) {
-      if (changes == null) return true;
-      if (removals == 0) return length == 0;
+      if (changes == null) {
+        if (DEBUG) DebugAssertions.assertTrue(checkSet.isEmpty());
+        return true;
+      }
+      if (removals == 0) {
+        boolean b = length == 0;
+        if (DEBUG) DebugAssertions.assertTrue(b == checkSet.isEmpty());
+        return b;
+      }
     }
     // todo we can calculate isEmpty in more cases (without container)
     RandomAccessIntContainer intContainer = getRandomAccessContainer();
@@ -227,9 +242,7 @@ public class ChangeBufferingList implements Cloneable {
         @Override
         public boolean contains(int id) {
           boolean answer = predicate.contains(id);
-          if (answer != checkSet.contains(id)) {
-            int a = 1; assert false;
-          }
+          DebugAssertions.assertTrue(answer == checkSet.contains(id));
           return answer;
         }
       };
@@ -240,35 +253,55 @@ public class ChangeBufferingList implements Cloneable {
   public ValueContainer.IntIterator intIterator() {
     RandomAccessIntContainer intContainer = randomAccessContainer;
     if (intContainer == null && removals == 0) {
-      return new ValueContainer.IntIterator() {
-        int cursor;
-        @Override
-        public boolean hasNext() {
-          return cursor < length;
-        }
-
-        @Override
-        public int next() {
-          int current = cursor;
-          ++cursor;
-          return changes[current];
-        }
-
-        @Override
-        public int size() {
-          return length;
-        }
-
-        @Override
-        public boolean hasAscendingOrder() {
-          return false;
-        }
-      };
+      ValueContainer.IntIterator iterator = new ChangesIterator(changes, length);
+      if (DEBUG) {
+        iterator = SortedFileIdSetIterator.getTransientIterator(iterator);
+        DebugAssertions.assertTrue(iterator.size() == length);
+      }
+      return iterator;
     }
     return getRandomAccessContainer().intIterator();
   }
 
   public IdSet getCheckSet() {
     return checkSet;
+  }
+
+  private static class ChangesIterator implements ValueContainer.IntIterator {
+    private int cursor;
+    private final int length;
+    private final int[] changes;
+
+    ChangesIterator(int[] _changes, int _length) {
+      changes = _changes;
+      length = _length;
+    }
+
+    @Override
+    public boolean hasNext() {
+      return cursor < length;
+    }
+
+    @Override
+    public int next() {
+      int current = cursor;
+      ++cursor;
+      return changes[current];
+    }
+
+    @Override
+    public int size() {
+      return length;
+    }
+
+    @Override
+    public boolean hasAscendingOrder() {
+      return false;
+    }
+
+    @Override
+    public ValueContainer.IntIterator createCopyInInitialState() {
+      return new ChangesIterator(changes, length);
+    }
   }
 }

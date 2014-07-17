@@ -1,3 +1,18 @@
+/*
+ * Copyright 2000-2014 JetBrains s.r.o.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.intellij.ide.projectWizard;
 
 import com.intellij.ide.actions.ImportModuleAction;
@@ -43,7 +58,6 @@ import java.util.List;
  */
 @SuppressWarnings("unchecked")
 public abstract class ProjectWizardTestCase<T extends AbstractProjectWizard> extends PlatformTestCase {
-
   protected static final String DEFAULT_SDK = "default";
   protected final List<Sdk> mySdks = new ArrayList<Sdk>();
   protected T myWizard;
@@ -118,7 +132,7 @@ public abstract class ProjectWizardTestCase<T extends AbstractProjectWizard> ext
         throw new RuntimeException(currentStep + " is not validated");
       }
     }
-    myWizard.doOk();
+    myWizard.doFinishAction();
   }
 
   protected void createWizard(Project project) throws IOException {
@@ -147,6 +161,7 @@ public abstract class ProjectWizardTestCase<T extends AbstractProjectWizard> ext
     for (final Sdk jdk : jdks) {
       if (projectSdk != jdk) {
         ApplicationManager.getApplication().runWriteAction(new Runnable() {
+          @Override
           public void run() {
             ProjectJdkTable.getInstance().removeJdk(jdk);
           }
@@ -157,6 +172,7 @@ public abstract class ProjectWizardTestCase<T extends AbstractProjectWizard> ext
 
   protected void setupJdk() {
     ApplicationManager.getApplication().runWriteAction(new Runnable() {
+      @Override
       public void run() {
         ProjectJdkTable jdkTable = ProjectJdkTable.getInstance();
         Sdk defaultJdk = new SimpleJavaSdkType().createJdk(DEFAULT_SDK, SystemProperties.getJavaHome());
@@ -181,6 +197,7 @@ public abstract class ProjectWizardTestCase<T extends AbstractProjectWizard> ext
   public void tearDown() throws Exception {
     if (myWizard != null) {
       Disposer.dispose(myWizard.getDisposable());
+      myWizard = null;
     }
     if (myCreatedProject != null) {
       myProjectManager.closeProject(myCreatedProject);
@@ -190,8 +207,10 @@ public abstract class ProjectWizardTestCase<T extends AbstractProjectWizard> ext
           Disposer.dispose(myCreatedProject);
         }
       });
+      myCreatedProject = null;
     }
     ApplicationManager.getApplication().runWriteAction(new Runnable() {
+      @Override
       public void run() {
         for (Sdk sdk : mySdks) {
           ProjectJdkTable.getInstance().removeJdk(sdk);
@@ -199,6 +218,9 @@ public abstract class ProjectWizardTestCase<T extends AbstractProjectWizard> ext
       }
     });
     SelectTemplateSettings.getInstance().setLastTemplate(null, null);
+    UIUtil.dispatchAllInvocationEvents();
+    Thread.sleep(2000); //wait for JBCardLayout release timers
+    UIUtil.dispatchAllInvocationEvents();
     super.tearDown();
   }
 
@@ -233,6 +255,7 @@ public abstract class ProjectWizardTestCase<T extends AbstractProjectWizard> ext
   protected Sdk createSdk(String name, SdkTypeId sdkType) {
     final Sdk sdk = ProjectJdkTable.getInstance().createSdk(name, sdkType);
     ApplicationManager.getApplication().runWriteAction(new Runnable() {
+      @Override
       public void run() {
         ProjectJdkTable.getInstance().addJdk(sdk);
       }
