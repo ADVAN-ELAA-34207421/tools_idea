@@ -47,7 +47,9 @@ import com.intellij.openapi.extensions.LoadingOrder
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.util.Computable
 import com.intellij.openapi.util.Disposer
+import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiJavaFile
 import com.intellij.psi.statistics.StatisticsManager
@@ -559,7 +561,7 @@ public interface Test {
   static class LongContributor extends CompletionContributor {
 
     @Override
-    void fillCompletionVariants(CompletionParameters parameters, CompletionResultSet result) {
+    void fillCompletionVariants(@NotNull CompletionParameters parameters, @NotNull CompletionResultSet result) {
       result.runRemainingContributors(parameters, true)
       Thread.sleep 500
     }
@@ -892,9 +894,7 @@ class Foo {
   void bar(int aaa, int aaaaa) { foo(<caret>) }
 } """)
     type 'a'
-    println myFixture.lookupElementStrings
     type 'a'
-    println myFixture.lookupElementStrings
     type ','
     assert myFixture.editor.document.text.contains('foo(aaa, )')
   }
@@ -967,7 +967,12 @@ class Foo {
   void x__goo() {}
 }
 '''
-    def cls = ((PsiJavaFile)myFixture.file).getClasses()[0]
+    PsiClass cls = ApplicationManager.getApplication().runReadAction(new Computable<PsiClass>() {
+          @Override
+          public PsiClass compute() {
+            return ((PsiJavaFile)myFixture.file).getClasses()[0];
+          }
+    });
     def foo = cls.methods[0]
     def goo = cls.methods[2]
     type('x')

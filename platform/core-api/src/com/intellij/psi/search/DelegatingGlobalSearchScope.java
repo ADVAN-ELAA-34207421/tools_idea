@@ -30,9 +30,7 @@ public class DelegatingGlobalSearchScope extends GlobalSearchScope {
   private final Object myEquality;
 
   public DelegatingGlobalSearchScope(@NotNull GlobalSearchScope baseScope) {
-    super(baseScope.getProject());
-    myBaseScope = baseScope;
-    myEquality = ArrayUtil.EMPTY_OBJECT_ARRAY;
+    this(baseScope, ArrayUtil.EMPTY_OBJECT_ARRAY);
   }
 
   public DelegatingGlobalSearchScope(@NotNull GlobalSearchScope baseScope, @NotNull Object... equality) {
@@ -71,6 +69,7 @@ public class DelegatingGlobalSearchScope extends GlobalSearchScope {
     return myBaseScope.isSearchOutsideRootModel();
   }
 
+  @NotNull
   @Override
   public String getDisplayName() {
     return myBaseScope.getDisplayName();

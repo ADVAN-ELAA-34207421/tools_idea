@@ -446,7 +446,7 @@ public class HighlightMethodUtil {
           final String message = JavaErrorMessages
             .message("incompatible.call.types", idx + 1, substitutor.substitute(parameters[idx].getType()).getCanonicalText(), argType.getCanonicalText());
 
-          return XmlStringUtil.wrapInHtml("<body>" + message +
+          return XmlStringUtil.wrapInHtml("<body>" + XmlStringUtil.escapeString(message) +
                                           " <a href=\"#assignment/" + XmlStringUtil.escapeString(createMismatchedArgumentsHtmlTooltip(candidateInfo, list)) + "\"" +
                                           (UIUtil.isUnderDarcula() ? " color=\"7AB4C9\" " : "") +
                                           ">" + DaemonBundle.message("inspection.extended.description") + "</a></body>");
@@ -670,6 +670,7 @@ public class HighlightMethodUtil {
     registerChangeParameterClassFix(methodCall, list, highlightInfo);
     if (methodCandidates.length == 0) {
       QuickFixAction.registerQuickFixAction(highlightInfo, fixRange, QUICK_FIX_FACTORY.createStaticImportMethodFix(methodCall));
+      QuickFixAction.registerQuickFixAction(highlightInfo, fixRange, QUICK_FIX_FACTORY.addMethodQualifierFix(methodCall));
     }
     for (IntentionAction action : QUICK_FIX_FACTORY.getVariableTypeFromCallFixes(methodCall, list)) {
       QuickFixAction.registerQuickFixAction(highlightInfo, fixRange, action);

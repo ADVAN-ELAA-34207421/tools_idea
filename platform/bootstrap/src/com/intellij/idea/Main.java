@@ -31,6 +31,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
+import java.util.Locale;
 
 
 @SuppressWarnings({"UseOfSystemOutOrSystemErr", "MethodNamesDifferingOnlyByCase"})
@@ -133,7 +134,7 @@ public class Main {
 
   private static void installPatch() throws IOException {
     String platform = System.getProperty(PLATFORM_PREFIX_PROPERTY, "idea");
-    String patchFileName = ("jetbrains.patch.jar." + platform).toLowerCase();
+    String patchFileName = ("jetbrains.patch.jar." + platform).toLowerCase(Locale.US);
     String tempDir = System.getProperty("java.io.tmpdir");
 
     // always delete previous patch copy
@@ -165,6 +166,7 @@ public class Main {
         args.add(Restarter.createTempExecutable(launcher).getPath());
       }
 
+      //noinspection SpellCheckingInspection
       Collections.addAll(args,
                          System.getProperty("java.home") + "/bin/java".replace('/', File.separatorChar),
                          "-Xmx500m",
