@@ -380,9 +380,9 @@ public class FileBasedIndexImpl extends FileBasedIndex {
         LOG.info("Version has changed for index " + name + ". The index will be rebuilt.");
       }
       if (extension.hasSnapshotMapping() && (isCurrentVersionCorrupted || versionChanged)) {
-        safeDelete(IndexInfrastructure.getPersistentIndexRootDir(name));
+        FileUtil.delete(IndexInfrastructure.getPersistentIndexRootDir(name));
       }
-      safeDelete(IndexInfrastructure.getIndexRootDir(name));
+      FileUtil.delete(IndexInfrastructure.getIndexRootDir(name));
       IndexingStamp.rewriteVersion(versionFile, version);
     }
 
@@ -458,20 +458,14 @@ public class FileBasedIndexImpl extends FileBasedIndex {
         catch (Exception ignored) {
         }
 
-        safeDelete(IndexInfrastructure.getIndexRootDir(name));
+        FileUtil.delete(IndexInfrastructure.getIndexRootDir(name));
 
         if (extension.hasSnapshotMapping() && (!contentHashesEnumeratorOk || instantiatedStorage)) {
-          safeDelete(IndexInfrastructure.getPersistentIndexRootDir(name)); // todo there is possibility of corruption of storage and content hashes
+          FileUtil.delete(IndexInfrastructure.getPersistentIndexRootDir(name));
         }
         IndexingStamp.rewriteVersion(versionFile, version);
       }
     }
-  }
-
-  private static boolean safeDelete(File dir) {
-    File directory = FileUtil.findSequentNonexistentFile(dir.getParentFile(), dir.getName(), "");
-    boolean success = dir.renameTo(directory);
-    return FileUtil.delete(success ? directory:dir);
   }
 
   private static void saveRegisteredIndices(@NotNull Collection<ID<?, ?>> ids) {
@@ -1206,6 +1200,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
 
   @Nullable
   public static Throwable getCauseToRebuildIndex(@NotNull RuntimeException e) {
+    if (e instanceof IndexOutOfBoundsException) return e; // something wrong with direct byte buffer
     Throwable cause = e.getCause();
     if (cause instanceof StorageException || cause instanceof IOException ||
         cause instanceof IllegalArgumentException) return cause;
@@ -1568,7 +1563,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
       indicesToDrop.remove(key.toString());
     }
     for (String s : indicesToDrop) {
-      safeDelete(IndexInfrastructure.getIndexRootDir(ID.create(s)));
+      FileUtil.delete(IndexInfrastructure.getIndexRootDir(ID.create(s)));
     }
   }
 
@@ -1664,21 +1659,26 @@ public class FileBasedIndexImpl extends FileBasedIndex {
             }
 
             byte[] currentBytes;
-            byte[] hash;
             try {
               currentBytes = content.getBytes();
-              if (fileType.isBinary() || !IdIndex.ourSnapshotMappingsEnabled) {
-                hash = null;
-              } else {
-                hash = ContentHashesSupport
-                  .calcContentHashWithFileType(currentBytes, SubstitutedFileType.substituteFileType(file, fileType, project));
-              }
             }
             catch (IOException e) {
               currentBytes = ArrayUtil.EMPTY_BYTE_ARRAY;
-              hash = null;
             }
-            fc = new FileContentImpl(file, currentBytes, hash);
+            fc = new FileContentImpl(file, currentBytes);
+
+            if (!fileType.isBinary() && IdIndex.ourSnapshotMappingsEnabled) {
+              try {
+                byte[] hash = ContentHashesSupport.calcContentHashWithFileType(
+                  currentBytes,
+                  fc.getCharset(),
+                  SubstitutedFileType.substituteFileType(file, fileType, project)
+                );
+                fc.setHash(hash);
+              } catch (IOException e) {
+                LOG.error(e);
+              }
+            }
 
             psiFile = content.getUserData(IndexingDataKeys.PSI_FILE);
             initFileContent(fc, project, psiFile);
@@ -1909,21 +1909,26 @@ public class FileBasedIndexImpl extends FileBasedIndex {
 
     @Override
     public void beforePropertyChange(@NotNull final VirtualFilePropertyEvent event) {
-      if (event.getPropertyName().equals(VirtualFile.PROP_NAME)) {
-        // indexes may depend on file name
-        final VirtualFile file = event.getFile();
+      String propertyName = event.getPropertyName();
 
+      if (propertyName.equals(VirtualFile.PROP_NAME)) {
+        // indexes may depend on file name
         // name change may lead to filetype change so the file might become not indexable
         // in general case have to 'unindex' the file and index it again if needed after the name has been changed
-        invalidateIndices(file, false);
+        invalidateIndices(event.getFile(), false);
+      } else if (propertyName.equals(VirtualFile.PROP_ENCODING)) {
+        invalidateIndices(event.getFile(), true);
       }
     }
 
     @Override
     public void propertyChanged(@NotNull final VirtualFilePropertyEvent event) {
-      if (event.getPropertyName().equals(VirtualFile.PROP_NAME)) {
+      String propertyName = event.getPropertyName();
+      if (propertyName.equals(VirtualFile.PROP_NAME)) {
         // indexes may depend on file name
         markDirty(event, false);
+      } else if (propertyName.equals(VirtualFile.PROP_ENCODING)) {
+        markDirty(event, true);
       }
     }
 
