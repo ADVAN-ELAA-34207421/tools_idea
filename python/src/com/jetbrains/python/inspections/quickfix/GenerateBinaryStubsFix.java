@@ -19,12 +19,15 @@ import com.google.common.collect.Lists;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.execution.process.ProcessOutput;
+import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.application.Result;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
+import com.intellij.openapi.progress.Task.Backgroundable;
 import com.intellij.openapi.progress.impl.BackgroundableProcessIndicator;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.projectRoots.Sdk;
@@ -65,6 +68,7 @@ public class GenerateBinaryStubsFix implements LocalQuickFix {
   /**
    * Generates pack of fixes available for some unresolved import statement.
    * Be sure to call {@link #isApplicable(com.jetbrains.python.psi.PyImportStatementBase)} first to make sure this statement is supported
+   *
    * @param importStatementBase statement to fix
    * @return pack of fixes
    */
@@ -73,14 +77,14 @@ public class GenerateBinaryStubsFix implements LocalQuickFix {
     final List<String> names = importStatementBase.getFullyQualifiedObjectNames();
     final List<GenerateBinaryStubsFix> result = new ArrayList<GenerateBinaryStubsFix>(names.size());
     for (final String qualifiedName : names) {
-        result.add(new GenerateBinaryStubsFix(importStatementBase, qualifiedName));
+      result.add(new GenerateBinaryStubsFix(importStatementBase, qualifiedName));
     }
     return result;
   }
 
   /**
    * @param importStatementBase statement to fix
-   * @param qualifiedName name should be fixed (one of {@link com.jetbrains.python.psi.PyImportStatementBase#getFullyQualifiedObjectNames()})
+   * @param qualifiedName       name should be fixed (one of {@link com.jetbrains.python.psi.PyImportStatementBase#getFullyQualifiedObjectNames()})
    */
   private GenerateBinaryStubsFix(@NotNull final PyImportStatementBase importStatementBase, @NotNull final String qualifiedName) {
     myQualifiedName = qualifiedName;
@@ -102,15 +106,34 @@ public class GenerateBinaryStubsFix implements LocalQuickFix {
   @Override
   public void applyFix(@NotNull final Project project, @NotNull final ProblemDescriptor descriptor) {
     final PsiFile file = descriptor.getPsiElement().getContainingFile();
-    final String folder = file.getContainingDirectory().getVirtualFile().getCanonicalPath();
+    final Backgroundable backgroundable = getFixTask(file);
+    ProgressManager.getInstance().runProcessWithProgressAsynchronously(backgroundable, new BackgroundableProcessIndicator(backgroundable));
+  }
 
-    final Task.Backgroundable backgroundable = new Task.Backgroundable(project, "Generating skeletons for binary module", false) {
+
+  /**
+   * Returns fix task that is used to generate stubs
+   * @param fileToRunTaskIn file where task should run
+   * @return task itself
+   */
+  @NotNull
+  public Backgroundable getFixTask(@NotNull final PsiFile fileToRunTaskIn) {
+    final Project project = fileToRunTaskIn.getProject();
+    final String folder = fileToRunTaskIn.getContainingDirectory().getVirtualFile().getCanonicalPath();
+    return new Task.Backgroundable(project, "Generating skeletons for binary module", false) {
 
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
         indicator.setIndeterminate(true);
 
-        final List<String> assemblyRefs = collectAssemblyReferences(file);
+
+        final List<String> assemblyRefs = new ReadAction<List<String>>() {
+          @Override
+          protected void run(@NotNull Result<List<String>> result) throws Throwable {
+            result.setResult(collectAssemblyReferences(fileToRunTaskIn));
+          }
+        }.execute().getResultObject();
+
 
         try {
           final PySkeletonRefresher refresher = new PySkeletonRefresher(project, null, mySdk, null, null, folder);
@@ -133,7 +156,6 @@ public class GenerateBinaryStubsFix implements LocalQuickFix {
         }
       }
     };
-    ProgressManager.getInstance().runProcessWithProgressAsynchronously(backgroundable, new BackgroundableProcessIndicator(backgroundable));
   }
 
   private boolean generateSkeletonsForList(@NotNull final PySkeletonRefresher refresher,
@@ -185,8 +207,8 @@ public class GenerateBinaryStubsFix implements LocalQuickFix {
         // TODO: What if user loads it not by literal? We need to ask user for list of DLLs
         if (node.isCalleeText("AddReference", "AddReferenceByPartialName", "AddReferenceByName")) {
           final PyExpression[] args = node.getArguments();
-          if (args.length == 1 && args [0] instanceof PyStringLiteralExpression) {
-            result.add(((PyStringLiteralExpression) args [0]).getStringValue());
+          if (args.length == 1 && args[0] instanceof PyStringLiteralExpression) {
+            result.add(((PyStringLiteralExpression)args[0]).getStringValue());
           }
         }
       }

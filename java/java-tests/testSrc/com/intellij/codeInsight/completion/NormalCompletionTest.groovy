@@ -768,6 +768,8 @@ public class ListUtils {
     assertStringItems("fofoo", "fofoo");
   }
 
+  public void testMethodMergingMinimalTail() { doTest() }
+
   public void testAnnotationQualifiedName() throws Throwable {
     doTest();
   }
@@ -920,6 +922,9 @@ public class ListUtils {
   }
 
   public void testSmartEnterWrapsConstructorCall() throws Throwable { doTest(Lookup.COMPLETE_STATEMENT_SELECT_CHAR as String) }
+  public void testSmartEnterNoNewLine() { doTest(Lookup.COMPLETE_STATEMENT_SELECT_CHAR as String) }
+  public void testSmartEnterWithNewLine() { doTest(Lookup.COMPLETE_STATEMENT_SELECT_CHAR as String) }
+
   public void testTabReplacesMethodNameWithLocalVariableName() throws Throwable { doTest('\t'); }
   public void testMethodParameterAnnotationClass() throws Throwable { doTest(); }
   public void testPrimitiveCastOverwrite() throws Throwable { doTest '\t' }
@@ -1466,6 +1471,11 @@ class Bar {
 
   public void testProtectedFieldInAnotherPackage() {
     myFixture.addClass("package foo; public class Super { protected String myString; }");
+    doTest()
+  }
+
+  public void testUnimportedStaticInnerClass() {
+    myFixture.addClass("package foo; public class Super { public static class Inner {} }");
     doTest()
   }
 
