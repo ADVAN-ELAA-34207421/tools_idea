@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,24 +16,43 @@
 package com.intellij.xdebugger.impl.settings;
 
 import com.intellij.openapi.options.Configurable;
+import com.intellij.xdebugger.settings.XDebuggerSettings;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
+import java.util.Collections;
 
 /**
  * @author nik
  */
 public abstract class DebuggerSettingsPanelProvider {
+  public int getPriority() {
+    return 0;
+  }
 
-  public abstract int getPriority();
-
-  public abstract Collection<? extends Configurable> getConfigurables();
+  @NotNull
+  public Collection<? extends Configurable> getConfigurables() {
+    return Collections.emptyList();
+  }
 
   public void apply() {
   }
 
   @Nullable
+  @Deprecated
   public Configurable getRootConfigurable() {
     return null;
+  }
+
+  @NotNull
+  public Collection<? extends Configurable> getConfigurable(@NotNull XDebuggerSettings.Category category) {
+    return Collections.emptyList();
+  }
+
+  /**
+   * General settings of category were applied
+   */
+  public void generalApplied(@NotNull XDebuggerSettings.Category category) {
   }
 }

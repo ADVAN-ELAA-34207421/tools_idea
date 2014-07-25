@@ -26,14 +26,14 @@ import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileVisitor;
 import org.jetbrains.annotations.NotNull;
-import org.tmatesoft.svn.core.SVNDepth;
+import org.jetbrains.idea.svn.api.Depth;
 
 public class SvnExcludingIgnoredOperation {
   private final Operation myImportAction;
-  private final SVNDepth myDepth;
+  private final Depth myDepth;
   private final Filter myFilter;
 
-  public SvnExcludingIgnoredOperation(final Project project, final Operation importAction, final SVNDepth depth) {
+  public SvnExcludingIgnoredOperation(final Project project, final Operation importAction, final Depth depth) {
     myImportAction = importAction;
     myDepth = depth;
 
@@ -48,17 +48,18 @@ public class SvnExcludingIgnoredOperation {
     public Filter(final Project project) {
       myProject = project;
 
-      if (! project.isDefault()) {
+      if (!project.isDefault()) {
         myIndex = PeriodicalTasksCloser.getInstance().safeGetService(project, FileIndexFacade.class);
         myClManager = ChangeListManager.getInstance(project);
-      } else {
+      }
+      else {
         myIndex = null;
         myClManager = null;
       }
     }
 
     public boolean accept(final VirtualFile file) {
-      if (! myProject.isDefault()) {
+      if (!myProject.isDefault()) {
         if (isExcluded(file)) {
           return false;
         }
@@ -80,7 +81,7 @@ public class SvnExcludingIgnoredOperation {
   }
 
   private boolean operation(final VirtualFile file) throws VcsException {
-    if (! myFilter.accept(file)) return false;
+    if (!myFilter.accept(file)) return false;
 
     myImportAction.doOperation(file);
     return true;
@@ -101,21 +102,21 @@ public class SvnExcludingIgnoredOperation {
   }
 
   public void execute(final VirtualFile file) throws VcsException {
-    if (SVNDepth.INFINITY.equals(myDepth)) {
+    if (Depth.INFINITY.equals(myDepth)) {
       executeDown(file);
       return;
     }
 
-    if (! operation(file)) {
+    if (!operation(file)) {
       return;
     }
 
-    if (SVNDepth.EMPTY.equals(myDepth)) {
+    if (Depth.EMPTY.equals(myDepth)) {
       return;
     }
 
     for (VirtualFile child : file.getChildren()) {
-      if (SVNDepth.FILES.equals(myDepth) && child.isDirectory()) {
+      if (Depth.FILES.equals(myDepth) && child.isDirectory()) {
         continue;
       }
       operation(child);
