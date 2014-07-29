@@ -589,12 +589,41 @@ private Set<String> findModuleDependencies(List<String> modules) {
           libroots = lib.getRoots(JpsOrderRootType.COMPILED) // only want compile (and not test)
           libroots.each {
             paths.addAll(JpsPathUtil.urlToFile(it.getUrl()).getAbsolutePath());
+            projectBuilder.stage("Module: " + m.getName() + ", Dependency: " + it.getUrl());
           }
         }
       }
     }
   }
   return paths;
+}
+
+// Obtain the absolute path to the NOTICE file corresponding to the given jar file.
+// The NOTICE file is assumed to be present in the same folder as the jar file. It is an error if it is missing
+private File getNoticeFileForJar(String jarPath) {
+  File parentFile = new File(jarPath).getParentFile()
+  File notice = new File(parentFile, "NOTICE")
+  if (!notice.exists()) {
+    notice = new File(parentFile, "NOTICE.txt")
+  }
+  if (!notice.exists()) {
+    notice = new File(parentFile, "LICENSE.txt")
+  }
+  if (!notice.exists()) {
+    notice = new File(parentFile, "LICENSE")
+  }
+
+  return notice
+}
+
+private void appendToFile(File to, File from) {
+  if (from.exists()) {
+    to.append(from.getName() + ":\n")
+    to.append(from.getText("UTF-8"), "UTF-8")
+    projectBuilder.stage("Appending NOTICE file: " + from.getAbsolutePath())
+  } else {
+    projectBuilder.stage("Skipping non-existent NOTICE file: " + from.getAbsolutePath())
+  }
 }
 
 def layoutPlugin(String moduleName) {
@@ -726,6 +755,10 @@ def layoutAndroid() {
           include(name: "**/*.jar")
         }
 
+        jar("androidAnnotations.jar") {
+          fileset(dir: "${home}/../adt/idea/android/annotations")
+        }
+
         // Add Additional libraries that the Android plugin depends on that come from TOOLS_PREBUILTS.
         // Note: This is a HACK: rather than encoding the full path, we should really query
         // the project model for the classpath just like we do for the androidModules' dependencies
@@ -755,15 +788,22 @@ def layoutAndroid() {
           }
         }
 
-        jar("androidAnnotations.jar") {
-          fileset(dir: "${home}/../adt/idea/android/annotations")
-        }
-
         // copy over dependencies of all android modules
         androidModuleDeps = findModuleDependencies(androidModules)
         androidModuleDeps.each {
           fileset(file: it)
         }
+
+        // Create a single NOTICE file with the contents of all the NOTICES of the dependencies.
+        // I couldn't figure out the right ant commands to be able to change the name of the file
+        // when copying, so we'll just call it by its final name (NOTICE)
+        File noticeFile = new File(System.getProperty("java.io.tmpdir") + File.separator + "NOTICE")
+        noticeFile.deleteOnExit()
+        androidModuleDeps.each {
+          appendToFile(noticeFile, getNoticeFileForJar(it))
+        }
+        appendToFile(noticeFile, new File("${home}/../../prebuilts/tools/common/m2/repository/org/freemarker/freemarker/2.3.20/NOTICE"))
+        fileset(file: noticeFile.getPath())
 
         jar("android-common.jar") {
           module("android-common")
