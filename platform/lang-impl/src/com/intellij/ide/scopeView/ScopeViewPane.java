@@ -222,7 +222,7 @@ public class ScopeViewPane extends AbstractProjectViewPane {
 
   @Override
   public int getWeight() {
-    return 3;
+    return 200; // was 3, changed to 200 in Android Studio so that has a lower weight than the Android view.
   }
 
   @Override
