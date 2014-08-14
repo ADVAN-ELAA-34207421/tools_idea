@@ -76,6 +76,7 @@
       <module fileurl="file://$PROJECT_DIR$/plugins/google-app-engine/google-app-engine.iml" filepath="$PROJECT_DIR$/plugins/google-app-engine/google-app-engine.iml" group="plugins/GAE" />
       <module fileurl="file://$PROJECT_DIR$/plugins/google-app-engine/jps-plugin/google-app-engine-jps-plugin.iml" filepath="$PROJECT_DIR$/plugins/google-app-engine/jps-plugin/google-app-engine-jps-plugin.iml" group="plugins/GAE" />
       <module fileurl="file://$PROJECT_DIR$/../studio/cloud/google-cloud-tools.iml" filepath="$PROJECT_DIR$/../studio/cloud/google-cloud-tools.iml" group="plugins/Google" />
+      <module fileurl="file://$PROJECT_DIR$/../studio/cloud/login/google-login.iml" filepath="$PROJECT_DIR$/../studio/cloud/login/google-login.iml" group="plugins/Google" />
       <module fileurl="file://$PROJECT_DIR$/plugins/gradle/gradle.iml" filepath="$PROJECT_DIR$/plugins/gradle/gradle.iml" group="community/plugins/gradle" />
       <module fileurl="file://$PROJECT_DIR$/../base/gradle-import/gradle-import.iml" filepath="$PROJECT_DIR$/../base/gradle-import/gradle-import.iml" group="plugins/Android/android-sdk" />
       <module fileurl="file://$PROJECT_DIR$/plugins/gradle/tooling-extension-api/gradle-tooling-extension-api.iml" filepath="$PROJECT_DIR$/plugins/gradle/tooling-extension-api/gradle-tooling-extension-api.iml" group="community/plugins/gradle" />
