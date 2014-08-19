@@ -36,6 +36,8 @@ public interface IdeActions {
   @NonNls String ACTION_EDITOR_SELECT_WORD_AT_CARET = "EditorSelectWord";
   @NonNls String ACTION_EDITOR_UNSELECT_WORD_AT_CARET = "EditorUnSelectWord";
   @NonNls String ACTION_EDITOR_BACKSPACE = "EditorBackSpace";
+  @NonNls String ACTION_EDITOR_MOVE_CARET_LEFT_WITH_SELECTION = "EditorLeftWithSelection";
+  @NonNls String ACTION_EDITOR_MOVE_CARET_RIGHT_WITH_SELECTION = "EditorRightWithSelection";
   @NonNls String ACTION_EDITOR_MOVE_CARET_UP = "EditorUp";
   @NonNls String ACTION_EDITOR_MOVE_CARET_LEFT = "EditorLeft";
   @NonNls String ACTION_EDITOR_MOVE_CARET_DOWN = "EditorDown";
@@ -269,7 +271,7 @@ public interface IdeActions {
   String ACTION_UNDO = "$Undo";
   String ACTION_REDO = "$Redo";
   String GROUP_REFACTOR = "RefactoringMenu";
-  String SELECTED_CHANGES_ROLLBACK = "RollbackLineStatusChanges";
+  String SELECTED_CHANGES_ROLLBACK = "Vcs.RollbackChangedLines";
   String CHANGES_VIEW_ROLLBACK = "ChangesView.Rollback";
 
   String CONSOLE_CLEAR_ALL = "ConsoleView.ClearAll";

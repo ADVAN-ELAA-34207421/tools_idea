@@ -103,7 +103,7 @@ public class SvnRecursiveStatusWalker {
     if (e.contains(SVNErrorCode.WC_NOT_DIRECTORY) || e.contains(SVNErrorCode.WC_NOT_FILE)) {
       final VirtualFile virtualFile = path.getVirtualFile();
       if (virtualFile != null) {
-        if (! myPartner.isExcluded(virtualFile)) {
+        if (! myPartner.isIgnoredByVcs(virtualFile)) {
           // self is unversioned
           myReceiver.processUnversioned(virtualFile);
 
@@ -184,15 +184,20 @@ public class SvnRecursiveStatusWalker {
       }
     };
     if (Depth.EMPTY.equals(newDepth)) {
-      directoryFilter = Processor.TRUE;
+      // just process immediate children - so only root directory itself should satisfy filter
+      directoryFilter = new Processor<File>() {
+        @Override
+        public boolean process(File file) {
+          return FileUtil.filesEqual(ioFile, file);
+        }
+      };
       processor = new Processor<File>() {
         @Override
         public boolean process(File file) {
-          // here we deal only with immediate children - so ignored on IDEA level for children is not important - we nevertheless do not go into
-          // other levels
-          if (! FileUtil.filesEqual(ioFile, file)) return true;
-          if (! FileUtil.filesEqual(ioFile, file.getParentFile())) return false;
-          return checkDirProcessor.process(file);
+          // TODO: check if we should still call checkDirProcessor() here - or we really could not check ignore settings but just call
+          // TODO: myReceiver.processUnversioned() for all immediate children
+          // here we deal only with immediate children - so ignored on IDEA level for children is not important
+          return FileUtil.filesEqual(ioFile, file) || checkDirProcessor.process(file);
         }
       };
     } else {
@@ -278,7 +283,7 @@ public class SvnRecursiveStatusWalker {
           @Override
           public Boolean compute() {
             if (myProject.isDisposed()) return null;
-            return myPartner.isExcluded(vFile);
+            return myPartner.isIgnoredByVcs(vFile);
           }
         });
         if (Boolean.TRUE.equals(excluded)) return;

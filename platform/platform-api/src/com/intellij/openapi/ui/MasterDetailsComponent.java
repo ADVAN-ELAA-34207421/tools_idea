@@ -111,7 +111,7 @@ public abstract class MasterDetailsComponent implements Configurable, DetailsCom
   protected MyNode myRoot = new MyRootNode();
   protected Tree myTree = new Tree();
 
-  private final DetailsComponent myDetails = new DetailsComponent();
+  private final DetailsComponent myDetails = new DetailsComponent(!Registry.is("ide.new.project.settings"), !Registry.is("ide.new.project.settings"));
   protected JPanel myWholePanel;
   public JPanel myNorthPanel = new JPanel(new BorderLayout());
 
@@ -131,12 +131,9 @@ public abstract class MasterDetailsComponent implements Configurable, DetailsCom
   protected MasterDetailsComponent(MasterDetailsState state) {
     myState = state;
 
-    mySplitter = new JBSplitter(false, .2f);
+    mySplitter = Registry.is("ide.new.project.settings") ? new OnePixelSplitter(false, .2f) : new JBSplitter(false, .2f);
     mySplitter.setSplitterProportionKey("ProjectStructure.SecondLevelElements");
     mySplitter.setHonorComponentsMinimumSize(true);
-    if (Registry.is("ide.new.project.settings")) {
-      mySplitter.setOnePixelMode();
-    }
 
     installAutoScroll();
     reInitWholePanelIfNeeded();
@@ -300,6 +297,7 @@ public abstract class MasterDetailsComponent implements Configurable, DetailsCom
 
   @NotNull 
   public JComponent createComponent() {
+    myTree.updateUI();
     reInitWholePanelIfNeeded();
 
     updateSelectionFromTree();
@@ -962,7 +960,11 @@ public abstract class MasterDetailsComponent implements Configurable, DetailsCom
                                                                 myPreselection != null ? myPreselection.getDefaultIndex() : 0, true);
       final ListPopup listPopup = popupFactory.createListPopup(step);
       listPopup.setHandleAutoSelectionBeforeShow(true);
-      listPopup.showUnderneathOf(myNorthPanel);
+      if (e instanceof AnActionButton.AnActionEventWrapper) {
+        ((AnActionButton.AnActionEventWrapper)e).showPopup(listPopup);
+      } else {
+        listPopup.showUnderneathOf(myNorthPanel);
+      }
     }
   }
 

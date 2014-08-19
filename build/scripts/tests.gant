@@ -9,6 +9,7 @@ def isMac = System.getProperty("os.name").toLowerCase().startsWith("mac")
 def args = [
         "-Xmx1024m",
         "-XX:MaxPermSize=630m",
+        "-XX:ReservedCodeCacheSize=96m"
 ]
 if (isMac) args << "-d32";
 
