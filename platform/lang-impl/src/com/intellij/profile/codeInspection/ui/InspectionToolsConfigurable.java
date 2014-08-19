@@ -151,7 +151,7 @@ public abstract class InspectionToolsConfigurable extends BaseConfigurable imple
               final Set<String> levels = new HashSet<String>();
               for (Object o : rootElement.getChildren("inspection_tool")) {
                 final Element inspectElement = (Element)o;
-                levels.add(inspectElement.getAttributeValue("l"));
+                levels.add(inspectElement.getAttributeValue("level"));
                 for (Object s : inspectElement.getChildren("scope")) {
                   levels.add(((Element)s).getAttributeValue("level"));
                 }
@@ -532,6 +532,6 @@ public abstract class InspectionToolsConfigurable extends BaseConfigurable imple
   public JComponent getPreferredFocusedComponent() {
     final InspectionProfileImpl inspectionProfile = getSelectedObject();
     assert inspectionProfile != null : configuredProfiles();
-    return getProfilePanel(inspectionProfile).getTree();
+    return getProfilePanel(inspectionProfile).getPreferredFocusedComponent();
   }
 }

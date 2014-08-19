@@ -226,7 +226,7 @@ public class InjectorUtils {
   }
 
   @Nullable
-  public static BaseInjection findCommentInjection(PsiElement context, final String supportId, final Ref<PsiElement> causeRef) {
+  public static BaseInjection findCommentInjection(@NotNull PsiElement context, @NotNull String supportId, @Nullable Ref<PsiElement> causeRef) {
     PsiElement target = CompletionUtil.getOriginalOrSelf(context);
     PsiFile file = target.getContainingFile();
     TreeMap<TextRange, BaseInjection> map = getInjectionMap(file);
@@ -247,17 +247,17 @@ public class InjectorUtils {
     // make sure comment is close enough and ...
     int off1 = r0.getEndOffset();
     int off2 = e2.getTextRange().getStartOffset();
-    if (off2 - off1 > 120) return null;
-    if (off2 - off1 > 2) {
-      // ... there's nothing in between on the top level and ...
-      for (PsiElement e = e1; e != e2; e = e.getNextSibling()) {
-        if (!isWhitespaceCommentOrBlank(e)) return null;
-      }
-      // ... there's no non-empty host in the left (comment) subtree
-      Producer<PsiElement> producer = prevWalker(PsiTreeUtil.getDeepestLast(e1), e1);
+    if (off2 - off1 > 120) {
+      return null;
+    }
+    else if (off2 - off1 > 2) {
+      // ... there's no non-empty valid host in between comment and e2
+      Producer<PsiElement> producer = prevWalker(e2, commonParent);
       PsiElement e;
       while ( (e = producer.produce()) != null && e != psiComment) {
-        if (e instanceof PsiLanguageInjectionHost && !StringUtil.isEmptyOrSpaces(e.getText())) {
+        if (e instanceof PsiLanguageInjectionHost &&
+            ((PsiLanguageInjectionHost)e).isValidHost() &&
+            !StringUtil.isEmptyOrSpaces(e.getText())) {
           return null;
         }
       }
@@ -268,12 +268,9 @@ public class InjectorUtils {
     return new BaseInjection(supportId).copyFrom(entry.getValue());
   }
 
-  protected static boolean isWhitespaceCommentOrBlank(PsiElement e) {
-    return e instanceof PsiWhiteSpace || e instanceof PsiComment ||
-           e instanceof PsiLanguageInjectionHost && StringUtil.isEmptyOrSpaces(e.getText());
-  }
-
-  protected static TreeMap<TextRange, BaseInjection> getInjectionMap(final PsiFile file) {
+  @Nullable
+  private static TreeMap<TextRange, BaseInjection> getInjectionMap(@Nullable final PsiFile file) {
+    if (file == null) return null; //  e.g. null for synthetic groovy variables
     return CachedValuesManager.getCachedValue(file, new CachedValueProvider<TreeMap<TextRange, BaseInjection>>() {
       @Nullable
       @Override
@@ -293,8 +290,6 @@ public class InjectorUtils {
     CharSequence contents = file.getViewProvider().getContents();
     final char[] contentsArray = CharArrayUtil.fromSequenceWithoutCopying(contents);
 
-    //long time = System.currentTimeMillis();
-
     int s0 = 0, s1 = contents.length();
     for (int idx = searcher.scan(contents, contentsArray, s0, s1);
          idx != -1;
@@ -309,30 +304,6 @@ public class InjectorUtils {
         }
       }
     }
-
-    //VirtualFile virtualFile = file.getVirtualFile();
-    //Document document = FileDocumentManager.getInstance().getDocument(virtualFile);
-    //EditorHighlighter highlighter = EditorHighlighterCache.getEditorHighlighterForCachesBuilding(document);
-    //
-    //ParserDefinition definition = LanguageParserDefinitions.INSTANCE.forLanguage(file.getLanguage());
-    //TokenSet commentTokens = definition.getCommentTokens();
-    //HighlighterIterator it = highlighter != null && PlatformIdTableBuilding.checkCanUseCachedEditorHighlighter(contents, highlighter) ?
-    //                         highlighter.createIterator(0) : null;
-    //
-    //do {
-    //  if (it != null) {
-    //    while (!it.atEnd() && !commentTokens.contains(it.getTokenType())) it.advance();
-    //    if (it.atEnd()) break;
-    //  }
-    //  int s0 = it == null ? 0 : it.getStart();
-    //  int s1 = it == null ? contents.length() : it.getEnd();
-    //
-    //  for () { .. }
-    //
-    //  if (it != null && !it.atEnd()) it.advance();
-    //} while (it != null && !it.atEnd());
-
-    //System.out.println(Thread.currentThread().getName() + ": " + file.getName() + "@" + file.hashCode() + " indexed: " + (System.currentTimeMillis() - time));
     return injectionMap;
   }
 
@@ -373,18 +344,11 @@ public class InjectorUtils {
         if (e == null || e == scope) return null;
         PsiElement prev = e.getPrevSibling();
         if (prev != null) {
-          e = prev;
-          while (true) {
-            PsiElement lastChild = e.getLastChild();
-            if (lastChild == null) break;
-            e = lastChild;
-          }
-          return e;
+          return e = PsiTreeUtil.getDeepestLast(prev);
         }
         else {
           PsiElement parent = e.getParent();
-          e = parent == scope || parent instanceof PsiFile ? null : parent;
-          return e;
+          return e = parent == scope || parent instanceof PsiFile ? null : parent;
         }
       }
     };
