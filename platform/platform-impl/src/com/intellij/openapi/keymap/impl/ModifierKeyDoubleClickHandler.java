@@ -17,10 +17,10 @@ package com.intellij.openapi.keymap.impl;
 
 import com.intellij.ide.DataManager;
 import com.intellij.ide.IdeEventQueue;
-import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionPlaces;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.actionSystem.ex.ActionManagerEx;
 import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.util.Clock;
 import com.intellij.openapi.util.Couple;
@@ -39,6 +39,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Support for keyboard shortcuts like Control-double-click or Control-double-click+A
+ *
+ * Timings that are used in the implementation to detect double click were tuned for SearchEverywhere
+ * functionality (invoked on double Shift), so if you need to change them, please make sure
+ * SearchEverywhere behaviour remains intact.
  */
 public class ModifierKeyDoubleClickHandler {
   private static final ModifierKeyDoubleClickHandler INSTANCE = new ModifierKeyDoubleClickHandler();
@@ -121,7 +125,7 @@ public class ModifierKeyDoubleClickHandler {
           return false;
         } else if (ourPressed.first.get() && ourReleased.first.get() && ourPressed.second.get() && myActionKeyCode != -1) {
           if (keyCode == myActionKeyCode) {
-            if (event.getID() == KeyEvent.KEY_RELEASED) {
+            if (event.getID() == KeyEvent.KEY_PRESSED) {
               run(keyEvent);
             }
             return true;
@@ -192,7 +196,7 @@ public class ModifierKeyDoubleClickHandler {
     }
 
     private void run(KeyEvent event) {
-      final ActionManager actionManager = ActionManager.getInstance();
+      final ActionManagerEx actionManager = ActionManagerEx.getInstanceEx();
       final AnAction action = actionManager.getAction(myActionId);
       final AnActionEvent anActionEvent = new AnActionEvent(event,
                                                             DataManager.getInstance().getDataContext(IdeFocusManager.findInstance().getFocusOwner()),
@@ -200,7 +204,9 @@ public class ModifierKeyDoubleClickHandler {
                                                             action.getTemplatePresentation(),
                                                             actionManager,
                                                             0);
+      actionManager.fireBeforeActionPerformed(action, anActionEvent.getDataContext(), anActionEvent);
       action.actionPerformed(anActionEvent);
+      actionManager.fireAfterActionPerformed(action, anActionEvent.getDataContext(), anActionEvent);
     }
 
     private boolean isActionBound() {

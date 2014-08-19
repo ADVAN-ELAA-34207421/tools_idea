@@ -34,6 +34,7 @@ import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx;
 import com.intellij.openapi.fileTypes.FileTypes;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Splitter;
+import com.intellij.openapi.ui.ThreeComponentsSplitter;
 import com.intellij.openapi.util.*;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
@@ -319,6 +320,16 @@ public class EditorWindow {
 
           if (disposeIfNeeded && getTabCount() == 0) {
             removeFromSplitter();
+            if (UISettings.getInstance().EDITOR_TAB_PLACEMENT == UISettings.TABS_NONE) {
+              final EditorsSplitters owner = getOwner();
+              if (owner != null) {
+                final ThreeComponentsSplitter splitter = UIUtil.getParentOfType(ThreeComponentsSplitter.class, owner);
+                if (splitter != null) {
+                  splitter.revalidate();
+                  splitter.repaint();
+                }
+              }
+            }
           }
           else {
             myPanel.revalidate();
@@ -451,6 +462,10 @@ public class EditorWindow {
     if (myTabbedPane != null) {
       myTabbedPane.setTitleAt(index, text);
     }
+  }
+
+  private boolean isTitleShortenedAt(int index) {
+    return myTabbedPane != null && myTabbedPane.isTitleShortened(index);
   }
 
   private void setBackgroundColorAt(final int index, final Color color) {
@@ -897,7 +912,9 @@ public class EditorWindow {
     final int index = findEditorIndex(findFileComposite(file));
     if (index != -1) {
       setTitleAt(index, EditorTabbedContainer.calcTabTitle(getManager().getProject(), file));
-      setToolTipTextAt(index, UISettings.getInstance().SHOW_TABS_TOOLTIPS ? getManager().getFileTooltipText(file) : null);
+      setToolTipTextAt(index, UISettings.getInstance().SHOW_TABS_TOOLTIPS || isTitleShortenedAt(index)
+                              ? getManager().getFileTooltipText(file)
+                              : null);
     }
   }
 
