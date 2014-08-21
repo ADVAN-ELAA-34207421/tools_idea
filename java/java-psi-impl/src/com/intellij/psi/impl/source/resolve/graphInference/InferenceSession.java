@@ -20,6 +20,7 @@ import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.Pair;
 import com.intellij.psi.*;
+import com.intellij.psi.impl.PsiImplUtil;
 import com.intellij.psi.impl.source.resolve.graphInference.constraints.*;
 import com.intellij.psi.infos.MethodCandidateInfo;
 import com.intellij.psi.search.GlobalSearchScope;
@@ -27,6 +28,7 @@ import com.intellij.psi.util.*;
 import com.intellij.util.ArrayUtilRt;
 import com.intellij.util.Function;
 import com.intellij.util.Processor;
+import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -220,8 +222,9 @@ public class InferenceSession {
         return prepareSubstitution();
       }
 
-      if (parameters != null && args != null) {
-        final Set<ConstraintFormula> additionalConstraints = new HashSet<ConstraintFormula>();
+      if (parameters != null && args != null &&
+          !MethodCandidateInfo.ourOverloadGuard.currentStack().contains(PsiUtil.skipParenthesizedExprUp(parent.getParent()))) {
+        final Set<ConstraintFormula> additionalConstraints = new LinkedHashSet<ConstraintFormula>();
         if (parameters.length > 0) {
           collectAdditionalConstraints(parameters, args, properties.getMethod(), PsiSubstitutor.EMPTY, additionalConstraints, properties.isVarargs(), true);
         }
@@ -782,6 +785,7 @@ public class InferenceSession {
                                PsiSubstitutor substitutor) {
     final List<PsiType> lowerBounds = variable.getBounds(boundType);
     PsiType lub = PsiType.NULL;
+    List<PsiType> dTypes = new ArrayList<PsiType>();
     for (PsiType lowerBound : lowerBounds) {
       lowerBound = substituteNonProperBound(lowerBound, substitutor);
       final HashSet<InferenceVariable> dependencies = new HashSet<InferenceVariable>();
@@ -830,35 +834,21 @@ public class InferenceSession {
   }
 
   private boolean proceedWithAdditionalConstraints(Set<ConstraintFormula> additionalConstraints) {
-    final Set<InferenceVariable> mentionedVars = new HashSet<InferenceVariable>();
-    for (ConstraintFormula constraint : additionalConstraints) {
-      if (constraint instanceof InputOutputConstraintFormula) {
-        final Set<InferenceVariable> inputVariables = ((InputOutputConstraintFormula)constraint).getInputVariables(this);
-        if (inputVariables != null) {
-          mentionedVars.addAll(inputVariables);
-        }
-        final Set<InferenceVariable> outputVariables = ((InputOutputConstraintFormula)constraint).getOutputVariables(inputVariables, this);
-        if (outputVariables != null) {
-          mentionedVars.addAll(outputVariables);
-        }
-      }
-    }
-
-    final Set<InferenceVariable> readyVariables = new LinkedHashSet<InferenceVariable>(myInferenceVariables.values());
-    readyVariables.removeAll(mentionedVars);
-
-    final PsiSubstitutor siteSubstitutor = resolveBounds(readyVariables, mySiteSubstitutor);
+    final PsiSubstitutor siteSubstitutor = mySiteSubstitutor;
 
     while (!additionalConstraints.isEmpty()) {
       //extract subset of constraints
       final Set<ConstraintFormula> subset = buildSubset(additionalConstraints);
 
       //collect all input variables of selection 
-      final Set<InferenceVariable> varsToResolve = new HashSet<InferenceVariable>();
+      final Set<InferenceVariable> varsToResolve = new LinkedHashSet<InferenceVariable>();
       for (ConstraintFormula formula : subset) {
         if (formula instanceof InputOutputConstraintFormula) {
           final Set<InferenceVariable> inputVariables = ((InputOutputConstraintFormula)formula).getInputVariables(this);
           if (inputVariables != null) {
+            for (InferenceVariable inputVariable : inputVariables) {
+              varsToResolve.addAll(inputVariable.getDependencies(this));
+            }
             varsToResolve.addAll(inputVariables);
           }
         }
@@ -895,7 +885,7 @@ public class InferenceSession {
 
   private Set<ConstraintFormula> buildSubset(final Set<ConstraintFormula> additionalConstraints) {
 
-    final Set<ConstraintFormula> subset = new HashSet<ConstraintFormula>();
+    final Set<ConstraintFormula> subset = new LinkedHashSet<ConstraintFormula>();
     final Set<InferenceVariable> outputVariables = new HashSet<InferenceVariable>();
     for (ConstraintFormula constraint : additionalConstraints) {
       if (constraint instanceof InputOutputConstraintFormula) {
@@ -913,8 +903,19 @@ public class InferenceSession {
         if (inputVariables != null) {
           boolean dependsOnOutput = false;
           for (InferenceVariable inputVariable : inputVariables) {
+            if (dependsOnOutput) break;
+            if (inputVariable.hasInstantiation(this)) continue;
             final Set<InferenceVariable> dependencies = inputVariable.getDependencies(this);
             dependencies.add(inputVariable);
+            if (!hasCapture(inputVariable)) {
+              for (InferenceVariable outputVariable : outputVariables) {
+                if (ContainerUtil.intersects(outputVariable.getDependencies(this), dependencies)) {
+                  dependsOnOutput = true;
+                  break;
+                }
+              }
+            }
+
             dependencies.retainAll(outputVariables);
             if (!dependencies.isEmpty()) {
               dependsOnOutput = true;
@@ -971,7 +972,8 @@ public class InferenceSession {
 
       for (int i = 0; i < functionalMethodParameters.length; i++) {
         final PsiType pType = signature.getParameterTypes()[i];
-        addConstraint(new TypeCompatibilityConstraint(getParameterType(parameters, i, PsiSubstitutor.EMPTY, varargs), pType));
+        addConstraint(new TypeCompatibilityConstraint(getParameterType(parameters, i, PsiSubstitutor.EMPTY, varargs),
+                                                      PsiImplUtil.normalizeWildcardTypeByPosition(pType, reference)));
       }
     }
     else if (parameters.length + 1 == functionalMethodParameters.length && !varargs || 
@@ -1005,7 +1007,8 @@ public class InferenceSession {
 
       for (int i = 0; i < signature.getParameterTypes().length - 1; i++) {
         final PsiType interfaceParamType = signature.getParameterTypes()[i + 1];
-        addConstraint(new TypeCompatibilityConstraint(getParameterType(parameters, i, PsiSubstitutor.EMPTY, varargs), interfaceParamType));
+        addConstraint(new TypeCompatibilityConstraint(getParameterType(parameters, i, PsiSubstitutor.EMPTY, varargs),
+                                                      PsiImplUtil.normalizeWildcardTypeByPosition(interfaceParamType, reference)));
       }
     }
 
