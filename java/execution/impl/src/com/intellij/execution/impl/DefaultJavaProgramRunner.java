@@ -99,24 +99,19 @@ public class DefaultJavaProgramRunner extends JavaPatchableProgramRunner {
 
     onProcessStarted(env.getRunnerSettings(), executionResult);
 
-    final RunContentBuilder contentBuilder = new RunContentBuilder(this, executionResult, env);
+    final RunContentBuilder contentBuilder = new RunContentBuilder(executionResult, env);
     Disposer.register(project, contentBuilder);
     if (shouldAddDefaultActions) {
       addDefaultActions(contentBuilder);
     }
-
-    RunContentDescriptor runContent = contentBuilder.showRunContent(contentToReuse);
-
-    AnAction[] actions = createActions(contentBuilder.getExecutionResult());
-
-    for (AnAction action : actions) {
-      contentBuilder.addAction(action);
-    }
-
-    return runContent;
+    return contentBuilder.showRunContent(contentToReuse);
   }
 
-  protected AnAction[] createActions(final ExecutionResult executionResult) {
+  @Deprecated
+  /**
+   * @deprecated to remove in IDEA 14
+   */
+  protected AnAction[] createActions(@SuppressWarnings("UnusedParameters") final ExecutionResult executionResult) {
     return AnAction.EMPTY_ARRAY;
   }
 

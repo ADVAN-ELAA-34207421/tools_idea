@@ -65,7 +65,7 @@ import java.util.*;
 )
 public class HttpConfigurable implements PersistentStateComponent<HttpConfigurable>, ApplicationComponent,
                                          ExportableApplicationComponent {
-  public static final int CONNECTION_TIMEOUT = SystemProperties.getIntProperty("connection.timeout", 10000);
+  public static final int CONNECTION_TIMEOUT = SystemProperties.getIntProperty("idea.connection.timeout", 10000);
   private static final Logger LOG = Logger.getInstance("#com.intellij.util.net.HttpConfigurable");
   public boolean PROXY_TYPE_IS_SOCKS = false;
   public boolean USE_HTTP_PROXY = false;
@@ -350,8 +350,6 @@ public class HttpConfigurable implements PersistentStateComponent<HttpConfigurab
 
     final URLConnection connection = openConnection(url);
     try {
-      connection.setConnectTimeout(CONNECTION_TIMEOUT);
-      connection.setReadTimeout(CONNECTION_TIMEOUT);
       connection.connect();
       connection.getInputStream();
     }
@@ -386,6 +384,10 @@ public class HttpConfigurable implements PersistentStateComponent<HttpConfigurab
       if (urlConnection == null && ioe != null) {
         throw ioe;
       }
+    }
+    if (urlConnection != null) {
+      urlConnection.setReadTimeout(CONNECTION_TIMEOUT);
+      urlConnection.setConnectTimeout(CONNECTION_TIMEOUT);
     }
     return urlConnection;
   }

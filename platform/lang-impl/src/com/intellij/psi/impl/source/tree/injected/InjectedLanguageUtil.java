@@ -24,7 +24,6 @@ import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.editor.Caret;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.SelectionModel;
 import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
@@ -38,6 +37,7 @@ import com.intellij.psi.impl.PsiParameterizedCachedValue;
 import com.intellij.psi.impl.source.DummyHolder;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.*;
+import com.intellij.testFramework.LightVirtualFile;
 import com.intellij.util.containers.ConcurrentList;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
@@ -93,7 +93,12 @@ public class InjectedLanguageUtil {
   public static Place getShreds(@NotNull FileViewProvider viewProvider) {
     if (!(viewProvider instanceof InjectedFileViewProvider)) return null;
     InjectedFileViewProvider myFileViewProvider = (InjectedFileViewProvider)viewProvider;
-    return ((DocumentWindowImpl)myFileViewProvider.getDocument()).getShreds();
+    return getShreds(myFileViewProvider.getDocument());
+  }
+
+  @NotNull
+  public static Place getShreds(@NotNull DocumentWindow document) {
+    return ((DocumentWindowImpl)document).getShreds();
   }
 
   public static void enumerate(@NotNull DocumentWindow documentWindow,
@@ -162,6 +167,13 @@ public class InjectedLanguageUtil {
     return getEditorForInjectedLanguageNoCommit(editor, file, offset);
   }
 
+  public static Editor getEditorForInjectedLanguageNoCommit(@Nullable Editor editor, @Nullable Caret caret, @Nullable PsiFile file) {
+    if (editor == null || file == null || editor instanceof EditorWindow || caret == null) return editor;
+
+    PsiFile injectedFile = findInjectedPsiNoCommit(file, caret.getOffset());
+    return getInjectedEditorForInjectedFile(editor, caret, injectedFile);
+  }
+
   public static Caret getCaretForInjectedLanguageNoCommit(@Nullable Caret caret, @Nullable PsiFile file) {
     if (caret == null || file == null || caret instanceof InjectedCaret) return caret;
 
@@ -212,17 +224,21 @@ public class InjectedLanguageUtil {
 
   @NotNull
   public static Editor getInjectedEditorForInjectedFile(@NotNull Editor hostEditor, @Nullable final PsiFile injectedFile) {
+    return getInjectedEditorForInjectedFile(hostEditor, hostEditor.getCaretModel().getCurrentCaret(), injectedFile);
+  }
+
+  @NotNull
+  public static Editor getInjectedEditorForInjectedFile(@NotNull Editor hostEditor, @NotNull Caret hostCaret, @Nullable final PsiFile injectedFile) {
     if (injectedFile == null || hostEditor instanceof EditorWindow || hostEditor.isDisposed()) return hostEditor;
     Project project = hostEditor.getProject();
     if (project == null) project = injectedFile.getProject();
     Document document = PsiDocumentManager.getInstance(project).getDocument(injectedFile);
     if (!(document instanceof DocumentWindowImpl)) return hostEditor;
     DocumentWindowImpl documentWindow = (DocumentWindowImpl)document;
-    SelectionModel selectionModel = hostEditor.getSelectionModel();
-    if (selectionModel.hasSelection()) {
-      int selstart = selectionModel.getSelectionStart();
+    if (hostCaret.hasSelection()) {
+      int selstart = hostCaret.getSelectionStart();
       if (selstart != -1) {
-        int selend = Math.max(selstart, selectionModel.getSelectionEnd());
+        int selend = Math.max(selstart, hostCaret.getSelectionEnd());
         if (!documentWindow.containsRange(selstart, selend)) {
           // selection spreads out the injected editor range
           return hostEditor;
@@ -572,5 +588,30 @@ public class InjectedLanguageUtil {
       }
     });
     return ref.get();
+  }
+
+  @Nullable
+  public static PsiLanguageInjectionHost findInjectionHost(@Nullable PsiElement psi) {
+    if (psi == null) return null;
+    PsiFile containingFile = psi.getContainingFile().getOriginalFile();              // * formatting
+    PsiElement fileContext = containingFile.getContext();                            // * quick-edit-handler
+    if (fileContext instanceof PsiLanguageInjectionHost) return (PsiLanguageInjectionHost)fileContext;
+    Place shreds = getShreds(containingFile.getViewProvider()); // * injection-registrar
+    if (shreds == null) {
+      VirtualFile virtualFile = PsiUtilCore.getVirtualFile(containingFile);
+      if (virtualFile instanceof LightVirtualFile) {
+        virtualFile = ((LightVirtualFile)virtualFile).getOriginalFile();             // * dynamic files-from-text
+      }
+      if (virtualFile instanceof VirtualFileWindow) {
+        shreds = getShreds(((VirtualFileWindow)virtualFile).getDocumentWindow());
+      }
+    }
+    return shreds != null ? shreds.getHostPointer().getElement() : null;
+  }
+
+  @Nullable
+  public static PsiLanguageInjectionHost findInjectionHost(@Nullable VirtualFile virtualFile) {
+    return virtualFile instanceof VirtualFileWindow ?
+           getShreds(((VirtualFileWindow)virtualFile).getDocumentWindow()).getHostPointer().getElement() : null;
   }
 }

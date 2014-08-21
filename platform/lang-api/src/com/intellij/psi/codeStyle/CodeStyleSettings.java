@@ -113,7 +113,7 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
     }
   }
 
-  public <T extends CustomCodeStyleSettings> T getCustomSettings(Class<T> aClass) {
+  public <T extends CustomCodeStyleSettings> T getCustomSettings(@NotNull Class<T> aClass) {
     synchronized (myCustomSettings) {
       return (T)myCustomSettings.get(aClass);
     }
@@ -127,7 +127,9 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
   }
 
   private void copyCustomSettingsFrom(@NotNull CodeStyleSettings from) {
-    myCustomSettings.clear();
+    synchronized (myCustomSettings) {
+      myCustomSettings.clear();
+    }
     for (final CustomCodeStyleSettings settings : from.getCustomSettingsValues()) {
       addCustomSettings((CustomCodeStyleSettings) settings.clone());
     }
@@ -247,6 +249,10 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
   public int INNER_CLASSES_ORDER_WEIGHT = 7;
 
 //----------------- WRAPPING ---------------------------
+  /**
+   * @deprecated Use get/setRightMargin() methods instead.
+   */
+  @Deprecated
   public int RIGHT_MARGIN = 120;
   public boolean WRAP_WHEN_TYPING_REACHES_RIGHT_MARGIN = false;
 
@@ -435,6 +441,7 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
   private CodeStyleSettings myParentSettings;
   private boolean myLoadedAdditionalIndentOptions;
 
+  @NotNull
   private Collection<CustomCodeStyleSettings> getCustomSettingsValues() {
     synchronized (myCustomSettings) {
       return Collections.unmodifiableCollection(myCustomSettings.values());
@@ -524,7 +531,7 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
       @NonNls Element option = (Element)option1;
       @NonNls final String name = option.getAttributeValue("name");
       if ("TAB_SIZE".equals(name)) {
-        final int value = Integer.valueOf(option.getAttributeValue("value")).intValue();
+        final int value = Integer.parseInt(option.getAttributeValue("value"));
         JAVA_INDENT_OPTIONS.TAB_SIZE = value;
         JSP_INDENT_OPTIONS.TAB_SIZE = value;
         XML_INDENT_OPTIONS.TAB_SIZE = value;
@@ -532,7 +539,7 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
         optionsImported = true;
       }
       else if ("INDENT_SIZE".equals(name)) {
-        final int value = Integer.valueOf(option.getAttributeValue("value")).intValue();
+        final int value = Integer.parseInt(option.getAttributeValue("value"));
         JAVA_INDENT_OPTIONS.INDENT_SIZE = value;
         JSP_INDENT_OPTIONS.INDENT_SIZE = value;
         XML_INDENT_OPTIONS.INDENT_SIZE = value;
@@ -540,7 +547,7 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
         optionsImported = true;
       }
       else if ("CONTINUATION_INDENT_SIZE".equals(name)) {
-        final int value = Integer.valueOf(option.getAttributeValue("value")).intValue();
+        final int value = Integer.parseInt(option.getAttributeValue("value"));
         JAVA_INDENT_OPTIONS.CONTINUATION_INDENT_SIZE = value;
         JSP_INDENT_OPTIONS.CONTINUATION_INDENT_SIZE = value;
         XML_INDENT_OPTIONS.CONTINUATION_INDENT_SIZE = value;
@@ -548,7 +555,7 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
         optionsImported = true;
       }
       else if ("USE_TAB_CHARACTER".equals(name)) {
-        final boolean value = Boolean.valueOf(option.getAttributeValue("value")).booleanValue();
+        final boolean value = Boolean.parseBoolean(option.getAttributeValue("value"));
         JAVA_INDENT_OPTIONS.USE_TAB_CHARACTER = value;
         JSP_INDENT_OPTIONS.USE_TAB_CHARACTER = value;
         XML_INDENT_OPTIONS.USE_TAB_CHARACTER = value;
@@ -556,14 +563,15 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
         optionsImported = true;
       }
       else if ("SMART_TABS".equals(name)) {
-        final boolean value = Boolean.valueOf(option.getAttributeValue("value")).booleanValue();
+        final boolean value = Boolean.parseBoolean(option.getAttributeValue("value"));
         JAVA_INDENT_OPTIONS.SMART_TABS = value;
         JSP_INDENT_OPTIONS.SMART_TABS = value;
         XML_INDENT_OPTIONS.SMART_TABS = value;
         OTHER_INDENT_OPTIONS.SMART_TABS = value;
         optionsImported = true;
-      } else if ("SPACE_AFTER_UNARY_OPERATOR".equals(name)) {
-        SPACE_AROUND_UNARY_OPERATOR = Boolean.valueOf(option.getAttributeValue("value")).booleanValue();
+      }
+      else if ("SPACE_AFTER_UNARY_OPERATOR".equals(name)) {
+        SPACE_AROUND_UNARY_OPERATOR = Boolean.parseBoolean(option.getAttributeValue("value"));
         optionsImported = true;
       }
     }
@@ -751,6 +759,7 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
       myNames.addAll(from.myNames);
     }
 
+    @Override
     public boolean equals(Object other) {
       if (other instanceof TypeToNameMap) {
         TypeToNameMap otherMap = (TypeToNameMap)other;
@@ -759,6 +768,7 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
       return false;
     }
 
+    @Override
     public int hashCode() {
       int code = 0;
       for (String myPattern : myPatterns) {
@@ -900,7 +910,7 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
         if (langSettings.RIGHT_MARGIN >= 0) return langSettings.RIGHT_MARGIN;
       }
     }
-    return RIGHT_MARGIN;
+    return getDefaultRightMargin();
   }
 
   /**
@@ -917,6 +927,16 @@ public class CodeStyleSettings extends CommonCodeStyleSettings implements Clonea
         return;
       }
     }
+    setDefaultRightMargin(rightMargin);
+  }
+
+  @SuppressWarnings("deprecation")
+  public int getDefaultRightMargin() {
+    return RIGHT_MARGIN;
+  }
+
+  @SuppressWarnings("deprecation")
+  public void setDefaultRightMargin(int rightMargin) {
     RIGHT_MARGIN = rightMargin;
   }
 }
