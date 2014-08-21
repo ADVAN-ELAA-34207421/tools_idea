@@ -55,6 +55,7 @@ import com.intellij.psi.impl.source.PostprocessReformattingAspect;
 import com.intellij.psi.impl.source.resolve.FileContextUtil;
 import com.intellij.psi.impl.source.tree.injected.InjectedLanguageUtil;
 import com.intellij.psi.impl.source.tree.injected.Place;
+import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.testFramework.LightVirtualFile;
 import com.intellij.ui.awt.RelativePoint;
 import com.intellij.util.DocumentUtil;
@@ -108,18 +109,19 @@ public class QuickEditHandler extends DocumentAdapter implements Disposable {
     myEditor = editor;
     myAction = action;
     myOrigDocument = editor.getDocument();
-    final Place shreds = InjectedLanguageUtil.getShreds(injectedFile);
-    final FileType fileType = injectedFile.getFileType();
-    final Language language = injectedFile.getLanguage();
+    Place shreds = InjectedLanguageUtil.getShreds(injectedFile);
+    FileType fileType = injectedFile.getFileType();
+    Language language = injectedFile.getLanguage();
+    PsiLanguageInjectionHost.Shred firstShred = ContainerUtil.getFirstItem(shreds);
 
-    final PsiFileFactory factory = PsiFileFactory.getInstance(project);
-    final String text = InjectedLanguageManager.getInstance(project).getUnescapedText(injectedFile);
-    final String newFileName =
+    PsiFileFactory factory = PsiFileFactory.getInstance(project);
+    String text = InjectedLanguageManager.getInstance(project).getUnescapedText(injectedFile);
+    String newFileName =
       StringUtil.notNullize(language.getDisplayName(), "Injected") + " Fragment " + "(" +
-      origFile.getName() + ":" + shreds.get(0).getHost().getTextRange().getStartOffset() + ")" + "." + fileType.getDefaultExtension();
+      origFile.getName() + ":" + firstShred.getHost().getTextRange().getStartOffset() + ")" + "." + fileType.getDefaultExtension();
 
     // preserve \r\n as it is done in MultiHostRegistrarImpl
-    myNewFile = factory.createFileFromText(newFileName, language, text, true, true);
+    myNewFile = factory.createFileFromText(newFileName, language, text, true, false);
     myNewVirtualFile = ObjectUtils.assertNotNull((LightVirtualFile)myNewFile.getVirtualFile());
     myNewVirtualFile.setOriginalFile(origFile.getVirtualFile());
 
@@ -130,8 +132,7 @@ public class QuickEditHandler extends DocumentAdapter implements Disposable {
     // suppress possible errors as in injected mode
     myNewFile.putUserData(InjectedLanguageUtil.FRANKENSTEIN_INJECTION,
                           injectedFile.getUserData(InjectedLanguageUtil.FRANKENSTEIN_INJECTION));
-    final SmartPointerManager smartPointerManager = SmartPointerManager.getInstance(project);
-    myNewFile.putUserData(FileContextUtil.INJECTED_IN_ELEMENT, smartPointerManager.createSmartPsiElementPointer(origFile));
+    myNewFile.putUserData(FileContextUtil.INJECTED_IN_ELEMENT, shreds.getHostPointer());
     myNewDocument = PsiDocumentManager.getInstance(project).getDocument(myNewFile);
     assert myNewDocument != null;
     EditorActionManager.getInstance().setReadonlyFragmentModificationHandler(myNewDocument, new MyQuietHandler());
@@ -149,22 +150,23 @@ public class QuickEditHandler extends DocumentAdapter implements Disposable {
         if (event.getEditor().getDocument() != myNewDocument) return;
         myEditorCount ++;
         final EditorActionHandler editorEscape = EditorActionManager.getInstance().getActionHandler(IdeActions.ACTION_EDITOR_ESCAPE);
-        new AnAction() {
-          @Override
-          public void update(AnActionEvent e) {
-            Editor editor = CommonDataKeys.EDITOR.getData(e.getDataContext());
-            e.getPresentation().setEnabled(
-              !myAction.isShowInBalloon() &&
-              editor != null && LookupManager.getActiveLookup(editor) == null &&
-              TemplateManager.getInstance(myProject).getActiveTemplate(editor) == null &&
-              (editorEscape == null || !editorEscape.isEnabled(editor, e.getDataContext())));
-          }
+        if (!myAction.isShowInBalloon()) {
+          new AnAction() {
+            @Override
+            public void update(AnActionEvent e) {
+              Editor editor = CommonDataKeys.EDITOR.getData(e.getDataContext());
+              e.getPresentation().setEnabled(
+                editor != null && LookupManager.getActiveLookup(editor) == null &&
+                TemplateManager.getInstance(myProject).getActiveTemplate(editor) == null &&
+                (editorEscape == null || !editorEscape.isEnabled(editor, e.getDataContext())));
+            }
 
-          @Override
-          public void actionPerformed(AnActionEvent e) {
-            closeEditor();
-          }
-        }.registerCustomShortcutSet(CommonShortcuts.ESCAPE, event.getEditor().getContentComponent());
+            @Override
+            public void actionPerformed(AnActionEvent e) {
+              closeEditor();
+            }
+          }.registerCustomShortcutSet(CommonShortcuts.ESCAPE, event.getEditor().getContentComponent());
+        }
       }
 
       @Override
@@ -178,10 +180,11 @@ public class QuickEditHandler extends DocumentAdapter implements Disposable {
       }
     }, this);
 
-    if ("JAVA".equals(shreds.get(0).getHost().getLanguage().getID())) {
+    if ("JAVA".equals(firstShred.getHost().getLanguage().getID())) {
+      PsiLanguageInjectionHost.Shred lastShred = ContainerUtil.getLastItem(shreds);
       myAltFullRange = myOrigDocument.createRangeMarker(
-        shreds.get(0).getHostRangeMarker().getStartOffset(),
-        shreds.get(shreds.size() - 1).getHostRangeMarker().getEndOffset());
+        firstShred.getHostRangeMarker().getStartOffset(),
+        lastShred.getHostRangeMarker().getEndOffset());
       myAltFullRange.setGreedyToLeft(true);
       myAltFullRange.setGreedyToRight(true);
 
@@ -201,8 +204,7 @@ public class QuickEditHandler extends DocumentAdapter implements Disposable {
 
   public void navigate(int injectedOffset) {
     if (myAction.isShowInBalloon()) {
-      Ref<Balloon> ref = Ref.create(null);
-      final JComponent component = myAction.createBalloonComponent(myNewFile, ref);
+      final JComponent component = myAction.createBalloonComponent(myNewFile);
       if (component != null) {
         final Balloon balloon = JBPopupFactory.getInstance().createBalloonBuilder(component)
           .setShadow(true)
@@ -212,7 +214,12 @@ public class QuickEditHandler extends DocumentAdapter implements Disposable {
           .setHideOnAction(false)
           .setFillColor(UIUtil.getControlColor())
           .createBalloon();
-        ref.set(balloon);
+        new AnAction() {
+          @Override
+          public void actionPerformed(AnActionEvent e) {
+            balloon.hide();
+          }
+        }.registerCustomShortcutSet(CommonShortcuts.ESCAPE, component);
         Disposer.register(myNewFile.getProject(), balloon);
         final Balloon.Position position = QuickEditAction.getBalloonPosition(myEditor);
         RelativePoint point = JBPopupFactory.getInstance().guessBestPopupLocation(myEditor);
@@ -353,11 +360,10 @@ public class QuickEditHandler extends DocumentAdapter implements Disposable {
 
   private void commitToOriginal() {
     if (!isValid()) return;
-    final PsiFile origFile = (PsiFile)myNewFile.getUserData(FileContextUtil.INJECTED_IN_ELEMENT).getElement();
-    VirtualFile origFileVirtualFile = origFile != null? origFile.getVirtualFile() : null;
+    VirtualFile origVirtualFile = PsiUtilCore.getVirtualFile(ObjectUtils.assertNotNull(myNewFile.getContext()));
     myCommittingToOriginal = true;
     try {
-      if (origFileVirtualFile == null || !ReadonlyStatusHandler.getInstance(myProject).ensureFilesWritable(origFileVirtualFile).hasReadonlyFiles()) {
+      if (origVirtualFile == null || !ReadonlyStatusHandler.getInstance(myProject).ensureFilesWritable(origVirtualFile).hasReadonlyFiles()) {
         PostprocessReformattingAspect.getInstance(myProject).disablePostprocessFormattingInside(new Runnable() {
           @Override
           public void run() {

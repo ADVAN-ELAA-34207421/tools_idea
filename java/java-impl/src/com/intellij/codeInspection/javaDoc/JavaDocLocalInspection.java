@@ -100,7 +100,7 @@ public class JavaDocLocalInspection extends JavaDocLocalInspectionBase {
         InspectionsBundle.message("inspection.scope.for.title"), true),
                                                          BorderFactory.createEmptyBorder(0, 3, 3, 3)));
 
-      final Hashtable<Integer, JLabel> sliderLabels = new Hashtable<Integer, JLabel>();
+      final Hashtable<Integer, JComponent> sliderLabels = new Hashtable<Integer, JComponent>();
       for (int i = 0; i < modifiers.length; i++) {
         sliderLabels.put(i + 1, new JLabel(modifiers[i]));
       }
@@ -184,11 +184,11 @@ public class JavaDocLocalInspection extends JavaDocLocalInspectionBase {
       add(periodCheckBox, gc);
 
       final JCheckBox ignoreDuplicateThrowsCheckBox = new JCheckBox("Ignore duplicate throws tag",
-                                                     IGNORE_DUPLICATED_THROWS);
+                                                                    getIgnoreDuplicatedThrows());
       ignoreDuplicateThrowsCheckBox.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          IGNORE_DUPLICATED_THROWS = ignoreDuplicateThrowsCheckBox.isSelected();
+          setIgnoreDuplicatedThrows(ignoreDuplicateThrowsCheckBox.isSelected());
         }
       });
       add(ignoreDuplicateThrowsCheckBox, gc);

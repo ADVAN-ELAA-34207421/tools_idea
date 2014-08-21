@@ -378,6 +378,8 @@ public class DirectoryIndexTest extends IdeaTestCase {
     assertTrue(info.isIgnored());
     assertTrue(myFileIndex.isExcluded(ignoredFile));
     assertTrue(myFileIndex.isUnderIgnored(ignoredFile));
+    assertNull(myFileIndex.getContentRootForFile(ignoredFile, false));
+    assertNull(myFileIndex.getModuleForFile(ignoredFile, false));
   }
 
   public void testAddModule() throws Exception {
@@ -804,6 +806,10 @@ public class DirectoryIndexTest extends IdeaTestCase {
     PsiTestUtil.addExcludedRoot(myModule, fileExcludeRoot);
     assertFalse(myFileIndex.isInContent(fileExcludeRoot));
     assertFalse(myFileIndex.isInSource(fileExcludeRoot));
+    assertNull(myFileIndex.getContentRootForFile(fileExcludeRoot));
+    assertEquals(myModule1Dir, myFileIndex.getContentRootForFile(fileExcludeRoot, false));
+    assertNull(myFileIndex.getModuleForFile(fileExcludeRoot));
+    assertEquals(myModule, myFileIndex.getModuleForFile(fileExcludeRoot, false));
     assertExcluded(fileExcludeRoot, myModule);
     assertIteratedContent(myFileIndex, null, Arrays.asList(fileExcludeRoot));
 
@@ -928,7 +934,7 @@ public class DirectoryIndexTest extends IdeaTestCase {
 
     assertEquals(Arrays.toString(myIndex.getOrderEntries(info)), modulesOfOrderEntries.length, myIndex.getOrderEntries(info).length);
     for (Module aModule : modulesOfOrderEntries) {
-      OrderEntry found = myIndex.findOrderEntryWithOwnerModule(info, aModule);
+      OrderEntry found = ModuleFileIndexImpl.findOrderEntryWithOwnerModule(aModule, myIndex.getOrderEntries(info));
       assertNotNull("not found: " + aModule + " in " + Arrays.toString(myIndex.getOrderEntries(info)), found);
     }
   }

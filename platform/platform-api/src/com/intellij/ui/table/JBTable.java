@@ -52,7 +52,6 @@ public class JBTable extends JTable implements ComponentWithEmptyText, Component
 
   private Integer myMinRowHeight;
   private boolean myStriped;
-  private boolean isTypeAhead = true;
 
   private AsyncProcessIcon myBusyIcon;
   private boolean myBusy;
@@ -68,6 +67,8 @@ public class JBTable extends JTable implements ComponentWithEmptyText, Component
 
   public JBTable(final TableModel model, final TableColumnModel columnModel) {
     super(model, columnModel);
+
+    setSurrendersFocusOnKeystroke(true);
 
     myEmptyText = new StatusText(this) {
       @Override
@@ -421,7 +422,10 @@ public class JBTable extends JTable implements ComponentWithEmptyText, Component
       return false;
     }
 
-    if (e instanceof KeyEvent && UIUtil.isReallyTypedEvent((KeyEvent)e)) {
+    if (e instanceof KeyEvent) {
+      // do not start editing in autoStartsEdit mode on Ctrl-Z and other non-typed events
+      if (!UIUtil.isReallyTypedEvent((KeyEvent)e)) return false;
+
       SpeedSearchSupply supply = SpeedSearchSupply.getSupply(this);
       if (supply != null && supply.isPopupActive()) {
         return false;
@@ -449,18 +453,41 @@ public class JBTable extends JTable implements ComponentWithEmptyText, Component
       add(editorComp);
       editorComp.validate();
 
-      IdeFocusManager.findInstanceByComponent(this).requestFocus(editorComp, false);
+      if (surrendersFocusOnKeyStroke()) {
+        // this replaces focus request in JTable.processKeyBinding
+        final IdeFocusManager focusManager = IdeFocusManager.findInstanceByComponent(this);
+        focusManager.setTypeaheadEnabled(false);
+        focusManager.requestFocus(editorComp, true).doWhenProcessed(new Runnable() {
+          @Override
+          public void run() {
+            focusManager.setTypeaheadEnabled(true);
+          }
+        });
+      }
 
       setCellEditor(editor);
       setEditingRow(row);
       setEditingColumn(column);
       editor.addCellEditorListener(this);
-      if (isTypeAhead) {
-        JTableCellEditorHelper.typeAhead(this, e, row, column);
-      }
+
       return true;
     }
     return false;
+  }
+
+  /**
+   * Always returns false.
+   * If you're interested in value of JTable.surrendersFocusOnKeystroke property, call JBTable.surrendersFocusOnKeyStroke()
+   * @return false
+   * @see #surrendersFocusOnKeyStroke
+   */
+  @Override
+  public boolean getSurrendersFocusOnKeystroke() {
+    return false; // prevents JTable.processKeyBinding from requesting editor component to be focused
+  }
+
+  public boolean surrendersFocusOnKeyStroke() {
+    return super.getSurrendersFocusOnKeystroke();
   }
 
   private static boolean isTableDecorationSupported() {
@@ -470,10 +497,6 @@ public class JBTable extends JTable implements ComponentWithEmptyText, Component
            || UIUtil.isUnderIntelliJLaF()
            || UIUtil.isUnderNimbusLookAndFeel()
            || UIUtil.isUnderWindowsLookAndFeel();
-  }
-
-  public void disableTypeAheadInCellEditors() {
-    isTypeAhead = false;
   }
 
   @NotNull

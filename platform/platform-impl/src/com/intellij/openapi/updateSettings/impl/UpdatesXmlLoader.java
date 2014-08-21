@@ -74,6 +74,8 @@ public class UpdatesXmlLoader {
           int followCount = 2;
           while(true) {
             cnx = requestUrl.openConnection();
+            cnx.setConnectTimeout(HttpConfigurable.CONNECTION_TIMEOUT);
+            cnx.setReadTimeout(HttpConfigurable.CONNECTION_TIMEOUT);
 
             if (cnx instanceof HttpURLConnection) {
               HttpURLConnection hcnx = (HttpURLConnection)cnx;

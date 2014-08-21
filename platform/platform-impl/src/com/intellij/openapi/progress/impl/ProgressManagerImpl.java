@@ -17,7 +17,6 @@ package com.intellij.openapi.progress.impl;
 
 import com.intellij.concurrency.JobScheduler;
 import com.intellij.openapi.Disposable;
-import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.ex.ApplicationEx;
@@ -46,7 +45,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ProgressManagerImpl extends ProgressManager implements Disposable{
+public class ProgressManagerImpl extends ProgressManager implements Disposable {
   private static final Logger LOG = Logger.getInstance("#com.intellij.openapi.progress.impl.ProgressManagerImpl");
   private final AtomicInteger myCurrentUnsafeProgressCount = new AtomicInteger(0);
   private final AtomicInteger myCurrentModalProgressCount = new AtomicInteger(0);
@@ -55,7 +54,7 @@ public class ProgressManagerImpl extends ProgressManager implements Disposable{
   private static final boolean DISABLED = "disabled".equals(System.getProperty("idea.ProcessCanceledException"));
   private final ScheduledFuture<?> myCheckCancelledFuture;
 
-  public ProgressManagerImpl(Application application) {
+  public ProgressManagerImpl() {
     if (DISABLED) {
       myCheckCancelledFuture = null;
     }
@@ -64,7 +63,6 @@ public class ProgressManagerImpl extends ProgressManager implements Disposable{
         @Override
         public void run() {
           ourNeedToCheckCancel = true;
-          ProgressIndicatorProvider.ourNeedToCheckCancel = true;
         }
       }, 0, 10, TimeUnit.MILLISECONDS);
     }
@@ -86,7 +84,6 @@ public class ProgressManagerImpl extends ProgressManager implements Disposable{
           if (ourLockedCheckCounter > 10) {
             ourLockedCheckCounter = 0;
             ourNeedToCheckCancel = true;
-            ProgressIndicatorProvider.ourNeedToCheckCancel = true;
           }
         }
         else {
@@ -99,7 +96,6 @@ public class ProgressManagerImpl extends ProgressManager implements Disposable{
 
   public static void canceled() {
     ourNeedToCheckCancel = true;
-    ProgressIndicatorProvider.ourNeedToCheckCancel = true;
   }
 
   private static class NonCancelableIndicator extends EmptyProgressIndicator implements NonCancelableSection {
@@ -371,6 +367,14 @@ public class ProgressManagerImpl extends ProgressManager implements Disposable{
   public static Future<?> runProcessWithProgressAsynchronously(@NotNull final Task.Backgroundable task,
                                                                @NotNull final ProgressIndicator progressIndicator,
                                                                @Nullable final Runnable continuation) {
+    return runProcessWithProgressAsynchronously(task, progressIndicator, continuation, ModalityState.NON_MODAL);
+  }
+
+  @NotNull
+  public static Future<?> runProcessWithProgressAsynchronously(@NotNull final Task.Backgroundable task,
+                                                               @NotNull final ProgressIndicator progressIndicator,
+                                                               @Nullable final Runnable continuation,
+                                                               @NotNull final ModalityState modalityState) {
     if (progressIndicator instanceof Disposable) {
       Disposer.register(ApplicationManager.getApplication(), (Disposable)progressIndicator);
     }
@@ -397,7 +401,7 @@ public class ProgressManagerImpl extends ProgressManager implements Disposable{
             public void run() {
               task.onCancel();
             }
-          }, ModalityState.NON_MODAL);
+          }, modalityState);
         }
         else {
           final Task.NotificationInfo notificationInfo = task.notifyFinished();
@@ -412,7 +416,7 @@ public class ProgressManagerImpl extends ProgressManager implements Disposable{
             public void run() {
               task.onSuccess();
             }
-          }, ModalityState.NON_MODAL);
+          }, modalityState);
         }
       }
     };
@@ -493,10 +497,6 @@ public class ProgressManagerImpl extends ProgressManager implements Disposable{
 
   @Override
   public void dispose() {
-    stopCheckCanceled();
-  }
-
-  private void stopCheckCanceled() {
     if (myCheckCancelledFuture != null) myCheckCancelledFuture.cancel(false);
   }
 

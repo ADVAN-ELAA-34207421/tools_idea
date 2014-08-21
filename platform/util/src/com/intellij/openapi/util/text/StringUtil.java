@@ -1331,6 +1331,7 @@ public class StringUtil extends StringUtilRt {
   }
 
   public static boolean isQuotedString(@NotNull String text) {
+    if (text.length() < 2) return false;
     return startsWithChar(text, '\"') && endsWithChar(text, '\"')
            || startsWithChar(text, '\'') && endsWithChar(text, '\'');
   }
@@ -2678,7 +2679,7 @@ public class StringUtil extends StringUtilRt {
         continue;
       }
 
-      if (i > 0 && (ch == '/' || ch == '\\' || ch == '.' || Character.isUpperCase(ch))) {
+      if (i > 0 && (ch == '/' || ch == '\\' || ch == '.' || ch == '-' || Character.isUpperCase(ch))) {
         words.add(builder.toString());
         builder.delete(0, builder.length());
       }
