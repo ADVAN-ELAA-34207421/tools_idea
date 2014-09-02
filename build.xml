@@ -33,10 +33,9 @@
     <attribute name="test.patterns" default="" />
     <sequential>
       <java failonerror="true" jar="${project.home}/lib/ant/lib/ant-launcher.jar" fork="true">
-        <jvmarg line="-Xmx1424m -XX:MaxPermSize=352m"/>
+        <jvmarg line="-Xmx2048m -XX:MaxPermSize=512m"/>
         <jvmarg value="-Dout=${out.dir}" />
         <jvmarg value="-DbuildNumber=${buildId}" />
-        <jvmarg line="-Xmx612m -XX:MaxPermSize=152m"/>
         <sysproperty key="java.awt.headless" value="true"/>
         <arg line="&quot;-Dgant.script=@{script}&quot;"/>
         <arg line="&quot;-Dteamcity.build.tempDir=${tmp.dir}&quot;"/>
@@ -54,6 +53,10 @@
 
   <target name="test" depends="init">
     <call_gant script="${project.home}/build/scripts/tests.gant" test.patterns="org.jetbrains.android.*;com.android.tools.idea.*;com.google.gct.*"/>
+  </target>
+
+  <target name="guiTests" depends="init">
+    <call_gant script="${project.home}/build/scripts/gui_tests.gant"/>
   </target>
 
   <!-- The build task creates an updater.jar in ${out.dir}. This task bundles log4j & the updater into a single jar -->
