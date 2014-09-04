@@ -576,6 +576,7 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
   @Override
   public void launchAction(@NotNull final IntentionAction action) {
     ShowIntentionActionsHandler.chooseActionAndInvoke(getFile(), getEditor(), action, action.getText());
+    UIUtil.dispatchAllInvocationEvents();
   }
 
   @Override
@@ -1424,6 +1425,8 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
             module.getMessageBus().syncPublisher(FacetManager.FACETS_TOPIC).facetConfigurationChanged(facet);
           }
         }
+        PsiDocumentManager.getInstance(getProject()).commitAllDocuments();
+
         if (myCaresAboutInjection) {
           setupEditorForInjectedLanguage();
         }

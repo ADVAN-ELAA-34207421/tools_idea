@@ -34,10 +34,18 @@ public class Conditions {
     return (Condition<T>)FALSE;
   }
 
+  public static <T> Condition<T> instanceOf(final Class<?> clazz) {
+    return new Condition<T>() {
+      public boolean value(T t) {
+        return clazz.isInstance(t);
+      }
+    };
+  }
+
   public static <T> Condition<T> is(final T option) {
     return new Condition<T>() {
       public boolean value(T t) {
-        return t == option;
+        return Comparing.equal(t, option);
       }
     };
   }
