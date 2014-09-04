@@ -15,12 +15,14 @@
  */
 package org.zmlx.hg4idea.push;
 
+import com.intellij.dvcs.DvcsUtil;
 import com.intellij.dvcs.push.*;
-import com.intellij.dvcs.repo.Repository;
 import com.intellij.dvcs.repo.RepositoryManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.AbstractVcs;
+import com.intellij.ui.SimpleColoredText;
+import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.util.Function;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
@@ -30,10 +32,11 @@ import org.zmlx.hg4idea.HgVcs;
 import org.zmlx.hg4idea.repo.HgRepository;
 import org.zmlx.hg4idea.util.HgUtil;
 
-import java.util.Collection;
+import java.util.List;
 
-public class HgPushSupport extends PushSupport<HgRepository> {
+public class HgPushSupport extends PushSupport<HgRepository, HgPushSource, HgTarget> {
 
+  private final static String ENTER_REMOTE = "Enter Remote";
   @NotNull private final Project myProject;
   @NotNull private final HgVcs myVcs;
 
@@ -50,13 +53,13 @@ public class HgPushSupport extends PushSupport<HgRepository> {
 
   @NotNull
   @Override
-  public Pusher getPusher() {
+  public Pusher<HgRepository, HgPushSource, HgTarget> getPusher() {
     return new HgPusher();
   }
 
   @NotNull
   @Override
-  public OutgoingCommitsProvider getOutgoingCommitsProvider() {
+  public OutgoingCommitsProvider<HgRepository, HgPushSource, HgTarget> getOutgoingCommitsProvider() {
     return new HgOutgoingCommitsProvider();
   }
 
@@ -69,13 +72,13 @@ public class HgPushSupport extends PushSupport<HgRepository> {
 
   @NotNull
   @Override
-  public Collection<String> getTargetNames(@NotNull HgRepository repository) {
-    return ContainerUtil.map(repository.getRepositoryConfig().getPaths(), new Function<String, String>() {
+  public List<String> getTargetNames(@NotNull HgRepository repository) {
+    return ContainerUtil.sorted(ContainerUtil.map(repository.getRepositoryConfig().getPaths(), new Function<String, String>() {
       @Override
       public String fun(String s) {
         return HgUtil.removePasswordIfNeeded(s);
       }
-    });
+    }));
   }
 
   @NotNull
@@ -86,6 +89,7 @@ public class HgPushSupport extends PushSupport<HgRepository> {
   }
 
   @Override
+  @NotNull
   public HgTarget createTarget(@NotNull HgRepository repository, @NotNull String targetName) {
     return new HgTarget(targetName);
   }
@@ -103,7 +107,17 @@ public class HgPushSupport extends PushSupport<HgRepository> {
 
   @Override
   @Nullable
-  public VcsError validate(@NotNull Repository repository, @Nullable String targetToValidate) {
-    return StringUtil.isEmptyOrSpaces(targetToValidate) ? new VcsError("Please, specify remote push path for repository!") : null;
+  public VcsError validate(@NotNull HgRepository repository, @Nullable String targetToValidate) {
+    return StringUtil.isEmptyOrSpaces(targetToValidate)
+           ? VcsError.createEmptyTargetError(DvcsUtil.getShortRepositoryName(repository))
+           : null;
+  }
+
+  @Override
+  public SimpleColoredText renderTarget(@Nullable HgTarget target) {
+    if (target == null || StringUtil.isEmptyOrSpaces(target.getPresentation())) {
+      return new SimpleColoredText(ENTER_REMOTE, SimpleTextAttributes.GRAY_ITALIC_ATTRIBUTES);
+    }
+    return new SimpleColoredText(target.getPresentation(), SimpleTextAttributes.SYNTHETIC_ATTRIBUTES);
   }
 }

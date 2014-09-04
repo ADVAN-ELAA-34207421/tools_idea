@@ -36,7 +36,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
-import java.util.Collection;
 import java.util.List;
 
 public class RepositoryWithBranchPanel extends NonOpaquePanel implements TreeCellRenderer {
@@ -48,12 +47,14 @@ public class RepositoryWithBranchPanel extends NonOpaquePanel implements TreeCel
   private final JLabel myRepositoryLabel;
   private final ColoredTreeCellRenderer myTextRenderer;
   @NotNull private final List<RepositoryNodeListener> myListeners = ContainerUtil.createLockFreeCopyOnWriteList();
+  private String myOldDestination;
 
   public RepositoryWithBranchPanel(Project project, @NotNull String repoName,
-                                   @NotNull String sourceName, String targetName, @NotNull Collection<String> targetVariants) {
+                                   @NotNull String sourceName, String targetName, @NotNull final List<String> targetVariants) {
     super();
     setLayout(new BorderLayout());
     myRepositoryCheckbox = new JBCheckBox();
+    myRepositoryCheckbox.setFocusable(false);
     myRepositoryCheckbox.setOpaque(false);
     myRepositoryCheckbox.addActionListener(new ActionListener() {
       @Override
@@ -64,8 +65,14 @@ public class RepositoryWithBranchPanel extends NonOpaquePanel implements TreeCel
     myRepositoryLabel = new JLabel(repoName);
     myLocalBranch = new JBLabel(sourceName);
     myArrowLabel = new JLabel(" -> ");
+    myOldDestination = targetName;
     TextFieldWithAutoCompletionListProvider<String> provider =
-      new TextFieldWithAutoCompletion.StringsCompletionProvider(targetVariants, null);
+      new TextFieldWithAutoCompletion.StringsCompletionProvider(targetVariants, null) {
+        @Override
+        public int compare(String item1, String item2) {
+          return Integer.valueOf(ContainerUtil.indexOf(targetVariants, item1)).compareTo(ContainerUtil.indexOf(targetVariants, item2));
+        }
+      };
     myDestBranchTextField = new TextFieldWithAutoCompletion<String>(project, provider, true, targetName) {
 
       @Override
@@ -77,15 +84,17 @@ public class RepositoryWithBranchPanel extends NonOpaquePanel implements TreeCel
       protected void updateBorder(@NotNull final EditorEx editor) {
       }
     };
-    myDestBranchTextField.setBorder(UIUtil.getTableFocusCellHighlightBorder());//getTextFieldBorder());
+    myDestBranchTextField.setBorder(UIUtil.getTableFocusCellHighlightBorder());
     myDestBranchTextField.setOneLineMode(true);
     myDestBranchTextField.setOpaque(true);
-    myDestBranchTextField.addFocusListener(new FocusAdapter() {
+    FocusAdapter focusListener = new FocusAdapter() {
       @Override
       public void focusGained(FocusEvent e) {
         myDestBranchTextField.selectAll();
       }
-    });
+    };
+    myDestBranchTextField.addFocusListener(focusListener);
+    addFocusListener(focusListener);
 
     myTextRenderer = new ColoredTreeCellRenderer() {
       public void customizeCellRenderer(@NotNull JTree tree,
@@ -169,9 +178,10 @@ public class RepositoryWithBranchPanel extends NonOpaquePanel implements TreeCel
     myListeners.add(listener);
   }
 
-  public void fireOnChange(@NotNull String newValue) {
+  public void fireOnChange() {
+    myOldDestination = myDestBranchTextField.getText();
     for (RepositoryNodeListener listener : myListeners) {
-      listener.onTargetChanged(newValue);
+      listener.onTargetChanged(myOldDestination);
     }
   }
 
@@ -179,6 +189,10 @@ public class RepositoryWithBranchPanel extends NonOpaquePanel implements TreeCel
     for (RepositoryNodeListener listener : myListeners) {
       listener.onSelectionChanged(isSelected);
     }
+  }
+
+  public void fireOnCancel() {
+    myDestBranchTextField.setText(myOldDestination);
   }
 }
 

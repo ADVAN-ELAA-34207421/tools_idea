@@ -17,6 +17,7 @@ package com.intellij.debugger.engine;
 
 import com.intellij.debugger.DebuggerInvocationUtil;
 import com.intellij.debugger.SourcePosition;
+import com.intellij.debugger.actions.JavaReferringObjectsValue;
 import com.intellij.debugger.actions.JumpToObjectAction;
 import com.intellij.debugger.engine.evaluation.EvaluateException;
 import com.intellij.debugger.engine.evaluation.EvaluationContextImpl;
@@ -66,27 +67,34 @@ public class JavaValue extends XNamedValue implements NodeDescriptorProvider, XV
   private final ValueDescriptorImpl myValueDescriptor;
   private final EvaluationContextImpl myEvaluationContext;
   private final NodeManagerImpl myNodeManager;
+  private final boolean myContextSet;
 
-  private JavaValue(JavaValue parent,
+  protected JavaValue(JavaValue parent,
                     @NotNull ValueDescriptorImpl valueDescriptor,
                     @NotNull EvaluationContextImpl evaluationContext,
-                    NodeManagerImpl nodeManager) {
+                    NodeManagerImpl nodeManager,
+                    boolean contextSet) {
     super(valueDescriptor.getName());
     myParent = parent;
     myValueDescriptor = valueDescriptor;
     myEvaluationContext = evaluationContext;
     myNodeManager = nodeManager;
+    myContextSet = contextSet;
   }
 
-  private static JavaValue create(JavaValue parent, @NotNull ValueDescriptorImpl valueDescriptor, EvaluationContextImpl evaluationContext, NodeManagerImpl nodeManager, boolean init) {
+  static JavaValue create(JavaValue parent,
+                          @NotNull ValueDescriptorImpl valueDescriptor,
+                          EvaluationContextImpl evaluationContext,
+                          NodeManagerImpl nodeManager,
+                          boolean contextSet) {
     DebuggerManagerThreadImpl.assertIsManagerThread();
-    return new JavaValue(parent, valueDescriptor, evaluationContext, nodeManager);
+    return new JavaValue(parent, valueDescriptor, evaluationContext, nodeManager, contextSet);
   }
 
-  public static JavaValue create(@NotNull ValueDescriptorImpl valueDescriptor,
+  static JavaValue create(@NotNull ValueDescriptorImpl valueDescriptor,
                           EvaluationContextImpl evaluationContext,
                           NodeManagerImpl nodeManager) {
-    return create(null, valueDescriptor, evaluationContext, nodeManager, true);
+    return create(null, valueDescriptor, evaluationContext, nodeManager, false);
   }
 
   public JavaValue getParent() {
@@ -113,7 +121,9 @@ public class JavaValue extends XNamedValue implements NodeDescriptorProvider, XV
 
       @Override
       public void threadAction() {
-        myValueDescriptor.setContext(myEvaluationContext);
+        if (!myContextSet) {
+          myValueDescriptor.setContext(myEvaluationContext);
+        }
         myValueDescriptor.updateRepresentation(myEvaluationContext, new DescriptorLabelListener() {
           @Override
           public void labelChanged() {
@@ -123,12 +133,12 @@ public class JavaValue extends XNamedValue implements NodeDescriptorProvider, XV
             String type = strings[0];
             XValuePresentation presentation;
             if (myValueDescriptor.isString()) {
-              presentation = new TypedStringValuePresentation(StringUtil.unquoteString(value), type);
+              presentation = new TypedStringValuePresentation(value, type);
             }
             else {
               EvaluateException exception = myValueDescriptor.getEvaluateException();
               if (myValueDescriptor.getLastRenderer() instanceof ToStringRenderer && exception == null) {
-                presentation = new XRegularValuePresentation(StringUtil.wrapWithDoubleQuote(value), type);
+                presentation = new XRegularValuePresentation(StringUtil.wrapWithDoubleQuote(value.substring(0,Math.min(value.length(), XValueNode.MAX_VALUE_LENGTH))), type);
               }
               else {
                 presentation = new JavaValuePresentation(value, type, exception != null ? exception.getMessage() : null);
@@ -339,15 +349,16 @@ public class JavaValue extends XNamedValue implements NodeDescriptorProvider, XV
         ApplicationManager.getApplication().runReadAction(new Runnable() {
           @Override
           public void run() {
+            final boolean nearest = navigatable instanceof XNearestSourcePosition;
             if (myValueDescriptor instanceof FieldDescriptorImpl) {
-              SourcePosition position = ((FieldDescriptorImpl)myValueDescriptor).getSourcePosition(getProject(), getDebuggerContext());
+              SourcePosition position = ((FieldDescriptorImpl)myValueDescriptor).getSourcePosition(getProject(), getDebuggerContext(), nearest);
               if (position != null) {
                 navigatable.setSourcePosition(DebuggerUtilsEx.toXSourcePosition(position));
               }
             }
             if (myValueDescriptor instanceof LocalVariableDescriptorImpl) {
               SourcePosition position =
-                ((LocalVariableDescriptorImpl)myValueDescriptor).getSourcePosition(getProject(), getDebuggerContext());
+                ((LocalVariableDescriptorImpl)myValueDescriptor).getSourcePosition(getProject(), getDebuggerContext(), nearest);
               if (position != null) {
                 navigatable.setSourcePosition(DebuggerUtilsEx.toXSourcePosition(position));
               }
@@ -441,5 +452,15 @@ public class JavaValue extends XNamedValue implements NodeDescriptorProvider, XV
   @Override
   public String getValueText() {
     return myValueDescriptor.getValueText();
+  }
+  @Nullable
+  @Override
+  public XReferrersProvider getReferrersProvider() {
+    return new XReferrersProvider() {
+      @Override
+      public XValue getReferringObjectsValue() {
+        return new JavaReferringObjectsValue(JavaValue.this, false);
+      }
+    };
   }
 }

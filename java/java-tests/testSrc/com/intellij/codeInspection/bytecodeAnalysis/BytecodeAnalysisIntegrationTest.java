@@ -38,7 +38,7 @@ import com.intellij.testFramework.fixtures.JavaCodeInsightFixtureTestCase;
 import com.intellij.util.AsynchConsumer;
 import org.jetbrains.annotations.Contract;
 
-import java.io.IOException;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,7 +50,7 @@ public class BytecodeAnalysisIntegrationTest extends JavaCodeInsightFixtureTestC
 
   private InferredAnnotationsManager myInferredAnnotationsManager;
   private ExternalAnnotationsManager myExternalAnnotationsManager;
-
+  private MessageDigest myMessageDigest;
   private List<String> diffs = new ArrayList<String>();
 
   @Override
@@ -62,6 +62,7 @@ public class BytecodeAnalysisIntegrationTest extends JavaCodeInsightFixtureTestC
 
     myInferredAnnotationsManager = InferredAnnotationsManager.getInstance(myModule.getProject());
     myExternalAnnotationsManager = ExternalAnnotationsManager.getInstance(myModule.getProject());
+    myMessageDigest = BytecodeAnalysisConverter.getMessageDigest();
   }
 
   private void setUpLibraries() {
@@ -127,13 +128,9 @@ public class BytecodeAnalysisIntegrationTest extends JavaCodeInsightFixtureTestC
   }
 
   private void checkMethodAnnotations(PsiMethod method) {
-    try {
-      if (ProjectBytecodeAnalysis.getKey(method) == -1) {
-        return;
-      }
-    }
-    catch (IOException e) {
-      fail();
+
+    if (ProjectBytecodeAnalysis.getKey(method, myMessageDigest) == null) {
+      return;
     }
 
     // not null-result
@@ -149,12 +146,27 @@ public class BytecodeAnalysisIntegrationTest extends JavaCodeInsightFixtureTestC
 
     for (PsiParameter parameter : method.getParameterList().getParameters()) {
       String parameterKey = PsiFormatUtil.getExternalName(parameter, false, Integer.MAX_VALUE);
-      String externalParameterAnnotation =
-        myExternalAnnotationsManager.findExternalAnnotation(parameter, AnnotationUtil.NOT_NULL) == null ? "null" : "@NotNull";
-      String inferredParameterAnnotation =
-        myInferredAnnotationsManager.findInferredAnnotation(parameter, AnnotationUtil.NOT_NULL) == null ? "null" : "@NotNull";
-      if (!externalParameterAnnotation.equals(inferredParameterAnnotation)) {
-        diffs.add(parameterKey + ": " + externalParameterAnnotation + " != " + inferredParameterAnnotation);
+
+      {
+        // @NotNull
+        String externalNotNull =
+          myExternalAnnotationsManager.findExternalAnnotation(parameter, AnnotationUtil.NOT_NULL) == null ? "null" : "@NotNull";
+        String inferredNotNull =
+          myInferredAnnotationsManager.findInferredAnnotation(parameter, AnnotationUtil.NOT_NULL) == null ? "null" : "@NotNull";
+        if (!externalNotNull.equals(inferredNotNull)) {
+          diffs.add(parameterKey + ": " + externalNotNull + " != " + inferredNotNull);
+        }
+      }
+
+      {
+        // @Nullable
+        String externalNullable =
+          myExternalAnnotationsManager.findExternalAnnotation(parameter, AnnotationUtil.NULLABLE) == null ? "null" : "@Nullable";
+        String inferredNullable =
+          myInferredAnnotationsManager.findInferredAnnotation(parameter, AnnotationUtil.NULLABLE) == null ? "null" : "@Nullable";
+        if (!externalNullable.equals(inferredNullable)) {
+          diffs.add(parameterKey + ": " + externalNullable + " != " + inferredNullable);
+        }
       }
     }
 
