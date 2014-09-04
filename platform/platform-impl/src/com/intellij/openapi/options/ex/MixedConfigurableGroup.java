@@ -17,15 +17,21 @@ package com.intellij.openapi.options.ex;
 
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurableGroup;
+import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.OptionsBundle;
 import com.intellij.openapi.options.SearchableConfigurable;
+import com.intellij.openapi.util.text.StringUtil;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import javax.swing.JComponent;
 
-public final class MixedConfigurableGroup implements ConfigurableGroup {
+public final class MixedConfigurableGroup implements SearchableConfigurable, ConfigurableGroup {
   private final String myGroupId;
   private Configurable[] myConfigurables;
 
@@ -34,10 +40,50 @@ public final class MixedConfigurableGroup implements ConfigurableGroup {
     myConfigurables = (configurables != null)
                       ? configurables.toArray(new Configurable[configurables.size()])
                       : new Configurable[0];
+    Arrays.sort(myConfigurables, COMPARATOR);
   }
 
   private MixedConfigurableGroup(String groupId, HashMap<String, ArrayList<Configurable>> configurables) {
     this(groupId, configurables.remove(groupId));
+  }
+
+  @Override
+  public JComponent createComponent() {
+    return null;
+  }
+
+  @Override
+  public boolean isModified() {
+    return false;
+  }
+
+  @Override
+  public void apply() throws ConfigurationException {
+  }
+
+  @Override
+  public void reset() {
+  }
+
+  @Override
+  public void disposeUIResources() {
+    myConfigurables = null;
+  }
+
+  @Override
+  public Runnable enableSearch(String option) {
+    return null;
+  }
+
+  @NotNull
+  @Override
+  public String getId() {
+    return "configurable.group." + myGroupId;
+  }
+
+  @Override
+  public String getHelpTopic() {
+    return "configurable.group." + myGroupId + ".help.topic";
   }
 
   @Override
@@ -60,7 +106,7 @@ public final class MixedConfigurableGroup implements ConfigurableGroup {
     for (Configurable configurable : configurables) {
       String groupId = null;
       if (configurable instanceof ConfigurableWrapper) {
-        groupId = ((ConfigurableWrapper)configurable).getGroupId();
+        groupId = ((ConfigurableWrapper)configurable).getExtensionPoint().groupId;
       }
       ArrayList<Configurable> list = map.get(groupId);
       if (list == null) {
@@ -70,7 +116,7 @@ public final class MixedConfigurableGroup implements ConfigurableGroup {
     }
     ArrayList<Configurable> buildList = map.get("build");
     if (buildList != null) {
-      NodeConfigurable buildTools = new NodeConfigurable("build.tools");
+      NodeConfigurable buildTools = new NodeConfigurable("build.tools", 1000);
       buildTools.add(find("MavenSettings", buildList.iterator()));
       buildTools.add(find("reference.settingsdialog.project.gradle", buildList.iterator()));
       buildTools.add(find("reference.settingsdialog.project.gant", buildList.iterator()));
@@ -106,4 +152,27 @@ public final class MixedConfigurableGroup implements ConfigurableGroup {
     }
     return null;
   }
+
+  public static int getGroupWeight(Configurable configurable) {
+    if (configurable instanceof NodeConfigurable) {
+      return ((NodeConfigurable)configurable).getGroupWeight();
+    }
+    if (configurable instanceof ConfigurableWrapper) {
+      return ((ConfigurableWrapper)configurable).getExtensionPoint().groupWeight;
+    }
+    return 0;
+  }
+
+  private static final Comparator<Configurable> COMPARATOR = new Comparator<Configurable>() {
+    @Override
+    public int compare(Configurable configurable1, Configurable configurable2) {
+      if (configurable1 == null || configurable2 == null) {
+        return configurable2 != null ? -1 : configurable1 != null ? 1 : 0;
+      }
+      int weight1 = getGroupWeight(configurable1);
+      int weight2 = getGroupWeight(configurable2);
+      return weight1 > weight2 ? -1 : weight1 < weight2 ? 1 : StringUtil.naturalCompare(configurable1.getDisplayName(),
+                                                                                        configurable2.getDisplayName());
+    }
+  };
 }

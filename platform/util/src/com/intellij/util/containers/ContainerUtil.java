@@ -1073,7 +1073,8 @@ public class ContainerUtil extends ContainerUtilRt {
   }
 
   public static <T, U extends T> U findInstance(@NotNull Iterator<T> iterator, @NotNull Class<U> aClass) {
-    @SuppressWarnings("unchecked") U u = (U)find(iterator, new FilteringIterator.InstanceOf<U>(aClass));
+    //noinspection unchecked
+    U u = (U)find(iterator, FilteringIterator.instanceOf(aClass));
     return u;
   }
 
@@ -1427,6 +1428,16 @@ public class ContainerUtil extends ContainerUtilRt {
     List<T> sorted = newArrayList(list);
     sort(sorted, comparator);
     return sorted;
+  }
+
+  @NotNull
+  public static <T extends Comparable<T>> List<T> sorted(@NotNull Collection<T> list) {
+    return sorted(list, new Comparator<T>() {
+      @Override
+      public int compare(T o1, T o2) {
+        return o1.compareTo(o2);
+      }
+    });
   }
 
   public static <T> void sort(@NotNull T[] a, @NotNull Comparator<T> comparator) {
@@ -1925,6 +1936,15 @@ public class ContainerUtil extends ContainerUtilRt {
       }
     }
     return -1;
+  }
+
+  public static <T> int indexOf(@NotNull List<T> list, @NotNull final T object) {
+    return indexOf(list, new Condition<T>() {
+      @Override
+      public boolean value(T t) {
+        return t.equals(object);
+      }
+    });
   }
 
   @NotNull

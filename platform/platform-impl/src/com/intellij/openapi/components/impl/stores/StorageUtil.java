@@ -113,17 +113,23 @@ public class StorageUtil {
   @Nullable
   static VirtualFile save(@NotNull IFile file, Parent element, Object requestor) throws StateStorageException {
     try {
-      VirtualFile vFile = LocalFileSystem.getInstance().findFileByIoFile(file);
-      Couple<String> pair = loadFile(vFile);
-      String text = JDOMUtil.writeParent(element, pair.second);
-
+      String lineSeparator;
+      String oldText;
       if (file.exists()) {
-        if (text.equals(pair.first)) {
-          return null;
-        }
+        VirtualFile vFile = LocalFileSystem.getInstance().findFileByIoFile(file);
+        Couple<String> pair = loadFile(vFile);
+        lineSeparator = pair.second;
+        oldText = pair.first;
       }
       else {
+        oldText = null;
+        lineSeparator = SystemProperties.getLineSeparator();
         file.createParentDirs();
+      }
+
+      String text = JDOMUtil.writeParent(element, lineSeparator);
+      if (text.equals(oldText)) {
+        return null;
       }
 
       // mark this action as modifying the file which daemon analyzer should ignore
@@ -245,6 +251,7 @@ public class StorageUtil {
     }
   }
 
+  @NotNull
   public static BufferExposingByteArrayOutputStream documentToBytes(@NotNull Document document, boolean useSystemLineSeparator) throws IOException {
     BufferExposingByteArrayOutputStream out = new BufferExposingByteArrayOutputStream(512);
     OutputStreamWriter writer = new OutputStreamWriter(out, CharsetToolkit.UTF8_CHARSET);
@@ -271,9 +278,9 @@ public class StorageUtil {
     }
   }
 
-  public static void deleteContent(@NotNull StreamProvider provider, @NotNull String fileSpec, @NotNull RoamingType type) {
+  public static void delete(@NotNull StreamProvider provider, @NotNull String fileSpec, @NotNull RoamingType type) {
     if (provider.isApplicable(fileSpec, type)) {
-      provider.deleteFile(fileSpec, type);
+      provider.delete(fileSpec, type);
     }
   }
 

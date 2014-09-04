@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ public class StringUtil extends StringUtilRt {
     @Nullable
     @Override
     public String fun(@Nullable String s) {
-      return s == null ? null : s.trim();
+      return trim(s);
     }
   };
 
@@ -246,6 +246,7 @@ public class StringUtil extends StringUtilRt {
     return html.replaceAll("<(.|\n)*?>", "");
   }
 
+  @Contract("null -> null; !null -> !null")
   public static String toLowerCase(@Nullable final String str) {
     //noinspection ConstantConditions
     return str == null ? null : str.toLowerCase();
@@ -850,6 +851,11 @@ public class StringUtil extends StringUtilRt {
                                                   @NotNull String secondPrefix,
                                                   @NotNull String thirdPrefix) {
     return startsWithConcatenation(string, firstPrefix, secondPrefix, thirdPrefix);
+  }
+
+  @Contract("null -> null; !null -> !null")
+  public static String trim(@Nullable String s) {
+    return s == null ? null : s.trim();
   }
 
   @NotNull
@@ -1467,7 +1473,7 @@ public class StringUtil extends StringUtilRt {
   /**
    * @deprecated use #capitalize(String)
    */
-  @Nullable
+  @Contract("null -> null; !null -> !null")
   public static String firstLetterToUpperCase(@Nullable final String displayString) {
     if (displayString == null || displayString.isEmpty()) return displayString;
     char firstChar = displayString.charAt(0);
@@ -1827,11 +1833,13 @@ public class StringUtil extends StringUtilRt {
   @NonNls private static final String[] REPLACES_REFS = {"&lt;", "&gt;", "&amp;", "&#39;", "&quot;"};
   @NonNls private static final String[] REPLACES_DISP = {"<", ">", "&", "'", "\""};
 
+  @Contract("null -> null; !null -> !null")
   public static String unescapeXml(@Nullable final String text) {
     if (text == null) return null;
     return replace(text, REPLACES_REFS, REPLACES_DISP);
   }
 
+  @Contract("null -> null; !null -> !null")
   public static String escapeXml(@Nullable final String text) {
     if (text == null) return null;
     return replace(text, REPLACES_DISP, REPLACES_REFS);

@@ -331,7 +331,7 @@ public abstract class StateStorageManagerImpl implements StateStorageManager, Di
 
   @Override
   @Nullable
-  public synchronized String expandMacros(final String file) {
+  public synchronized String expandMacros(@NotNull String file) {
     final Matcher matcher = MACRO_PATTERN.matcher(file);
     while (matcher.find()) {
       String m = matcher.group(1);
@@ -427,6 +427,7 @@ public abstract class StateStorageManagerImpl implements StateStorageManager, Di
     return getFileStateStorage(getOldStorageSpec(component, componentName, operation));
   }
 
+  @Nullable
   protected abstract String getOldStorageSpec(Object component, final String componentName, final StateStorageOperation operation)
     throws StateStorageException;
 
@@ -615,11 +616,11 @@ public abstract class StateStorageManagerImpl implements StateStorageManager, Di
     }
 
     @Override
-    public void deleteFile(@NotNull String fileSpec, @NotNull RoamingType roamingType) {
+    public void delete(@NotNull String fileSpec, @NotNull RoamingType roamingType) {
       for (StreamProvider streamProvider : myStreamProviders) {
         try {
           if (streamProvider.isEnabled() && streamProvider.isApplicable(fileSpec, roamingType)) {
-            streamProvider.deleteFile(fileSpec, roamingType);
+            streamProvider.delete(fileSpec, roamingType);
           }
         }
         catch (Exception e) {
