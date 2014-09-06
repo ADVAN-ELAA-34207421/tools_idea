@@ -44,7 +44,6 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
 import com.intellij.usageView.UsageViewTypeLocation;
 import com.intellij.util.IncorrectOperationException;
-import com.intellij.util.VisibilityUtil;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -179,6 +178,10 @@ public class VisibilityInspection extends GlobalJavaBatchInspectionTool {
         RefClass refClass = (RefClass) refElement;
         if (refClass.isAnonymous() || refClass.isEntry() || refClass.isTestCase() || refClass.isServlet() || refClass.isApplet() || refClass.isLocalClass()) return null;
         if (isTopLevelClass(refClass) && !SUGGEST_PACKAGE_LOCAL_FOR_TOP_CLASSES) return null;
+
+        if (refClass.isAndroidPublic()) {
+          return null;
+        }
       }
 
       //ignore unreferenced code. They could be a potential entry points.

@@ -62,6 +62,9 @@ public interface RefClass extends RefJavaElement {
 
   boolean isTestCase();
 
+  /** Returns true if this class extends one of the Android framework classes that must be public */
+  boolean isAndroidPublic();
+
   boolean isLocalClass();
 
   boolean isSelfInheritor(PsiClass psiClass);
