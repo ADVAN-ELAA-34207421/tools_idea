@@ -9,3 +9,5 @@
 .jps-build-data
 /bin/build-log.xml
 /bin/build.log
+/androidStudio
+/build/TEST*
