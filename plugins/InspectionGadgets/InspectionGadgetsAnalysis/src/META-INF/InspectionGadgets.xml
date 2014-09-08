@@ -703,6 +703,12 @@
                      key="simplifiable.conditional.expression.display.name" groupBundle="messages.InspectionsBundle"
                      groupKey="group.names.control.flow.issues" enabledByDefault="true" level="WARNING"
                      implementationClass="com.siyeh.ig.controlflow.SimplifiableConditionalExpressionInspection"/>
+    <!-- Moved in Android Studio over to the Code Style category where it more logically belongs since this is the only one enabled by default
+         in the J2ME category and it's really just a code style issue (and there are 4 other Simplifiable-Something conditions here) -->
+    <localInspection language="JAVA" shortName="SimplifiableIfStatement" bundle="com.siyeh.InspectionGadgetsBundle"
+                     key="simplifiable.if.statement.display.name" groupBundle="messages.InspectionsBundle"
+                     groupKey="group.names.code.style.issues" enabledByDefault="true" level="WARNING"
+                     implementationClass="com.siyeh.ig.j2me.SimplifiableIfStatementInspection"/>
     <localInspection language="JAVA" shortName="SwitchStatementDensity" bundle="com.siyeh.InspectionGadgetsBundle"
                      key="switch.statement.density.display.name" groupBundle="messages.InspectionsBundle"
                      groupKey="group.names.control.flow.issues" enabledByDefault="false" level="WARNING"
@@ -1191,10 +1197,6 @@
                      bundle="com.siyeh.InspectionGadgetsBundle" key="recordstore.opened.not.safely.closed.display.name"
                      groupBundle="messages.InspectionsBundle" groupKey="group.names.j2me.issues" enabledByDefault="false" level="WARNING"
                      implementationClass="com.siyeh.ig.j2me.RecordStoreResourceInspection"/>
-    <localInspection language="JAVA" shortName="SimplifiableIfStatement" bundle="com.siyeh.InspectionGadgetsBundle"
-                     key="simplifiable.if.statement.display.name" groupBundle="messages.InspectionsBundle"
-                     groupKey="group.names.j2me.issues" enabledByDefault="true" level="WARNING"
-                     implementationClass="com.siyeh.ig.j2me.SimplifiableIfStatementInspection"/>
     <localInspection language="JAVA" shortName="SingleCharacterStartsWith" bundle="com.siyeh.InspectionGadgetsBundle"
                      key="single.character.startswith.display.name" groupBundle="messages.InspectionsBundle"
                      groupKey="group.names.j2me.issues" enabledByDefault="false" level="WARNING"
