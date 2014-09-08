@@ -310,6 +310,21 @@ public class GlobalInspectionContextImpl extends GlobalInspectionContextBase imp
     });
   }
 
+  // Android Studio: Is the given file a file we should ignore during batch inspections?
+  private static final String EXPLODED_AAR = "exploded-aar";
+  private static boolean isIgnoredFile(@NotNull PsiFile psiFile) {
+    VirtualFile file = psiFile.getVirtualFile();
+    while (file != null) {
+      if (EXPLODED_AAR.equals(file.getName())) {
+        return true;
+      } else {
+        file = file.getParent();
+      }
+    }
+
+    return false;
+  }
+
   @Override
   protected void runTools(@NotNull AnalysisScope scope, boolean runGlobalToolsOnly) {
     final InspectionManagerEx inspectionManager = (InspectionManagerEx)InspectionManager.getInstance(getProject());
@@ -341,6 +356,33 @@ public class GlobalInspectionContextImpl extends GlobalInspectionContextBase imp
 
         if (myView == null && !headlessEnvironment) {
           throw new ProcessCanceledException();
+        }
+
+        // Android Studio tweak:
+        // Most "outputs" (such as build/intermediates/) are marked as generated
+        // source roots, which means IntelliJ won't scan those folders for
+        // warnings.
+        //
+        // However, AAR libraries are extracted into special build folders
+        // (currently build/intermediates/exploded-aar) which are *not* marked as
+        // generated; that's necessary such that those folders are scanned (for
+        // indexing purposes), handled as potential go-to-declaration targets
+        // (since resource files there can contain for example themes extended in
+        // the user's application). Therefore, by default, IntelliJ will analyze
+        // all the files in the exploded AAR folders. When you have large
+        // libraries like appcompat or play services, this not only takes a lot
+        // of extra time to analyze. You also end up with a lot of errors in
+        // files you can't edit. For example, with appcompat, you end up with
+        // over 700 spelling mistake warnings, and with play services, you end up
+        // with over a hundred unused namespace warnings, and over a hundred tag
+        // has no children warnings!
+        //
+        // Therefore, in the below  this CL tweaks the batch analysis runner which iterates
+        // over PSI files to skip files that are found to be within an AAR
+        // folder. This removes all the false positives and speeds up code
+        // analysis quite significantly!
+        if (isIgnoredFile(file)) {
+          return;
         }
 
         if (LOG.isDebugEnabled()) {
