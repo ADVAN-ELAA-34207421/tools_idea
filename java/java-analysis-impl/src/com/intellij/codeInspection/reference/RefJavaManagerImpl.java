@@ -46,6 +46,16 @@ public class RefJavaManagerImpl extends RefJavaManager {
   private PsiMethod myAppAgentmainPattern;
   private PsiClass myApplet;
   private PsiClass myServlet;
+  private PsiClass myAndroidActivity;
+  private PsiClass myAndroidService;
+  private PsiClass myAndroidBackupAgent;
+  private PsiClass myAndroidFragment;
+  private PsiClass myAndroidV4Fragment;
+  private PsiClass myAndroidContentProvider;
+  private PsiClass myAndroidReceiver;
+  private PsiClass myAndroidView;
+  private PsiClass myAndroidActionProvider;
+  private PsiClass myAndroidParcelable;
   private RefPackage myDefaultPackage;
   private THashMap<String, RefPackage> myPackages;
   private final RefManagerImpl myRefManager;
@@ -66,9 +76,23 @@ public class RefJavaManagerImpl extends RefJavaManager {
       LOG.error(e);
     }
 
-    myApplet = JavaPsiFacade.getInstance(psiManager.getProject()).findClass("java.applet.Applet", GlobalSearchScope.allScope(project));
-    myServlet = JavaPsiFacade.getInstance(psiManager.getProject()).findClass("javax.servlet.Servlet", GlobalSearchScope.allScope(project));
+    GlobalSearchScope scope = GlobalSearchScope.allScope(project);
+    JavaPsiFacade psiFacade = JavaPsiFacade.getInstance(psiManager.getProject());
+    myApplet = psiFacade.findClass("java.applet.Applet", scope);
+    myServlet = psiFacade.findClass("javax.servlet.Servlet", scope);
 
+    // Android Framework APIs that apps extend and where the subclasses must be public
+    // such that the framework can instantiate them
+    myAndroidActivity = psiFacade.findClass("android.app.Activity", scope);
+    myAndroidService = psiFacade.findClass("android.app.Service", scope);
+    myAndroidFragment = psiFacade.findClass("android.app.Fragment", scope);
+    myAndroidV4Fragment = psiFacade.findClass("android.support.v4.app.Fragment", scope);
+    myAndroidContentProvider = psiFacade.findClass("android.content.ContentProvider", scope);
+    myAndroidReceiver = psiFacade.findClass("android.content.BroadcastReceiver", scope);
+    myAndroidView = psiFacade.findClass("android.view.View", scope);
+    myAndroidActionProvider = psiFacade.findClass("android.view.ActionProvider", scope);
+    myAndroidParcelable = psiFacade.findClass("android.os.Parcelable", scope);
+    myAndroidBackupAgent = psiFacade.findClass("android.app.backup.BackupAgent", scope);
   }
 
   @Override
@@ -158,6 +182,51 @@ public class RefJavaManagerImpl extends RefJavaManager {
   }
 
   @Override
+  public PsiClass getAndroidActivity() {
+    return myAndroidActivity;
+  }
+
+  @Override
+  public PsiClass getAndroidService() {
+    return myAndroidService;
+  }
+
+  @Override
+  public PsiClass getAndroidBackupAgent() {
+    return myAndroidBackupAgent;
+  }
+
+  @Override
+  public PsiClass getAndroidFragment(boolean support) {
+    return support ? myAndroidV4Fragment : myAndroidFragment;
+  }
+
+  @Override
+  public PsiClass getAndroidContentProvider() {
+    return myAndroidContentProvider;
+  }
+
+  @Override
+  public PsiClass getAndroidReceiver() {
+    return myAndroidReceiver;
+  }
+
+  @Override
+  public PsiClass getAndroidView() {
+    return myAndroidView;
+  }
+
+  @Override
+  public PsiClass getAndroidActionProvider() {
+    return myAndroidActionProvider;
+  }
+
+  @Override
+  public PsiClass getAndroidParcelable() {
+    return myAndroidParcelable;
+  }
+
+  @Override
   public RefParameter getParameterReference(PsiParameter param, int index) {
     LOG.assertTrue(myRefManager.isValidPointForReference(), "References may become invalid after process is finished");
     RefElement ref = myRefManager.getFromRefTable(param);
@@ -203,6 +272,16 @@ public class RefJavaManagerImpl extends RefJavaManager {
     myAppPremainPattern = null;
     myAppAgentmainPattern = null;
     myServlet = null;
+    myAndroidActivity = null;
+    myAndroidService = null;
+    myAndroidBackupAgent = null;
+    myAndroidFragment = null;
+    myAndroidV4Fragment = null;
+    myAndroidContentProvider = null;
+    myAndroidReceiver = null;
+    myAndroidView = null;
+    myAndroidActionProvider = null;
+    myAndroidParcelable = null;
     myDefaultPackage = null;
     myProjectIterator = null;
   }
