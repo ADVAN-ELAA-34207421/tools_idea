@@ -78,13 +78,11 @@ target('default' : "Run all UI tests") {
 //setProperty("testcases", ["com.android.tools.idea.tests.gui.layout.LayoutPreviewTest","com.android.tools.idea.tests.gui.layout.LayoutEditorTest"])
 setProperty("testcases", ["com.android.tools.idea.tests.gui.GuiTestSuite"])
 
-def isMac = System.getProperty("os.name").toLowerCase().startsWith("mac")
 def args = [
         "-Xmx2048m",
         "-XX:MaxPermSize=1024m",
         "-XX:ReservedCodeCacheSize=96m",
         "-XX:+UseCodeCacheFlushing"
 ]
-if (isMac) args << "-d32";
 
 setProperty("jvm_args", args)
