@@ -56,6 +56,9 @@
   </target>
 
   <target name="guiTests" depends="init">
+    <delete>
+      <fileset dir="${project.home}/build" includes="TEST-com.android.tools.idea.tests.gui.*"/>
+    </delete>
     <call_gant script="${project.home}/build/scripts/gui_tests.gant"/>
   </target>
 
