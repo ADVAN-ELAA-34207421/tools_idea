@@ -1488,7 +1488,7 @@
     <projectStructureDetector implementation="org.jetbrains.plugins.groovy.griffon.GriffonProjectStructureDetector"
                               order="before groovyDetector"/>
     <programRunner implementation="org.jetbrains.plugins.groovy.griffon.GriffonDebuggerRunner"/>
-    <configurationType implementation="org.jetbrains.plugins.groovy.griffon.GriffonRunConfigurationType"/>
+    <!-- <configurationType implementation="org.jetbrains.plugins.groovy.griffon.GriffonRunConfigurationType"/> -->
     <toolWindow id="Griffon View" anchor="left" secondary="false" icon="JetgroovyIcons.Griffon.GriffonToolWindow"
                 factoryClass="org.jetbrains.plugins.groovy.griffon.GriffonToolWindowFactory"
                 conditionClass="org.jetbrains.plugins.groovy.griffon.GriffonToolWindowFactory"/>
