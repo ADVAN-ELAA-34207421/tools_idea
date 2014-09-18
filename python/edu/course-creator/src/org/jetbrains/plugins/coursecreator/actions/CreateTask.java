@@ -18,6 +18,7 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.psi.PsiDirectory;
 import com.intellij.psi.PsiElement;
 import com.intellij.util.PlatformIcons;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.coursecreator.CCProjectService;
 import org.jetbrains.plugins.coursecreator.format.Course;
 import org.jetbrains.plugins.coursecreator.format.Lesson;
@@ -29,7 +30,7 @@ public class CreateTask extends DumbAwareAction {
   }
 
   @Override
-  public void actionPerformed(AnActionEvent e) {
+  public void actionPerformed(final AnActionEvent e) {
     final IdeView view = e.getData(LangDataKeys.IDE_VIEW);
     final Project project = e.getData(CommonDataKeys.PROJECT);
 
@@ -42,7 +43,7 @@ public class CreateTask extends DumbAwareAction {
     final CCProjectService service = CCProjectService.getInstance(project);
     final Course course = service.getCourse();
     final Lesson lesson = course.getLesson(directory.getName());
-    final int size = lesson.getTasklist().size();
+    final int size = lesson.getTaskList().size();
 
     final String taskName = Messages.showInputDialog("Name:", "Task Name", null, "task" + (size + 1), null);
     if (taskName == null) return;
@@ -54,17 +55,16 @@ public class CreateTask extends DumbAwareAction {
         if (taskDirectory != null) {
           final FileTemplate template = FileTemplateManager.getInstance().getInternalTemplate("task.html");
           final FileTemplate testsTemplate = FileTemplateManager.getInstance().getInternalTemplate("tests");
-          final FileTemplate taskTemplate = FileTemplateManager.getInstance().getInternalTemplate("task.py");
+          final FileTemplate taskTemplate = FileTemplateManager.getInstance().getInternalTemplate("task.answer");
           try {
             final PsiElement taskFile = FileTemplateUtil.createFromTemplate(template, "task.html", null, taskDirectory);
             final PsiElement testsFile = FileTemplateUtil.createFromTemplate(testsTemplate, "tests.py", null, taskDirectory);
-            final PsiElement taskPyFile = FileTemplateUtil.createFromTemplate(taskTemplate, "file1" + ".py", null, taskDirectory);
+            final PsiElement taskPyFile = FileTemplateUtil.createFromTemplate(taskTemplate, "file1", null, taskDirectory);
 
             final Task task = new Task(taskName);
-            task.addTaskFile(taskPyFile.getContainingFile().getName(), size + 1);
+            task.addTaskFile("file1.py", size + 1);
             task.setIndex(size + 1);
             lesson.addTask(task, taskDirectory);
-
             ApplicationManager.getApplication().invokeLater(new Runnable() {
               @Override
               public void run() {
@@ -84,7 +84,7 @@ public class CreateTask extends DumbAwareAction {
   }
 
   @Override
-  public void update(AnActionEvent event) {
+  public void update(@NotNull AnActionEvent event) {
     final Presentation presentation = event.getPresentation();
     final Project project = event.getData(CommonDataKeys.PROJECT);
     if (project == null) {

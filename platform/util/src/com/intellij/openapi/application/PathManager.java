@@ -45,7 +45,6 @@ public class PathManager {
   @NonNls public static final String PROPERTY_HOME_PATH = "idea.home.path";
   @NonNls public static final String PROPERTY_LOG_PATH = "idea.log.path";
   @NonNls public static final String PROPERTY_PATHS_SELECTOR = "idea.paths.selector";
-  @NonNls public static final String PROPERTY_ORIGINAL_WORKING_DIR = "original.working.dir";
   @NonNls public static final String DEFAULT_OPTIONS_FILE_NAME = "other";
 
   @NonNls private static final String LIB_FOLDER = "lib";
@@ -253,11 +252,6 @@ public class PathManager {
 
   // misc stuff
 
-  @Nullable
-  public static String getOriginalWorkingDir() {
-    return System.getProperty(PROPERTY_ORIGINAL_WORKING_DIR);
-  }
-
   /**
    * Attempts to detect classpath entry which contains given resource.
    */
@@ -418,7 +412,7 @@ public class PathManager {
 
   private static String getAbsolutePath(String path) {
     path = FileUtil.expandUserHome(path);
-    return FileUtil.toCanonicalPath(new File(FileUtil.toCanonicalPath(path)).getAbsolutePath());
+    return FileUtil.toCanonicalPath(new File(path).getAbsolutePath());
   }
 
   private static String trimPathQuotes(String path){

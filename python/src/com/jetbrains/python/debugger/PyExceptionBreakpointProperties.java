@@ -39,6 +39,7 @@ public class PyExceptionBreakpointProperties extends ExceptionBreakpointProperti
 
   public PyExceptionBreakpointProperties(@NotNull final String exception) {
     myException = exception;
+    myNotifyOnTerminate = true;
   }
 
   @Override
@@ -76,6 +77,10 @@ public class PyExceptionBreakpointProperties extends ExceptionBreakpointProperti
 
   public void setNotifyOnlyOnFirst(boolean notifyOnlyOnFirst) {
     myNotifyOnlyOnFirst = notifyOnlyOnFirst;
+  }
+
+  public String getException() {
+    return "python-" + myException;
   }
 
   @Override

@@ -26,8 +26,10 @@ import org.jetbrains.annotations.Nullable;
 @State(
   name = "ProjectType",
   storages = {
-    @Storage(file = StoragePathMacros.PROJECT_FILE),
-    @Storage(file = StoragePathMacros.PROJECT_CONFIG_DIR + "/misc.xml", scheme = StorageScheme.DIRECTORY_BASED)
+    @Storage(
+      id = "other",
+      file = StoragePathMacros.PROJECT_FILE
+    )
   }
 )
 public class ProjectTypeService implements PersistentStateComponent<ProjectType> {
@@ -41,10 +43,14 @@ public class ProjectTypeService implements PersistentStateComponent<ProjectType>
       projectType = getInstance(project).myProjectType;
       if (projectType != null) return projectType;
     }
-    return DefaultProjectTypeProvider.getDefaultProjectType();
+    return DefaultProjectTypeEP.getDefaultProjectType();
   }
 
-  public static ProjectTypeService getInstance(@NotNull Project project) {
+  public static void setProjectType(@NotNull Project project, @Nullable ProjectType projectType) {
+    getInstance(project).loadState(projectType);
+  }
+
+  private static ProjectTypeService getInstance(@NotNull Project project) {
     return ServiceManager.getService(project, ProjectTypeService.class);
   }
 

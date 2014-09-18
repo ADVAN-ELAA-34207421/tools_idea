@@ -133,7 +133,7 @@ public class RemoteDebugger implements ProcessDebugger {
   }
 
   @Override
-  public void consoleExec(String threadId, String frameId, String expression, DebugCallback<String> callback) {
+  public void consoleExec(String threadId, String frameId, String expression, PyDebugCallback<String> callback) {
     final ConsoleExecCommand command = new ConsoleExecCommand(this, threadId, frameId, expression);
     command.execute(callback);
   }
@@ -152,6 +152,31 @@ public class RemoteDebugger implements ProcessDebugger {
     final GetVariableCommand command = new GetVariableCommand(this, threadId, frameId, var);
     command.execute();
     return command.getVariables();
+  }
+
+
+  @Override
+  public void loadReferrers(final String threadId,
+                            final String frameId,
+                            final PyReferringObjectsValue var,
+                            final PyDebugCallback<XValueChildrenList> callback) {
+    RunCustomOperationCommand cmd = new GetReferrersCommand(this, threadId, frameId, var);
+
+    cmd.execute(new PyDebugCallback<List<PyDebugValue>>() {
+      @Override
+      public void ok(List<PyDebugValue> value) {
+        XValueChildrenList list = new XValueChildrenList();
+        for (PyDebugValue v : value) {
+          list.add(v);
+        }
+        callback.ok(list);
+      }
+
+      @Override
+      public void error(PyDebuggerException exception) {
+        callback.error(exception);
+      }
+    });
   }
 
   @Override
@@ -191,7 +216,7 @@ public class RemoteDebugger implements ProcessDebugger {
   // todo: change variable in lists doesn't work - either fix in pydevd or format var name appropriately
   private void setTempVariable(final String threadId, final String frameId, final PyDebugValue var) {
     final PyDebugValue topVar = var.getTopParent();
-    if (myDebugProcess.isVariable(topVar.getName())) {
+    if (!myDebugProcess.canSaveToTemp(topVar.getName())) {
       return;
     }
     if (myTempVars.contains(threadId, frameId, topVar.getTempName())) {
@@ -343,7 +368,7 @@ public class RemoteDebugger implements ProcessDebugger {
       }
     }
     if (myDebuggerReader != null) {
-      myDebuggerReader.close();
+      myDebuggerReader.stop();
     }
     fireCloseEvent();
   }
@@ -428,7 +453,6 @@ public class RemoteDebugger implements ProcessDebugger {
   }
 
   private class DebuggerReader extends BaseOutputReader {
-    private boolean myClosing = false;
     private Reader myReader;
 
     private DebuggerReader(final Reader reader) throws IOException {
@@ -442,7 +466,7 @@ public class RemoteDebugger implements ProcessDebugger {
         while (true) {
           boolean read = readAvailable();
 
-          if (myClosing) {
+          if (isStopped) {
             break;
           }
 
@@ -453,7 +477,7 @@ public class RemoteDebugger implements ProcessDebugger {
         fireCommunicationError();
       }
       finally {
-        closeReader(myReader);
+        close();
         fireExitEvent();
       }
     }
@@ -475,10 +499,10 @@ public class RemoteDebugger implements ProcessDebugger {
         else if (AbstractCommand.isCallSignatureTrace(frame.getCommand())) {
           recordCallSignature(ProtocolParser.parseCallSignature(frame.getPayload()));
         }
-        else if (AbstractCommand.isErrorEvent(frame.getCommand())) {
-          LOG.error("Error response from debugger: " + frame.getPayload());
-        }
         else {
+          if (AbstractCommand.isErrorEvent(frame.getCommand())) {
+            LOG.error("Error response from debugger: " + frame.getPayload());
+          }
           placeResponse(frame.getSequence(), frame);
         }
       }
@@ -568,7 +592,13 @@ public class RemoteDebugger implements ProcessDebugger {
     }
 
     public void close() {
-      myClosing = true;
+      closeReader(myReader);
+    }
+
+    @Override
+    public void stop() {
+      super.stop();
+      close();
     }
 
     @Override
