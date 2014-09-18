@@ -139,7 +139,7 @@ def layoutAll(Map args, String home, String out, Paths _paths = null, buildJps =
   layoutUnix(args, home, paths)
 
   def winAppRoot = "android-studio"
-  def macAppRoot = "Android Studio.app"
+  def macAppRoot = "Android Studio.app/Contents"
   def linTarRoot = "android-studio"
 
   androidBuildNumber = p("buildNumber")

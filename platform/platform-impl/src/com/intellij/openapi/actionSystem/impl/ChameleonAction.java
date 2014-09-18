@@ -15,14 +15,13 @@
  */
 package com.intellij.openapi.actionSystem.impl;
 
-import com.intellij.openapi.actionSystem.ActionStub;
-import com.intellij.openapi.actionSystem.AnAction;
-import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectType;
 import com.intellij.openapi.project.ProjectTypeService;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.TestOnly;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,6 +35,7 @@ public class ChameleonAction extends AnAction {
 
   public ChameleonAction(@NotNull AnAction first, ProjectType projectType) {
     addAction(first, projectType);
+    copyFrom(myActions.values().iterator().next());
   }
 
   public AnAction addAction(AnAction action, ProjectType projectType) {
@@ -48,21 +48,35 @@ public class ChameleonAction extends AnAction {
   }
 
   @Override
-  public void actionPerformed(AnActionEvent e) {
-    getAction(e).actionPerformed(e);
+  public void actionPerformed(@NotNull AnActionEvent e) {
+    AnAction action = getAction(e);
+    assert action != null;
+    action.actionPerformed(e);
   }
 
   @Override
-  public void update(AnActionEvent e) {
-    super.update(e);
+  public void update(@NotNull AnActionEvent e) {
+    AnAction action = getAction(e);
+    if (action != null) {
+      e.getPresentation().setVisible(true);
+      action.update(e);
+    }
+    else {
+      e.getPresentation().setVisible(false);
+    }
   }
 
+  @Nullable
   private AnAction getAction(AnActionEvent e) {
     Project project = CommonDataKeys.PROJECT.getData(e.getDataContext());
     ProjectType projectType = ProjectTypeService.getProjectType(project);
     AnAction action = myActions.get(projectType);
     if (action == null) action = myActions.get(null);
-    if (action == null) action = myActions.values().iterator().next();
     return action;
+  }
+
+  @TestOnly
+  public Map<ProjectType, AnAction> getActions() {
+    return myActions;
   }
 }

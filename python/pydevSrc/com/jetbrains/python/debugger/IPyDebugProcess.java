@@ -1,6 +1,8 @@
 package com.jetbrains.python.debugger;
 
 import com.intellij.execution.ui.ConsoleViewContentType;
+import com.intellij.xdebugger.frame.XValueChildrenList;
+import com.jetbrains.python.debugger.pydev.PyDebugCallback;
 
 import java.io.IOException;
 
@@ -12,7 +14,7 @@ public interface IPyDebugProcess extends PyFrameAccessor {
 
   void threadSuspended(PyThreadInfo thread);
 
-  boolean isVariable(String name);
+  boolean canSaveToTemp(String name);
 
   void threadResumed(PyThreadInfo thread);
 
@@ -25,4 +27,6 @@ public interface IPyDebugProcess extends PyFrameAccessor {
   void recordSignature(PySignature signature);
 
   void showConsole(PyThreadInfo thread);
+
+  void loadReferrers(PyReferringObjectsValue var, PyDebugCallback<XValueChildrenList> callback);
 }

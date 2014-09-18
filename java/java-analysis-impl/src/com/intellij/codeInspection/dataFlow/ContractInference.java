@@ -31,6 +31,7 @@ import com.siyeh.ig.psiutils.SideEffectChecker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -59,12 +60,27 @@ public class ContractInference {
 
 class ContractInferenceInterpreter {
   private final PsiMethod myMethod;
+  private final ValueConstraint[] myEmptyConstraints;
 
   public ContractInferenceInterpreter(PsiMethod method) {
     myMethod = method;
+    myEmptyConstraints = MethodContract.createConstraintArray(myMethod.getParameterList().getParametersCount());
   }
 
   List<MethodContract> inferContracts() {
+    final boolean notNull = NullableNotNullManager.isNotNull(myMethod);
+    return ContainerUtil.filter(doInferContracts(), new Condition<MethodContract>() {
+      @Override
+      public boolean value(MethodContract contract) {
+        if (notNull && contract.returnValue == NOT_NULL_VALUE && Arrays.equals(contract.arguments, myEmptyConstraints)) {
+          return false;
+        }
+        return true;
+      }
+    });
+  }
+  
+  private List<MethodContract> doInferContracts() {
     PsiCodeBlock body = myMethod.getBody();
     PsiStatement[] statements = body == null ? PsiStatement.EMPTY_ARRAY : body.getStatements();
     if (statements.length == 0) return Collections.emptyList();
@@ -101,8 +117,7 @@ class ContractInferenceInterpreter {
       }
     }
 
-    ValueConstraint[] emptyState = MethodContract.createConstraintArray(myMethod.getParameterList().getParametersCount());
-    return visitStatements(Collections.singletonList(emptyState), statements);
+    return visitStatements(Collections.singletonList(myEmptyConstraints), statements);
   }
 
   @Nullable
@@ -130,12 +145,12 @@ class ContractInferenceInterpreter {
     return RecursionManager.doPreventingRecursion(myMethod, true, new Computable<List<MethodContract>>() {
       @Override
       public List<MethodContract> compute() {
-        List<MethodContract> delegateContracts = ControlFlowAnalyzer.getMethodContracts(targetMethod);
-        return ContainerUtil.mapNotNull(delegateContracts, new NullableFunction<MethodContract, MethodContract>() {
+        final boolean notNull = NullableNotNullManager.isNotNull(targetMethod);
+        List<MethodContract> fromDelegate = ContainerUtil.mapNotNull(ControlFlowAnalyzer.getMethodContracts(targetMethod), new NullableFunction<MethodContract, MethodContract>() {
           @Nullable
           @Override
           public MethodContract fun(MethodContract delegateContract) {
-            ValueConstraint[] answer = MethodContract.createConstraintArray(myMethod.getParameterList().getParametersCount());
+            ValueConstraint[] answer = myEmptyConstraints;
             for (int i = 0; i < delegateContract.arguments.length; i++) {
               if (i >= arguments.length) return null;
 
@@ -155,9 +170,17 @@ class ContractInferenceInterpreter {
                 }
               }
             }
-            return answer == null ? null : new MethodContract(answer, negated ? negateConstraint(delegateContract.returnValue) : delegateContract.returnValue);
+            ValueConstraint returnValue = negated ? negateConstraint(delegateContract.returnValue) : delegateContract.returnValue;
+            if (notNull && returnValue != THROW_EXCEPTION) {
+              returnValue = NOT_NULL_VALUE;
+            }
+            return answer == null ? null : new MethodContract(answer, returnValue);
           }
         });
+        if (notNull) {
+          return ContainerUtil.concat(fromDelegate, Arrays.asList(new MethodContract(myEmptyConstraints, NOT_NULL_VALUE)));
+        }
+        return fromDelegate;
       }
     });
   }
@@ -369,12 +392,6 @@ class ContractInferenceInterpreter {
       }
       else if (statement instanceof PsiDoWhileStatement) {
         result.addAll(visitStatements(states, ((PsiDoWhileStatement)statement).getBody()));
-      }
-      else if (statement instanceof PsiTryStatement) {
-        PsiCodeBlock block = ((PsiTryStatement)statement).getTryBlock();
-        if (block != null) {
-          result.addAll(visitStatements(states, block.getStatements()));
-        }
       }
 
       break; // visit only the first statement unless it's 'if' whose 'then' always returns and the next statement is effectively 'else'
