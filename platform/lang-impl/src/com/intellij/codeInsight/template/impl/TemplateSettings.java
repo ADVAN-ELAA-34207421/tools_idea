@@ -158,6 +158,10 @@ public class TemplateSettings implements PersistentStateComponent<Element>, Expo
       this.key = key;
     }
 
+    @Override
+    public String toString() {
+      return getKey()+"@" + getGroupName();
+    }
   }
 
   private TemplateKey myLastSelectedTemplate;
@@ -185,7 +189,7 @@ public class TemplateSettings implements PersistentStateComponent<Element>, Expo
       }
 
       @Override
-      public Document writeScheme(@NotNull final TemplateGroup template) throws WriteExternalException {
+      public Element writeScheme(@NotNull final TemplateGroup template) throws WriteExternalException {
         Element templateSetElement = new Element(TEMPLATE_SET);
         templateSetElement.setAttribute(GROUP, template.getName());
 
@@ -195,7 +199,7 @@ public class TemplateSettings implements PersistentStateComponent<Element>, Expo
           }
         }
 
-        return new Document(templateSetElement);
+        return templateSetElement;
       }
 
       @Override
@@ -749,5 +753,10 @@ public class TemplateSettings implements PersistentStateComponent<Element>, Expo
 
   public List<TemplateKey> getDeletedTemplates() {
     return myDeletedTemplates;
+  }
+
+  public void reset() {
+    myDeletedTemplates.clear();
+    loadDefaultLiveTemplates();
   }
 }

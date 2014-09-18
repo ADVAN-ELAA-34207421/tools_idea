@@ -15,6 +15,7 @@
  */
 package com.intellij.debugger.engine;
 
+import com.intellij.debugger.DebuggerBundle;
 import com.intellij.debugger.DebuggerInvocationUtil;
 import com.intellij.debugger.SourcePosition;
 import com.intellij.debugger.actions.JavaReferringObjectsValue;
@@ -102,6 +103,7 @@ public class JavaValue extends XNamedValue implements NodeDescriptorProvider, XV
   }
 
   @Override
+  @NotNull
   public ValueDescriptorImpl getDescriptor() {
     return myValueDescriptor;
   }
@@ -273,7 +275,7 @@ public class JavaValue extends XNamedValue implements NodeDescriptorProvider, XV
 
   @Override
   public void computeChildren(@NotNull final XCompositeNode node) {
-    if (myEvaluationContext.getSuspendContext().isResumed()) return;
+    if (checkContextNotResumed(node)) return;
     myEvaluationContext.getDebugProcess().getManagerThread().schedule(new SuspendContextCommandImpl(myEvaluationContext.getSuspendContext()) {
       @Override
       public Priority getPriority() {
@@ -333,6 +335,14 @@ public class JavaValue extends XNamedValue implements NodeDescriptorProvider, XV
         }
       }
     });
+  }
+
+  protected boolean checkContextNotResumed(XCompositeNode node) {
+    if (myEvaluationContext.getSuspendContext().isResumed()) {
+      node.setErrorMessage(DebuggerBundle.message("error.context.has.changed"));
+      return true;
+    }
+    return false;
   }
 
   @Override
@@ -419,6 +429,7 @@ public class JavaValue extends XNamedValue implements NodeDescriptorProvider, XV
   public String getEvaluationExpression() {
     if (evaluationExpression == null) {
       // TODO: change API to allow to calculate it asynchronously
+      if (myEvaluationContext.getSuspendContext().isResumed()) return null;
       DebugProcessImpl debugProcess = myEvaluationContext.getDebugProcess();
       debugProcess.getManagerThread().invokeAndWait(new DebuggerCommandImpl() {
         @Override
