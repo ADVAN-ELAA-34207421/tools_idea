@@ -158,7 +158,7 @@ public class ProjectViewImpl extends ProjectView implements PersistentStateCompo
   static final DataKey<ProjectViewImpl> DATA_KEY = DataKey.create("com.intellij.ide.projectView.impl.ProjectViewImpl");
 
   private DefaultActionGroup myActionGroup;
-  private String mySavedPaneId = ProjectViewPane.ID;
+  private String mySavedPaneId = "AndroidView"; // was ProjectViewPane.ID, but in Android Studio, we want the Android View to be the default
   private String mySavedPaneSubId;
   //private static final Icon COMPACT_EMPTY_MIDDLE_PACKAGES_ICON = IconLoader.getIcon("/objectBrowser/compactEmptyPackages.png");
   //private static final Icon HIDE_EMPTY_MIDDLE_PACKAGES_ICON = IconLoader.getIcon("/objectBrowser/hideEmptyPackages.png");
