@@ -580,12 +580,12 @@ def layoutGoogle() {
         module("google-cloud-tools")
       }
       dir("templates") {
-        fileset(dir: "${home}/../studio/cloud/resources/templates")
+        fileset(dir: "${home}/../studio/google/cloud/tools/resources/templates")
       }
       dir("clientTemplates") {
-        fileset(dir: "${home}/../studio/cloud/resources/clientTemplates")
+        fileset(dir: "${home}/../studio/google/cloud/tools/resources/clientTemplates")
       }
-      fileset(dir: "${home}/../studio/cloud/lib") {
+      fileset(dir: "${home}/../studio/google/cloud/tools/lib") {
         include(name: "**/*.jar")
       }
     }
@@ -593,7 +593,7 @@ def layoutGoogle() {
       jar("google-login.jar") {
         module("google-login")
       }
-      fileset(dir: "${home}/../studio/cloud/login/lib") {
+      fileset(dir: "${home}/../studio/google/cloud/tools/login/lib") {
         include(name: "**/*.jar")
       }
       // Additional libraries that need to be manually copied, see how freemarker
